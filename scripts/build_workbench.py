@@ -45,8 +45,10 @@ def build(output: Path | None = None, source: Path | None = None,
     output = output or ROOT / "reports" / "chat_main.html"
     source = source or ROOT / "reports" / "fullfit" / "fullfit.json"
     html = (assets / "index.html").read_text(encoding="utf-8")
-    css = (assets / "workbench.css").read_text(encoding="utf-8")
-    js = (assets / "app.js").read_text(encoding="utf-8")
+    css = ((assets / "workbench.css").read_text(encoding="utf-8")
+           + "\n" + (assets / "superagent.css").read_text(encoding="utf-8"))
+    js = ((assets / "conversation_helpers.js").read_text(encoding="utf-8")
+          + "\n" + (assets / "app.js").read_text(encoding="utf-8"))
     data = json.dumps(snapshot_data(source, snapshot), ensure_ascii=False,
                       separators=(",", ":"), allow_nan=False).replace("<", "\\u003c")
     for marker, replacement in (

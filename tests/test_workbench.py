@@ -33,7 +33,9 @@ def test_single_file_contains_data_styles_and_script(tmp_path):
     raw = re.search(r'<script id="workbench-data" type="application/json">(.*?)</script>', html, re.S)[1]
     data = json.loads(raw)
     assert len(data["records"]) == 6244
-    assert "无模型调用" in html and "离线演示" in html
+    assert "无在线模型调用" in html and "离线交互演示" in html
+    assert "今天，想和我研究什么？" in html
+    assert 'id="recent-conversations"' in html
     assert 'name="minCoverage"' not in html  # Form renders from app.js, not an extra stale form.
 
 

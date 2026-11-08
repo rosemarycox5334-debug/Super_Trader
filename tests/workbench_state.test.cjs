@@ -67,7 +67,8 @@ function loadWorkbench({ saved, rawSaved, snapshot = tinySnapshot() } = {}) {
     },
     // Deliberately no document, window, timers, fetch, or DOM substitute.
   });
-  vm.runInContext(source, context, { filename: APP_PATH, timeout: 1000 });
+  const conversationHelpers = fs.readFileSync(path.resolve(__dirname, '../web/workbench/conversation_helpers.js'), 'utf8');
+  vm.runInContext(conversationHelpers + '\n' + source, context, { filename: APP_PATH, timeout: 1000 });
   return { api: context.__helpers, context, storage };
 }
 

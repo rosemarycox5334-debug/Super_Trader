@@ -1,10 +1,12 @@
-# Super Trader 离线投研工作台
+# Super Agent 对话主页
 
-入口：[投研工作台](../../reports/chat_main.html)。双击即可使用，不需要启动服务器或安装前端依赖。
+入口：[Super Agent 主页](../../reports/chat_main.html)。打开即与 Super Agent 直接对话，不再先展示仪表盘或常驻配置栏。研究工具折叠为辅助入口；不需要启动服务器或安装前端依赖。
 
 ## 已实现的交互
 
-- 研究对话：输入六位代码读取历史快照，筛选看涨信号，查询团队配置，启动本地模拟任务；未知问题明确说明离线限制。
+- 主对话：Super Agent 是唯一对话对象，策略专家仅为协作团队；输入代码查询历史快照，筛选信号或发起本地模拟研究。
+- 会话历史：新建、切换、导出和删除旧会话；每份对话独立保存消息与未发送草稿，刷新恢复；保留并迁移旧版单一聊天记录。最多保留 30 份，不静默删除旧对话。
+- 对话内交付：量化证据卡片、模拟任务进度与结果卡片直接出现在当前对话。任务绑定发起会话；旧任务引用缺失时显示占位，不错配新任务。
 - 分析团队：新增、编辑、复制、删除、启停专家；设置主视角与投票权重。
 - 专家配置：名称、简介、岗位、方法来源、决策依据、已知缺陷、专属参数、模型、温度、输出长度、超时及只读工具权限。
 - 团队编排：并行 / 顺序 / 讨论、等权 / 加权 / 全体一致、共识门槛、弃权、反方否决与证据要求。
@@ -29,9 +31,9 @@
 ```powershell
 python scripts/build_workbench.py
 python -m pytest tests/test_workbench.py -q
-node --test tests/workbench_state.test.cjs
+node --test tests/workbench_state.test.cjs tests/conversation_state.test.cjs
 ```
 
-[HTML 模板](index.html)、[样式](workbench.css)、[交互脚本](app.js) 经 [构建脚本](../../scripts/build_workbench.py) 合成一个自包含 HTML；不依赖 CDN、字体服务、HTTP 请求或单独静态文件。
+[HTML 模板](index.html)、[工作区样式](workbench.css)、[对话主页样式](superagent.css)、[会话状态工具](conversation_helpers.js)、[交互脚本](app.js) 经 [构建脚本](../../scripts/build_workbench.py) 合成一个自包含 HTML；不依赖 CDN、字体服务、HTTP 请求或单独静态文件。
 
 原始页面另备份在 [修改前版本](../../reports/chat_main.original-20261107.html)，不改动原有其他设计稿和参考资料。

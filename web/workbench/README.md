@@ -10,6 +10,7 @@
 - 分析团队：新增、编辑、复制、删除、启停专家；设置主视角与投票权重。
 - 专家配置：名称、简介、岗位、方法来源、决策依据、已知缺陷、专属参数、模型、温度、输出长度、超时及只读工具权限。
 - 团队编排：并行 / 顺序 / 讨论、等权 / 加权 / 全体一致、共识门槛、弃权、反方否决与证据要求。
+- 专家会审标的浏览：左侧搜索、类型 / 状态筛选与每页 15 项的分页列表；右侧显示选中标的详情。可切换全市场快照、当前任务与研究清单，按类别与代码共同识别标的。无会审记录的标的明确待分析，不生成虚构意见。
 - 任务配置：研究池、历史命中率、**覆盖率硬下限 10%**、H1–H20 范围及基本面 / 技术演示参数。
 - 模拟任务：可见进度、取消、保存不可变配置与输入快照、查看记录、按原配置重跑；修改配置会标记旧结果过期。
 - 研究清单与量化表：内嵌 6,244 个标的快照，类型 / 方向 / 文本筛选、排序、分页、详情、添加关注及 JSON 导出。
@@ -31,7 +32,7 @@
 ```powershell
 python scripts/build_workbench.py
 python -m pytest tests/test_workbench.py -q
-node --test tests/workbench_state.test.cjs tests/conversation_state.test.cjs
+node --test tests/workbench_state.test.cjs tests/conversation_state.test.cjs tests/review_browser.test.cjs
 ```
 
 [HTML 模板](index.html)、[工作区样式](workbench.css)、[对话主页样式](superagent.css)、[会话状态工具](conversation_helpers.js)、[交互脚本](app.js) 经 [构建脚本](../../scripts/build_workbench.py) 合成一个自包含 HTML；不依赖 CDN、字体服务、HTTP 请求或单独静态文件。

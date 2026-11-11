@@ -46,7 +46,8 @@ def build(output: Path | None = None, source: Path | None = None,
     source = source or ROOT / "reports" / "fullfit" / "fullfit.json"
     html = (assets / "index.html").read_text(encoding="utf-8")
     css = ((assets / "workbench.css").read_text(encoding="utf-8")
-           + "\n" + (assets / "superagent.css").read_text(encoding="utf-8"))
+           + "\n" + (assets / "superagent.css").read_text(encoding="utf-8")
+           + "\n" + (assets / "review.css").read_text(encoding="utf-8"))
     js = ((assets / "conversation_helpers.js").read_text(encoding="utf-8")
           + "\n" + (assets / "app.js").read_text(encoding="utf-8"))
     data = json.dumps(snapshot_data(source, snapshot), ensure_ascii=False,

@@ -1,0 +1,47 @@
+/* Scalable master/detail asset browser for expert review. */
+.review-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:19px}
+.review-toolbar .segmented{max-width:100%;overflow-x:auto}
+.review-toolbar .segmented button{display:flex;align-items:center;gap:7px}
+.review-scope-count{font:10px var(--mono);color:#a3afa5}
+.review-layout{display:grid;grid-template-columns:286px minmax(0,1fr);gap:21px;align-items:start}
+.review-browser{position:sticky;top:0;overflow:hidden}
+.review-browser-head{padding:16px 15px 13px;border-bottom:1px solid var(--line)}
+.review-browser-head>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:12px;color:#67806c;margin-bottom:12px}
+.review-browser-head>div:first-child strong{font-weight:550}
+.review-browser-head>div:first-child>span{font:10px var(--mono);color:#94a595}
+.review-browser-head .search-input{width:100%;min-width:0;padding:7px 9px}
+.review-browser-head .search-input input{width:100%;min-width:0;font-size:12px}
+.review-filters{display:grid;grid-template-columns:1fr 1.3fr;gap:7px;margin-top:9px}
+.review-filters select{width:100%;max-width:none;min-width:0;font-size:10px;padding:6px 4px}
+.review-stock-list{max-height:540px;overflow-y:auto;overscroll-behavior:contain;min-height:190px;scrollbar-gutter:stable}
+.review-stock-row{display:flex;align-items:center;justify-content:space-between;gap:9px;width:100%;padding:12px 15px;border-bottom:1px solid #f0f3f0;border-left:3px solid transparent;text-align:left;background:#fff}
+.review-stock-row:hover{background:#f6f9f5}
+.review-stock-row.selected{background:#eef5ed;border-left-color:#659574}
+.review-stock-name{flex:1;min-width:0}
+.review-stock-name strong{display:block;font-size:12px;font-weight:550;color:#58705d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.review-stock-name small{display:block;font:10px var(--mono);color:#91a195;margin-top:3px}
+.review-stock-name small span{font:9px var(--sans);color:#adb9ac}
+.review-stock-meta{flex-shrink:0;text-align:right}
+.review-stock-meta b{display:block;font:11px var(--mono);font-weight:400;color:#7b947c}
+.review-stock-meta small{display:block;font-size:9px;color:#a9b2a6;margin-top:3px}
+.review-stock-meta small.record{color:#548666}
+.review-pagination{display:flex;align-items:center;justify-content:space-between;padding:9px 15px;border-top:1px solid var(--line);font-size:11px;color:#8a9e8b;background:#fcfdfb}
+.review-pagination>button:first-child svg{transform:rotate(180deg)}
+.review-list-note{font-size:9px;color:#a3b09d;text-align:center;padding:0 9px 11px;background:#fcfdfb;line-height:1.8}
+.review-detail{min-width:0;display:flex;flex-direction:column;gap:17px}
+.review-selection-header{display:flex;align-items:center;justify-content:space-between;gap:13px;padding:18px 20px;flex-wrap:wrap}
+.review-selection-header h2{font-size:18px;font-weight:550;color:#4d6954;margin-top:5px;line-height:1.7}
+.review-selection-header h2 small{font-size:10px;color:#9aa995;margin-left:7px;white-space:nowrap}
+.review-selection-header p{font-size:11px;color:#92a08b;margin-top:3px}
+.review-selection-header .button-group{flex-shrink:0}
+.review-detail .analysis-grid{grid-template-columns:minmax(0,1.5fr) minmax(215px,1fr);gap:17px}
+.review-pending-heading{padding:20px 4px 26px;text-align:center;color:#9aad96;max-width:570px;margin:auto}
+.review-pending-heading>svg{width:32px;height:32px;margin-bottom:13px;color:#93ab8e}
+.review-pending-heading h3{font-size:16px;font-weight:500;color:#738d6d}
+.review-pending-heading p{font-size:12px;line-height:1.9;color:#9aaa93;margin:11px 0 19px}
+.review-pending-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px 0;border-top:1px solid var(--line);margin-bottom:9px}
+.review-pending-metrics small{display:block;font-size:10px;color:#99ac91}
+.review-pending-metrics b{display:block;font:19px var(--mono);color:#77956e;margin-top:5px;font-weight:400}
+@media(max-width:1450px){.review-layout{grid-template-columns:263px minmax(0,1fr);gap:17px}.review-detail .analysis-grid{grid-template-columns:1fr}.review-detail .card-stack{display:grid;grid-template-columns:1fr 1fr;align-items:start}.review-pending-metrics{grid-template-columns:1fr 1fr;gap:16px}}
+@media(max-width:1050px){.review-layout{grid-template-columns:240px minmax(0,1fr);gap:14px}.review-detail .card-stack{display:flex}.review-selection-header{padding:16px}.review-selection-header h2{font-size:16px}.review-selection-header h2 small{display:block;margin-left:0}.review-stock-list{max-height:490px}}
+@media(max-width:760px){.review-toolbar{gap:10px}.review-toolbar .segmented{width:100%}.review-toolbar .segmented button{flex:1;justify-content:center;font-size:10px;padding:6px 7px;gap:5px}.review-scope-count{font-size:9px}.review-toolbar>.compact-note{font-size:9px}.review-layout{grid-template-columns:1fr;gap:15px}.review-browser{position:static}.review-browser-head{padding:13px}.review-browser-head>div:first-child{font-size:12px;margin-bottom:10px}.review-filters{grid-template-columns:1fr 1fr}.review-stock-list{max-height:255px;min-height:120px}.review-stock-row{padding:10px 13px}.review-stock-name strong{font-size:12px}.review-stock-name small{font-size:10px}.review-selection-header{padding:15px;gap:12px}.review-selection-header h2 small{display:inline;margin-left:4px;font-size:9px}.review-selection-header p{font-size:10px}.review-detail .analysis-grid{grid-template-columns:1fr}.review-detail .card-stack{display:flex}.review-pending-heading{padding:14px 0 20px}.review-pending-heading h3{font-size:14px}.review-pending-heading p{font-size:11px}.review-pending-metrics{grid-template-columns:1fr 1fr}.review-list-note{font-size:9px}.review-pagination{padding:7px 13px}}

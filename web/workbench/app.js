@@ -1,318 +1,1141 @@
-/* Super Trader local workbench. No remote calls, keys, or execution endpoints. */
+/* Super Agent 工作台：插件化外壳 + 量化概率 + 专家团队。
+ * 纯离线：不联网、不调用模型、不下单。所有数据来自内嵌历史快照。 */
 'use strict';
 (() => {
-  const D = JSON.parse(document.getElementById('workbench-data').textContent);
-  const STORAGE_KEY = 'super-trader.workbench.v3';
-  const byCode = (code, cat = '个股') => D.records.find(r => r.code === code && r.category === cat);
+  const RAW = (typeof document !== 'undefined')
+    ? JSON.parse(document.getElementById('workbench-data').textContent)
+    : (globalThis.__SNAPSHOT || {symbols: [], snapshot: '2026-11-05'});
+  // 构建脚本用紧凑数组 [code, category, name, rows] 存储，运行时统一成对象。
+  const DATA = {
+    snapshot: RAW.snapshot,
+    generated_at: RAW.generated_at,
+    symbols: (RAW.symbols || []).map(s => Array.isArray(s) ? {c: s[0], k: s[1], n: s[2], r: s[3]} : s)
+  };
+  const STORAGE_KEY = 'super-trader.workbench.v4';
+  const HAS_DOM = typeof document !== 'undefined';
   const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const pct = (n, decimals=1) => Number.isFinite(n) ? (n*100).toFixed(decimals)+'%' : '—';
+  const pct = (n, d = 1) => Number.isFinite(n) ? (n * 100).toFixed(d) + '%' : '—';
   const num = n => Number(n || 0).toLocaleString('en-US');
   const clone = x => JSON.parse(JSON.stringify(x));
-  const now = () => new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',hour12:false});
-  const stamp = () => new Date().toLocaleString('zh-CN', {hour12:false});
+  const stamp = () => new Date().toLocaleString('zh-CN', {hour12: false});
+  const now = () => new Date().toLocaleTimeString('zh-CN', {hour2: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false});
   const ICONS = {
-    message:'M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z',
-    chart:'M3 3v18h18M6 14l4-4 4 3 6-8', bookmark:'M6 3h12v18l-6-4-6 4z', history:'M3 11a9 9 0 1 1 2.7 6.4M3 4v7h7M12 7v5l3 2',
-    layers:'M12 3l10 5-10 5L2 8zM2 12l10 5 10-5M2 16l10 5 10-5', sliders:'M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 10h6m2 2h6m2 4h6',
-    sparkles:'M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5zM20 2v4m-2-2h4',
-    users:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
-    database:'M20 5c0 2-4 3-8 3S4 7 4 5s4-3 8-3 8 1 8 3M4 5v14c0 2 4 3 8 3s8-1 8-3V5M4 12c0 2 4 3 8 3s8-1 8-3',
-    shield:'M12 22s9-4 9-11V5l-9-3-9 3v6c0 7 9 11 9 11M8 12l3 3 5-6', settings:'M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8M3 10l2-1 1-2-1-2 2-2 2 1 2-1 1-2h2l1 2 2 1 2-1 2 2-1 2 1 2 2 1v2l-2 1-1 2 1 2-2 2-2-1-2 1-1 2h-2l-1-2-2-1-2 1-2-2 1-2-1-2-2-1z',
-    search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0', help:'M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4M12 17h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
-    'chevron-right':'M9 5l7 7-7 7', chevrons:'M8 9l4-4 4 4M8 15l4 4 4-4', 'chevron-down':'M6 9l6 6 6-6', plus:'M12 5v14M5 12h14', close:'M6 6l12 12M18 6L6 18', check:'M5 12l4 4L19 6', play:'M7 4l14 8-14 8z', arrow:'M12 19V5M5 12l7-7 7 7', download:'M12 3v12M7 10l5 5 5-5M4 16v5h16v-5', upload:'M12 16V4M7 9l5-5 5 5M4 17v4h16v-4',
-    file:'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h5', copy:'M9 9h12v12H9zM5 15H3V3h12v2', refresh:'M20 7a8 8 0 0 0-14-2L3 8m0-5v5h5M4 17a8 8 0 0 0 14 2l3-3m0 5v-5h-5', menu:'M4 6h16M4 12h16M4 18h16', info:'M12 11v6M12 7h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0', clock:'M12 6v6l4 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0', trash:'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7', sort:'M8 3v18m-4-4 4 4 4-4M16 21V3m-4 4 4-4 4 4', link:'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-3 3M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l3-3', external:'M14 3h7v7M10 14L21 3M10 3H3v18h18v-7'
+    sparkles: 'M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5zM20 2v4m-2-2h4',
+    chart: 'M3 3v18h18M6 14l4-4 4 3 6-8', users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
+    sliders: 'M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 10h6m2 2h6m2 4h6', search: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+    close: 'M6 6l12 12M18 6L6 18', check: 'M5 12l4 4L19 6', plus: 'M12 5v14M5 12h14', arrow: 'M12 19V5M5 12l7-7 7 7',
+    menu: 'M4 6h16M4 12h16M4 18h16', help: 'M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4M12 17h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
+    shield: 'M12 22s9-4 9-11V5l-9-3-9 3v6c0 7 9 11 9 11M8 12l3 3 5-6', message: 'M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z',
+    'chevron-right': 'M9 5l7 7-7 7', 'chevron-down': 'M6 9l6 6 6-6', history: 'M3 11a9 9 0 1 1 2.7 6.4M3 4v7h7M12 7v5l3 2',
+    file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h5',
+    trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7', download: 'M12 3v12M7 10l5 5 5-5M4 16v5h16v-5', upload: 'M12 16V4M7 9l5-5 5 5M4 17v4h16v-4',
+    settings: 'M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8M3 10l2-1 1-2-1-2 2-2 2 1 2-1 1-2h2l1 2 2 1 2-1 2 2-1 2 1 2 2 1v2l-2 1-1 2 1 2-2 2-2-1-2 1-1 2h-2l-1-2-2-1-2 1-2-2 1-2-1-2-2-1z',
+    clock: 'M12 6v6l4 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0', layers: 'M12 3l10 5-10 5L2 8zM2 12l10 5 10-5M2 16l10 5 10-5', external: 'M14 3h7v7M10 14L21 3M10 3H3v18h18v-7'
   };
   const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name] || ICONS.file}"></path></svg>`;
-  const hydrate = (root = document) => root.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML=icon(el.dataset.icon); });
-  const MODELS = ['DeepSeek V3.2', 'DeepSeek R1', 'GPT 研究模型', '本地量化规则'];
+
+  const MODELS = ['未连接（本地规则）', 'DeepSeek V3.2（未连接）', 'DeepSeek R1（未连接）'];
   const EXPERT_SEEDS = [
-    ['buffett','巴菲特','长期价值','巴','以合理价格选择好公司。先看商业质量，再谈安全边际；证据不足时宁可等待。','护城河与定价权\n稳定自由现金流\n估值相对内在价值的安全边际','可能错过高估值成长与短期主题。','公开股东信与价值投资框架','价值研究', '#eaf1e9','#789370'],
-    ['cigar','烟蒂股','低估值 · 高股息','烟','寻找被忽视的低估值资产，用真实分红和资产价值构建反转假设。','低 PB 与合理杠杆\n持续现金分红\n排除基本面恶化的价值陷阱','便宜不等于有催化，牛市中可能落后。','格雷厄姆价值框架','股息研究','#f4eddf','#ab9369'],
-    ['neutral','中性量化','数据 · 方向频率','量','只根据已提供的日线规则、历史命中率与覆盖率给出方向，不替代基本面判断。','至少 10% 历史覆盖\n1–20 根最佳持有期\n中性时不强行发出预测','全历史拟合是内样本结果，不保证未来表现。','Super Trader 全历史拟合报告','量化研究','#e9eff5','#7591aa'],
-    ['pa','价格行为','趋势 · 结构','价','观察趋势、区间与突破结构，优先提出可被价格证伪的交易假设。','趋势或区间结构\n突破与回踩确认\n结构止损和风险回报','K 线形态本身不代表经过验证的交易优势。','Al Brooks 价格行为框架','技术研究','#eeeaf5','#9482ad'],
-    ['growth','成长派','景气 · 业绩加速','成','寻找行业景气和盈利能力同步改善的公司，关注估值与成长的匹配。','行业需求与竞争格局\n业绩增长的质量\n估值相对增长的合理性','业绩拐点需要公告证据，未连接财务数据。','成长投资研究框架','成长研究','#e9f1f0','#719b98'],
-    ['board','低位首板','位置 · 题材强度','板','研究低位启动的题材机会，以板块共振、量能和风险边界约束关注范围。','低位启动与板块共振\n放量后的承接\n情绪退潮时主动弃权','需要分时与涨停数据，当前仅为演示。','低位首板研究框架','情绪研究','#f5e9e5','#b58a79'],
-    ['hotmoney','游资复盘','主线 · 情绪周期','游','从题材持续性与市场情绪形成盘前假设，再用盘后证据复核。','主线持续性\n市场情绪与高度\n资金动向交叉验证','龙虎榜与舆情尚未连接，不能推断真实资金。','游资复盘方法论','题材研究','#f4ebef','#ab8197']
+    ['buffett','巴菲特','长期价值','巴','买「以合理价格买优秀公司」。先判断生意质量，再谈安全边际；证据不足就等待。','① 有没有持久护城河与定价权\n② 自由现金流是否稳定\n③ 价格是否留有安全边际','低换手，容易错过题材与高成长。','公开致股东信与价值投资框架','价值研究','#eaf1e9','#789370'],
+    ['duan','段永平','本分 · 看懂生意','段','只看自己真正能看懂的生意：商业模式简单、能长期赚钱、管理层本分。看不懂就不做，价格要留余量。','① 这门生意我十年后能看懂吗\n② 现金流与用户价值是否真实\n③ 管理层是否本分、不占小股东便宜','能力圈很窄，多数股票会被直接放弃。','公开访谈与雪球问答框架','生意研究','#eef2e6','#7c8f5f'],
+    ['cigar','烟蒂股','低估值 · 高股息','烟','寻找被忽视的低估值资产，用真实分红和资产价值构建反转假设。','① 低 PB / 高股息\n② 分红是否可持续\n③ 是否只是价值陷阱','便宜不等于有催化，牛市中可能落后。','格雷厄姆价值框架','股息研究','#f4eddf','#ab9369'],
+    ['neutral','中性量化','数据 · 方向频率','量','只根据日线规则的历史命中率与覆盖率给出方向，不替代基本面判断。','① 至少 10% 历史覆盖\n② 1–20 根择优选周期\n③ 中性时不强行发预测','全历史拟合是内样本结果，不保证未来表现。','全历史拟合快照','量化研究','#e9eff5','#7591aa'],
+    ['pa','价格行为','趋势 · 结构','价','观察趋势、区间与突破结构，提出可被价格证伪的交易假设。','① 趋势或区间结构\n② 突破与回踩确认\n③ 结构止损与风险回报','K 线形态不是经过验证的交易优势。','Al Brooks 价格行为框架','技术研究','#eeeaf5','#9482ad'],
+    ['growth','成长派','景气 · 业绩加速','成','寻找行业景气和盈利能力同步改善的公司，关注估值与成长的匹配。','① 行业景气向上\n② 业绩增长质量\n③ 估值与成长匹配','拐点判断依赖财报，当前未接入。','成长投资研究框架','成长研究','#e9f1f0','#719b98']
   ];
-  const defaultExperts = () => EXPERT_SEEDS.map(([id,name,tag,initial,desc,basis,flaw,source,role,bg,color],i) => ({id,strategyKind:id,name,tag,initial,desc,basis,flaw,source,role,bg,color,enabled:true,weight: i===2?1.5:1,model:i===2?'本地量化规则':'DeepSeek V3.2',temperature:i===2?0:0.3,tokens:4096,timeout:90,tools:i===2?['kline','quant']:['kline','quant','filings'],params:{minDividend:3,maxPE:25,maxPB:3,minROE:8,breakout:20,rr:2,minAccuracy:60,strictness:'balanced'}}));
-  const defaultState = () => ({schemaVersion:3,revision:1,lead:'buffett',experts:defaultExperts(),team:{mode:'parallel',consensus:'weighted',threshold:60,rounds:2,timeout:90,evidence:true,abstain:true,veto:false},research:{pool:'mainstream',minAccuracy:60,minCoverage:10,hMin:1,hMax:20,minDividend:3,maxPE:25,breakout:20,rr:2},watchlist:['个股|601088','个股|600900'],messages:[],tasks:[],activity:[],lastResult:null});
   const FIXTURES = [
-    {code:'601088',name:'中国神华',industry:'能源 / 煤炭',pe:9.1,pb:1.3,dividend:7.2,roe:14.8,trend:'上行结构',strength:72,rrPotential:2.8,notes:'现金流与股息框架匹配，但煤价周期需要进一步核实。',votes:{buffett:1,cigar:1,neutral:0,pa:1,growth:0,board:-1,hotmoney:0}},
-    {code:'600900',name:'长江电力',industry:'公用事业 / 水电',pe:18.2,pb:2.8,dividend:3.6,roe:12.1,trend:'缓升结构',strength:65,rrPotential:2.2,notes:'经营稳定性较高，估值是否合适仍需要真实财务与公告。',votes:{buffett:1,cigar:0,neutral:0,pa:1,growth:-1,board:-1,hotmoney:0}},
-    {code:'000858',name:'五粮液',industry:'消费 / 白酒',pe:21.6,pb:4.6,dividend:2.1,roe:20.4,trend:'区间震荡',strength:52,rrPotential:1.5,notes:'品牌力不是买入理由，需要等待估值和业绩证据。',votes:{buffett:0,cigar:-1,neutral:0,pa:0,growth:0,board:-1,hotmoney:-1}},
-    {code:'300750',name:'宁德时代',industry:'电新 / 电池',pe:31,pb:5.1,dividend:1.2,roe:16.2,trend:'结构待确认',strength:44,rrPotential:1.2,notes:'产业地位与估值需要分别研究，不以题材代替证据。',votes:{buffett:-1,cigar:-1,neutral:0,pa:0,growth:1,board:0,hotmoney:1}}
+    {code:'601088',name:'中国神华',industry:'能源 / 煤炭',pe:9.1,pb:1.3,dividend:7.2,roe:14.8,notes:'现金流与股息框架匹配，但煤价周期需要核实。',votes:{buffett:1,duan:1,cigar:1,neutral:0,pa:1,growth:0}},
+    {code:'600900',name:'长江电力',industry:'公用事业 / 水电',pe:18.2,pb:2.8,dividend:3.6,roe:12.1,notes:'经营稳定，估值是否合适仍需要真实财务与公告。',votes:{buffett:1,duan:1,cigar:0,neutral:0,pa:1,growth:-1}},
+    {code:'000858',name:'五粮液',industry:'消费 / 白酒',pe:21.6,pb:4.6,dividend:2.1,roe:20.4,notes:'品牌力不是买入理由，需要等待估值与业绩证据。',votes:{buffett:0,duan:1,cigar:-1,neutral:0,pa:0,growth:0}},
+    {code:'300750',name:'宁德时代',industry:'电新 / 电池',pe:31,pb:5.1,dividend:1.2,roe:16.2,notes:'产业地位与估值要分开研究，不以题材代替证据。',votes:{buffett:-1,duan:0,cigar:-1,neutral:0,pa:0,growth:1}}
   ];
-  const VIEWS = {chat:['Super Agent','YOUR RESEARCH PARTNER','和你的投研总助，直接对话。'],team:['分析团队','ANALYSTS & ORCHESTRATION','不同的思考框架，同一套证据标准。'],quant:['量化信号','QUANTITATIVE RESEARCH','本地历史快照 · 1–20 根择优 · 覆盖率不低于 10%。'],ai:['专家会审','RESEARCH COMMITTEE','把分歧展开，把判断依据留下。'],fund:['基本面研究','FUNDAMENTALS','估值、盈利与现金分红，构建第一层研究假设。'],tech:['技术分析','PRICE & STRUCTURE','用价格结构检验假设，而不是用形态代替证据。'],picks:['研究清单','RESEARCH WATCHLIST','保留关注的标的，继续跟踪证据与分歧。'],history:['任务记录','RESEARCH HISTORY','每次研究的配置、过程和结果，都有迹可循。'],data:['数据与报告','DATA & EVIDENCE','分清历史数据、演示样本与尚未连接的数据源。']};
-  let state=defaultState(), storageAvailable=true, startupWarning='', currentView='chat';
-  let teamFilter='all',teamQuery='',quantFilter='全部',quantSignal='all',quantQuery='',quantSort='weighted_accuracy',quantDescending=true,quantPage=1;
-  let reviewScope='all',reviewQuery='',reviewType='全部',reviewStatus='all',reviewPage=1,reviewSelection=null;
-  let selectedStock='601088',drawerKind=null,drawerDraft=null,drawerOriginal=null,drawerTab='basic',returnFocus=null,running=null,runTimer=null;
-  try { const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'); if(saved) state=validateState(saved); } catch(e) {startupWarning='本地配置未能恢复，已使用默认配置。';}
-  function validatedTask(t) {
-    try {
-      if(!t||typeof t.id!=='string'||!['completed','cancelled','interrupted'].includes(t.status)||!t.config||!t.result) return null;
-      const c=validateState({...t.config,schemaVersion:3,tasks:[],lastResult:null,messages:[],activity:[]});
-      const result=t.result;
-      if(!Array.isArray(result.counts)||!Array.isArray(result.codes)||!Array.isArray(result.admitted)||!Array.isArray(result.assessments))return null;
-      if(t.status==='completed'&&(result.counts.length!==5||result.counts.some((n,i)=>!Number.isInteger(n)||n<0||n>4||(i>0&&n>result.counts[i-1]))))return null;
-      if([...result.codes,...result.admitted].some(code=>!FIXTURES.some(s=>s.code===code)))return null;
-      const assessments=result.assessments.map(a=>{
-        if(!FIXTURES.some(s=>s.code===a.code)||!Array.isArray(a.votes))throw Error('bad assessment');
-        const votes=a.votes.map(v=>{const expert=c.experts.find(e=>e.enabled&&e.id===v.id);if(!expert||![-1,0,1].includes(v.vote))throw Error('bad vote');return {id:expert.id,name:expert.name,vote:v.vote,weight:expert.weight,why:typeof v.why==='string'?v.why.slice(0,2000):'历史记录缺少说明。',evaluable:!!expert.tools.length&&!!expert.basis.trim()&&((expert.strategyKind||expert.id)!=='neutral'||expert.tools.includes('quant')),bg:expert.bg,color:expert.color,initial:expert.initial};});
-        if(!votes.length||new Set(votes.map(v=>v.id)).size!==votes.length||votes.length!==c.experts.filter(e=>e.enabled).length)throw Error('bad vote count');
-        const total=votes.reduce((n,v)=>n+(c.team.consensus==='weighted'?v.weight:1),0),support=votes.filter(v=>v.vote===1).reduce((n,v)=>n+(c.team.consensus==='weighted'?v.weight:1),0);
-        return {code:a.code,votes,share:support/total,admitted:a.admitted===true,veto:a.veto===true,up:votes.filter(v=>v.vote===1).length,flat:votes.filter(v=>v.vote===0).length,down:votes.filter(v=>v.vote<0).length};
-      });
-      return {...(typeof t.conversationId==='string'&&/^[a-zA-Z0-9_-]{1,70}$/.test(t.conversationId)?{conversationId:t.conversationId}:{}),id:t.id.slice(0,70),title:String(t.title||'历史研究').slice(0,100),created:String(t.created||'').slice(0,60),finished:String(t.finished||'').slice(0,60),status:t.status,config:{revision:c.revision,lead:c.lead,experts:c.experts,team:c.team,research:c.research,watchlist:c.watchlist},result:{counts:result.counts,codes:result.codes,admitted:result.admitted,assessments}};
-    } catch { return null; }
-  }
-  function validateState(s) {
-    if(!s || s.schemaVersion!==3 || !Array.isArray(s.experts) || s.experts.length<1 || s.experts.length>24) throw Error('配置版本或专家数量无效（1–24 位）。');
-    const base=defaultState(), ids=new Set();
-    const text=(v, max=2000)=>typeof v==='string'?v.slice(0,max):'';
-    const bound=(v,min,max, fallback)=>Number.isFinite(Number(v))?Math.min(max,Math.max(min,Number(v))):fallback;
-    const normalizeParams=(raw,seed)=>{const p={...seed};const ranges={minDividend:[0,20],maxPE:[1,200],maxPB:[0.1,50],minROE:[-100,100],breakout:[5,120],rr:[0.5,10],minAccuracy:[50,100]};for(const [k,[min,max]] of Object.entries(ranges)){if(raw&&Object.hasOwn(raw,k)){if(typeof raw[k]!=='number'||!Number.isFinite(raw[k])||raw[k]<min||raw[k]>max||(k==='breakout'&&!Number.isInteger(raw[k])))throw Error('专家参数 '+k+' 不在允许范围内。');p[k]=raw[k];}}if(raw&&Object.hasOwn(raw,'strictness')){if(!['strict','balanced','loose'].includes(raw.strictness))throw Error('专家严格度参数无效。');p.strictness=raw.strictness;}return p;};
-    const experts=s.experts.map(e=> {
-      if(!e || !/^[a-zA-Z0-9_-]{1,64}$/.test(e.id) || ids.has(e.id) || !text(e.name,24).trim()) throw Error('专家 ID 或名称无效。');
-      ids.add(e.id); const seed=base.experts.find(x=>x.id===(e.strategyKind||e.id))||{...base.experts[0],id:e.id,initial:'研'};
-      return {...seed,id:e.id,strategyKind:EXPERT_SEEDS.some(x=>x[0]===(e.strategyKind||e.id))?(e.strategyKind||e.id):'custom',name:text(e.name,24).trim(),tag:text(e.tag,50),role:text(e.role,40),desc:text(e.desc,5000),basis:text(e.basis,5000),flaw:text(e.flaw,5000),source:text(e.source,150),enabled:e.enabled===true,weight:bound(e.weight,0.1,3,1),model:MODELS.includes(e.model)?e.model:MODELS[0],temperature:bound(e.temperature,0,1,0.3),tokens:Math.round(bound(e.tokens,256,16384,4096)),timeout:bound(e.timeout,15,300,90),tools:Array.isArray(e.tools)?e.tools.filter(t=>['kline','quant','filings','news','memory'].includes(t)):[],params:normalizeParams(e.params,seed.params)};
-    });
-    if(!experts.some(e=>e.enabled)) throw Error('至少保留一位启用的专家。');
-    const team={...base.team}, t=s.team||{};
-    team.mode=['parallel','sequential','debate'].includes(t.mode)?t.mode:team.mode;
-    team.consensus=['weighted','majority','unanimous'].includes(t.consensus)?t.consensus:team.consensus;
-    team.threshold=bound(t.threshold,1,100,60);team.rounds=Math.round(bound(t.rounds,1,5,2));team.timeout=bound(t.timeout,15,300,90);
-    ['evidence','abstain','veto'].forEach(k=>team[k]=typeof t[k]==='boolean'?t[k]:team[k]);
-    const r=s.research||{},research={...base.research};
-    research.pool=['mainstream','all','watchlist'].includes(r.pool)?r.pool:research.pool;
-    ['minAccuracy','minCoverage'].forEach(k=>research[k]=bound(r[k],k==='minCoverage'?10:50,100,research[k]));
-    ['hMin','hMax'].forEach(k=>research[k]=Math.round(bound(r[k],1,20,research[k])));
-    if(research.hMin>research.hMax) throw Error('持有期下限不能超过上限。');
-    research.minDividend=bound(r.minDividend,0,20,3);research.maxPE=bound(r.maxPE,1,200,25);research.breakout=Math.round(bound(r.breakout,5,120,20));research.rr=bound(r.rr,0.5,10,2);
-    const lead=experts.some(e=>e.enabled&&e.id===s.lead)?s.lead:experts.find(e=>e.enabled).id;
-    return {...base,experts,lead,team,research,revision:Math.max(1,Math.floor(Number(s.revision)||1)),watchlist:Array.isArray(s.watchlist)?s.watchlist.filter(k=>typeof k==='string'&&D.records.some(r=>key(r)===k)).slice(0,500):base.watchlist,messages:cleanMessages(s.messages),...(Array.isArray(s.conversations)?normalizeConversationState(s):{}),tasks:Array.isArray(s.tasks)?s.tasks.slice(0,40).map(validatedTask).filter(Boolean):[],activity:Array.isArray(s.activity)?s.activity.slice(0,70).filter(x=>x&&typeof x.text==='string').map(x=>({text:text(x.text,300),time:text(x.time,50)})):[],lastResult:validatedTask(s.lastResult)};
-  }
-  function key(r){return r.category+'|'+r.code;}
-  function leadExpert(){return state.experts.find(e=>e.id===state.lead)||state.experts[0];}
-  function enabled(){return state.experts.filter(e=>e.enabled);}
-  function cfgSnapshot(){return clone({revision:state.revision,lead:state.lead,experts:state.experts,team:state.team,research:state.research,watchlist:state.watchlist});}
-  function persist(){if(Array.isArray(state.conversations))syncConversationState(state);try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));storageAvailable=true;}catch(e){storageAvailable=false;toast('浏览器拒绝本地存储；请导出配置备份。','info');}updateChrome();}
-  function log(text){state.activity.unshift({text,time:stamp()});state.activity=state.activity.slice(0,70);persist();}
-  function configChanged(text){state.revision++;log(text);toast('已保存，下一次模拟研究使用新配置。');render();}
-  function toast(text,kind='check'){const el=document.createElement('div');el.className='toast';el.innerHTML=icon(kind)+`<span>${esc(text)}</span>`;document.getElementById('toasts').append(el);setTimeout(()=>el.remove(),4200);}
-  function btn(text,action,style='',extra='',ic=''){return `<button type="button" class="btn ${style}" data-action="${action}" ${extra}>${ic?icon(ic):''}${text}</button>`;}
-  function empty(title,description,button=''){return `<div class="empty-state">${icon('layers')}<h3>${title}</h3><p>${description}</p>${button}</div>`;}
-  function avatar(e,cls=''){return `<span class="avatar ${cls}" style="background:${e.bg};color:${e.color}">${esc(e.initial)}</span>`;}
-  function heading(view,actions=''){const v=VIEWS[view];return `<div class="page-heading"><div><div class="eyebrow">${v[1]}</div><h1>${v[0]}</h1><p class="subtitle">${v[2]}</p></div><div class="heading-actions">${actions}</div></div>`;}
-  function banner(text,ic='info'){return `<div class="workspace-banner">${icon(ic)}<span>${text}</span></div>`;}
-  function metric(label,value,note,ic='',spark=false){return `<div class="metric"><div class="metric-label">${ic?icon(ic):''}${label}</div><div class="metric-number">${value}</div><div class="metric-note">${note}</div>${spark?'<svg class="mini-spark" viewBox="0 0 80 30" aria-hidden="true"><path d="M0 28L8 23 15 24 25 15 34 18 43 10 54 12 63 5 72 8 80 0" stroke="#8aaf96" stroke-width="1.5" fill="none"/></svg>':''}</div>`;}
-  function updateChrome(){document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.dataset.view===currentView));document.getElementById('page-title').textContent=VIEWS[currentView][0];document.getElementById('snapshot-date').textContent=D.snapshot.replaceAll('-','.');document.getElementById('watchlist-count').textContent=state.watchlist.length;document.querySelector('.team-nav-count').textContent=enabled().length;document.getElementById('save-state').textContent=storageAvailable?'设置已保存至本机':'存储受限 · 请导出备份';document.getElementById('status-left').textContent=running?`正在演示 · ${running.step+1}/4 个研究环节`:`工作区就绪 · ${enabled().length} 位专家 · 配置 v${state.revision}`;renderRecentConversations();if(!['chat','team'].includes(currentView))document.getElementById('tools-nav').open=true;}
-  function route(){const view=location.hash.slice(1);currentView=VIEWS[view]?view:'chat';render();document.getElementById('workspace').scrollTo({top:0,behavior:'instant'});if(currentView==='chat'&&state.messages.length)scrollChat();document.getElementById('sidebar').classList.remove('open');document.querySelector('.mobile-scrim').hidden=true;}
-  function navigate(v){if(drawerKind){requestCloseDrawer(()=>{location.hash=v;});return;}if(location.hash==='#'+v){currentView=v;render();document.getElementById('sidebar').classList.remove('open');document.querySelector('.mobile-scrim').hidden=true;}else location.hash=v;}
-  function render(){updateChrome();document.getElementById('workspace').classList.toggle('agent-workspace',currentView==='chat');document.getElementById('workspace').innerHTML=`<div class="page ${currentView==='chat'?'agent-page':''}">${({chat:chatPage,team:teamPage,quant:quantPageView,ai:aiPage,fund:fundPage,tech:techPage,picks:picksPage,history:historyPage,data:dataPage}[currentView])()}</div>`;hydrate(document.getElementById('workspace'));}
-  function activeResult(){return state.lastResult;}
-  function isStale(){return activeResult()&&activeResult().config.revision!==state.revision;}
-  function staleBanner(){return isStale()?banner(`配置已更新至 v${state.revision}。下方为 v${activeResult().config.revision} 的演示结果，请运行研究以应用新设置。`):'';}
-  function actionsRun(){return btn('任务配置','research-settings','','','sliders')+btn(running?'查看进度':'运行研究','run','btn-primary','',running?'clock':'play');}
-  function currentConversation(){return state.conversations?.find(c=>c.id===state.activeConversationId);}
-  function renderRecentConversations(){
-    const host=document.getElementById('recent-conversations');if(!host)return;
-    const recent=(state.conversations||[]).filter(c=>c.messages.length||c.draft||c.id===state.activeConversationId).slice(0,5);
-    host.innerHTML=recent.map(c=>`<button class="conversation-link ${currentView==='chat'&&c.id===state.activeConversationId?'active':''}" data-action="switch-conversation" data-id="${esc(c.id)}" title="${esc(c.title)}" ${currentView==='chat'&&c.id===state.activeConversationId?'aria-current="true"':''}>${icon('message')}<span>${esc(c.title)}</span></button>`).join('');
-  }
-  function newConversation(){
-    if(running){toast('请先等待当前任务完成，或取消后新建对话。','clock');return;}
-    try{const current=syncConversationState(state);if(!current.messages.length&&!current.draft){navigate('chat');setTimeout(()=>document.getElementById('chat-input')?.focus(),0);return;}createConversationState(state,'chat-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,5),stamp());persist();navigate('chat');setTimeout(()=>document.getElementById('chat-input')?.focus(),0);}catch(e){toast(e.message,'info');}
-  }
-  function openConversation(id){
-    if(running&&id!==state.activeConversationId){toast('请先等待当前任务完成，或取消后切换对话。','clock');return;}
-    if(!switchConversationState(state,id))return;
-    if(drawerKind)closeDrawerImmediate();persist();navigate('chat');setTimeout(scrollChat,0);
-  }
-  function appendChatMessage(message,conversationId=state.activeConversationId){
-    if(conversationId===state.activeConversationId){state.messages=cleanMessages([...state.messages,message]);const c=syncConversationState(state);c.updated=stamp();}
-    else{const c=state.conversations.find(c=>c.id===conversationId);if(c){c.messages=cleanMessages([...c.messages,message]);c.updated=stamp();}}
-  }
-  function conversationList(){
-    drawerKind='conversations';drawerDraft=null;drawerOriginal=null;
-    setDrawer('历史对话','对话保存在这台浏览器；新建对话不会清空之前的消息。',`<div class="drawer-content"><div class="conversation-list">${state.conversations.map(c=>`<article class="conversation-history-row"><button data-action="switch-conversation" data-id="${esc(c.id)}"><strong>${esc(c.title)}</strong><small>${c.messages.length} 条消息 · ${esc(c.updated||'尚未发送')}</small></button><button class="icon-button" data-action="export-conversation" data-id="${esc(c.id)}" aria-label="导出${esc(c.title)}">${icon('download')}</button>${c.id!==state.activeConversationId?`<button class="icon-button" data-action="delete-conversation" data-id="${esc(c.id)}" aria-label="删除${esc(c.title)}">${icon('trash')}</button>`:'<span class="pill green">当前</span>'}</article>`).join('')}</div><p class="rail-note">最多保留 30 个会话。删除前可先导出；历史研究任务单独保存，不随会话删除。</p></div>`,`<div class="drawer-footer"><span class="save-hint">新建而不是清空</span>${btn('新建对话','new-chat','btn-primary','','plus')}</div>`);
-  }
-  function chatPage(){
-    const current=currentConversation(),hasMessages=state.messages.length>0;
-    return `<div class="agent-topline"><div class="agent-identity"><span class="agent-status-mark">${icon('sparkles')}</span><div><h1>Super Agent <span class="agent-role">你的投研总助</span></h1><p>${hasMessages?esc(current?.title||'当前对话'):'一个对话入口，串起你的整个研究工作区。'}</p></div></div><div class="agent-top-actions"><span class="pill">离线交互演示</span><button class="icon-button" data-action="research-settings" aria-label="当前对话的研究配置" title="研究配置">${icon('sliders')}</button><button class="icon-button" data-action="conversation-list" aria-label="打开对话历史" title="对话历史">${icon('history')}</button></div></div><div class="agent-thread ${hasMessages?'has-messages':''}" id="chat-thread" role="log" aria-label="与 Super Agent 的对话" aria-live="polite" aria-relevant="additions"><div class="agent-transcript">${hasMessages?state.messages.map(messageHTML).join(''):initialMessage()}${running&&running.conversationId===state.activeConversationId?progressInline():''}</div></div><div class="agent-compose-region"><form id="chat-form" class="agent-composer"><label for="chat-input" class="sr-only">向 Super Agent 发送消息</label><textarea id="chat-input" rows="3" aria-label="研究问题" placeholder="与 Super Agent 对话，或交给我一个研究任务…" maxlength="1500" ${running?'disabled':''}>${esc(current?.draft||'')}</textarea><div class="agent-compose-bottom"><div class="agent-context-controls"><button type="button" class="agent-mode-button" data-action="agent-settings" title="Super Agent 的角色与能力">${icon('sparkles')}Super Agent${icon('chevron-down')}</button><button type="button" class="agent-context-button" data-action="research-settings" title="修改研究范围与条件">${icon('database')}${state.research.pool==='all'?'全市场':state.research.pool==='watchlist'?'研究清单':'主流池'}</button><button type="button" class="agent-context-button" data-action="nav" data-view="team" title="管理协作专家">${icon('users')}团队 <span>${enabled().length}</span></button></div>${running?`<button class="agent-send is-stop" type="button" data-action="cancel-run" aria-label="停止当前任务" title="停止模拟任务"><span></span></button>`:`<button class="agent-send" type="submit" aria-label="发送研究问题" title="发送 · Enter">${icon('arrow')}</button>`}</div></form><div class="agent-compose-caption"><span>Enter 发送 · Shift + Enter 换行</span><span>在线模型未接入，当前为本地交互演示</span></div></div>`;
-  }
-  function initialMessage(){return `<section class="agent-welcome"><div class="agent-welcome-emblem">${icon('sparkles')}</div><div class="agent-welcome-eyebrow">MEET YOUR SUPER AGENT</div><h2>今天，想和我研究什么？</h2><p>直接告诉我目标。我来整理问题、组织分析，<br>把过程、分歧和结果带回这个对话。</p><div class="agent-starters">${[['chart','分析一只股票','从价格、量化与风险开始','分析 601088 中国神华'],['search','寻找量化机会','查看已有快照中的方向信号','筛选当前快照里看涨的标的'],['users','请团队交叉研究','让不同视角一起审视问题','用当前团队设置运行一次模拟研究'],['file','继续之前的研究','回到历史会话，不丢上下文','history']].map(([ic,title,sub,prompt])=>`<button type="button" class="agent-starter" data-action="${prompt==='history'?'conversation-list':'prompt'}" ${prompt!=='history'?`data-prompt="${esc(prompt)}"`:''}>${icon(ic)}<span><strong>${title}</strong><small>${sub}</small></span>${icon('chevron-right')}</button>`).join('')}</div><div class="agent-ready-note"><span class="live-dot"></span>历史快照已就绪 <span>·</span> 专家团队可配置 <span>·</span> 对话保存在本机</div></section>`;}
-  function messageHTML(m){
-    let attachment='';
-    if(m.taskId){const task=state.tasks.find(t=>t.id===m.taskId);attachment=task?`<article class="agent-task-card"><div class="agent-card-heading">${icon('layers')}<strong>团队研究任务</strong><span class="pill ${task.status==='completed'?'green':''}">${task.status==='completed'?'模拟完成':'已取消'}</span></div><p>${esc(task.title)}</p>${task.status==='completed'?`<div class="agent-task-stages">${['样本','基本面','技术面','量化','会审'].map((label,i)=>`<span><b>${task.result.counts[i]??0}</b><small>${label}</small></span>`).join('')}</div>`:''}<div class="agent-card-actions">${btn('查看任务过程','task-detail','btn-sm',`data-id="${esc(task.id)}"`,'file')}${task.status==='completed'?btn('打开专家会审','task-review','btn-sm',`data-id="${esc(task.id)}"`,'users'):''}</div><small class="agent-card-note">最多 4 个内置样本的模拟流程，未重新拟合全市场。</small></article>`:'<div class="agent-reference-missing">这份任务详情已不在本地记录中；保留原对话，不替换为其他任务。</div>';}
-    else if(m.recordKeys?.length){attachment=`<div class="agent-snapshot-cards">${m.recordKeys.map(k=>D.records.find(r=>key(r)===k)).filter(Boolean).map(r=>`<button class="agent-snapshot-card" data-action="stock-detail" data-key="${key(r)}"><span><strong>${esc(r.name)}</strong><small>${r.code} · ${r.category}</small></span><span><b>H${r.horizon}</b><small>历史命中 ${pct(r.weighted_accuracy,2)}</small></span>${icon('chevron-right')}</button>`).join('')}</div>`;}
-    return `<div class="turn agent-turn ${m.role==='user'?'is-user':'is-agent'}"><span class="avatar ${m.role==='user'?'user':''}">${m.role==='user'?'ME':icon('sparkles')}</span><div class="turn-content"><div class="turn-meta"><b>${m.role==='user'?'你':'Super Agent'}</b>${m.role==='assistant'?'<span class="agent-response-tag">本地演示</span>':''}<time>${esc(m.time)}</time></div><div class="${m.role==='user'?'user-bubble':'assistant-text'}">${esc(m.text).replaceAll('\n','<br>')}</div>${attachment}</div></div>`;
-  }
-  function agentSettings(){drawerKind='agent';drawerDraft=null;drawerOriginal=null;setDrawer('Super Agent','你直接对话的总助，不是某一位策略专家。',`<div class="drawer-content"><div class="notice-box">Super Agent 是主页上的唯一对话对象。分析团队是它调用的协作视角，主视角设置不会把 Super Agent 替换成某位专家。</div><h3 class="drawer-section-title">这个入口负责什么</h3><p class="compact-note">接收问题与任务 → 拆解研究步骤 → 组织团队 → 汇总证据和分歧 → 在当前对话交付结果。</p><div class="mini-divider"></div><div class="kv"><span>当前运行环境</span><b class="pill amber">离线交互演示</b></div><div class="kv"><span>在线模型</span><b>未接入</b></div><div class="kv"><span>当前协作专家</span><b>${enabled().length} 位</b></div><p class="rail-note">目前只支持本地快照查询与模拟研究流程，不假称连接真实智能体或联网推理。</p></div>`,`<div class="drawer-footer"><span class="save-hint">设置与工具为对话服务</span>${btn('研究任务配置','research-settings','','','sliders')}${btn('管理团队','nav','btn-primary','data-view="team"','users')}</div>`);}
-  function chatRail(){return `<aside class="right-rail"><section class="panel"><div class="panel-body"><div class="rail-heading">本次研究配置<button class="text-button" data-action="research-settings">编辑 ${icon('sliders')}</button></div><div class="badge-row"><span class="pill green">日线 D1</span><span class="pill">方向研究</span></div><div class="kv"><span>研究范围</span><b>${poolLabel()}</b></div><div class="kv"><span>持有期</span><b class="mono">H${state.research.hMin} – H${state.research.hMax}</b></div><div class="kv"><span>最低覆盖率</span><b class="mono">${state.research.minCoverage}%</b></div><div class="kv"><span>历史命中率筛选</span><b class="mono">≥ ${state.research.minAccuracy}%</b></div><div class="mini-divider"></div><div class="kv"><span>会审方式</span><b>${modeLabel(state.team.mode)}</b></div><div class="kv"><span>共识门槛</span><b class="mono">${state.team.threshold}%</b></div><p class="rail-note">模拟任务只演示 4 个内置样本的研究流程，不会重新拟合全市场。</p></div></section><section class="panel"><div class="panel-body"><div class="rail-heading">参与分析的专家<span class="count-label">${enabled().length} / ${state.experts.length}</span></div>${enabled().slice(0,4).map(e=>`<div class="mini-expert">${avatar(e)}<span class="name">${esc(e.name)}${e.id===state.lead?' <span class="pill green">主视角</span>':''}<small>${esc(e.tag)}</small></span><button class="edit-link" data-action="edit-expert" data-id="${e.id}" aria-label="配置${esc(e.name)}">配置</button></div>`).join('')}<div class="rail-actions">${btn('管理整个团队','nav','btn-sm full-width','data-view="team"','users')}</div></div></section><section class="panel"><div class="panel-body"><div class="rail-heading">研究资料<span class="section-label">EVIDENCE</span></div><a class="report-link" href="fullfit/table_fullmarket.html" target="_blank" rel="noopener">${icon('file')}<span>全市场历史明细<small>命中率 · 中性占比 · 类型</small></span><span class="arrow">↗</span></a><a class="report-link" href="crosssection/report_crosssection.html" target="_blank" rel="noopener">${icon('layers')}<span>横截面研究报告<small>相对强弱 · 波动率分层</small></span><span class="arrow">↗</span></a><p class="rail-note">快照截止 ${D.snapshot}，不是实时交易信号。</p></div></section></aside>`;}
-  function poolLabel(){return {mainstream:'主流标的池',all:'全市场历史快照',watchlist:'我的研究清单'}[state.research.pool];}
-  function modeLabel(v){return {parallel:'并行独立研究',sequential:'顺序证据审阅',debate:'多轮交叉讨论'}[v];}
-  function teamPage(){const list=state.experts.filter(e=>(teamFilter==='all'||(teamFilter==='on'?e.enabled:!e.enabled))&&(!teamQuery||(e.name+e.role+e.tag).toLowerCase().includes(teamQuery)));return `${heading('team',btn('导入','import-config','','','upload')+btn('导出配置','export-config','','','download')+btn('新增专家','add-expert','btn-primary','','plus'))}<div class="team-summary"><div class="summary-group"><small>团队规模</small><b><span class="mono">${String(state.experts.length).padStart(2,'0')}</span> 位</b></div><div class="summary-group"><small>已启用</small><b><span class="mono">${String(enabled().length).padStart(2,'0')}</span> 位</b></div><div class="summary-group"><small>主视角</small><b>${esc(leadExpert().name)}</b></div><div class="summary-group"><small>编排方式</small><b>${modeLabel(state.team.mode)}</b></div><div class="summary-right"><span class="pill green">本地配置 v${state.revision}</span>${btn('团队协作设置','team-settings','btn-sm','','sliders')}</div></div><div class="toolbar"><div class="segmented" aria-label="专家状态筛选">${[['all','全部专家'],['on','已启用'],['off','已停用']].map(([v,t])=>`<button data-action="team-filter" data-filter="${v}" class="${teamFilter===v?'active':''}" aria-pressed="${teamFilter===v}">${t}</button>`).join('')}</div><span class="compact-note">配置思考框架，不模仿真人作出承诺。</span><div class="toolbar-end"><label class="search-input">${icon('search')}<input id="team-search" type="search" aria-label="搜索专家" placeholder="搜索专家、风格…" value="${esc(teamQuery)}"></label></div></div><div class="team-grid">${list.map(expertCard).join('')}${!teamQuery?`<button class="add-expert" data-action="add-expert">${icon('plus')}<strong>添加你的研究视角</strong><small>自定义决策逻辑、模型和工具权限</small><span class="pill">最多 24 位</span></button>`:''}</div>${list.length===0?empty('没有匹配的专家','试试其他名称，或切换至全部专家。'):''}<div class="notice-bar">${icon('info')}启停、权重和主视角即时保存；详细配置须点击「保存配置」。所有模型均未连接，不会发生费用或交易。</div>`;}
-  function expertCard(e){return `<article class="expert-card ${e.id===state.lead?'lead':''} ${!e.enabled?'off':''}" data-expert-id="${e.id}"><div class="expert-card-top">${avatar(e)}<div><div class="expert-name">${esc(e.name)}${e.id===state.lead?'<span class="pill green">主视角</span>':''}</div><div class="expert-role">${esc(e.tag)}</div></div><button role="switch" aria-checked="${e.enabled}" class="switch" data-action="toggle-expert" data-id="${e.id}" aria-label="${e.enabled?'停用':'启用'}${esc(e.name)}"></button></div><div class="expert-card-body"><p class="expert-desc">${esc(e.desc)}</p><div class="expert-tags"><span class="pill">${esc(e.role)}</span><span class="pill">${e.tools.length} 项工具权限</span></div><div class="expert-model"><span>模型路由 <span class="muted">/ 未连接</span></span><span>${esc(e.model)}</span></div><label class="expert-weight">投票权重<input type="range" min="0.1" max="3" step="0.1" value="${e.weight}" data-weight-id="${e.id}" aria-label="${esc(e.name)}投票权重"><output>${Number(e.weight).toFixed(1)}×</output></label></div><div class="expert-card-footer"><button class="text-button" data-action="lead-expert" data-id="${e.id}" ${e.id===state.lead?'disabled':''}>${icon(e.id===state.lead?'check':'users')}${e.id===state.lead?'当前主视角':'设为主视角'}</button>${btn('配置专家','edit-expert','btn-sm',`data-id="${e.id}"`,'sliders')}</div></article>`;}
-  function effectiveQuantRows(){let rows=D.records.filter(r=>r.coverage>=state.research.minCoverage/100&&r.weighted_accuracy>=state.research.minAccuracy/100&&r.horizon>=state.research.hMin&&r.horizon<=state.research.hMax);if(state.research.pool==='mainstream')rows=rows.filter(r=>D.mainstream.includes(key(r)));if(state.research.pool==='watchlist')rows=rows.filter(r=>state.watchlist.includes(key(r)));return rows;}
-  function quantitativeRows(){let rows=effectiveQuantRows().filter(r=>(quantFilter==='全部'||r.category===quantFilter)&&(quantSignal==='all'||r.latest_direction===Number(quantSignal))&&(!quantQuery||(r.code+r.name+r.rules.join(' ')).toLowerCase().includes(quantQuery)));rows.sort((a,b)=>(quantDescending?-1:1)*((a[quantSort]??0)-(b[quantSort]??0))||a.code.localeCompare(b.code));return rows;}
-  function quantTableHTML(){const rows=quantitativeRows(),per=20,pages=Math.max(1,Math.ceil(rows.length/per));quantPage=Math.max(1,Math.min(quantPage,pages));return `<div class="panel table-panel"><div class="table-scroll"><table class="data-table"><thead><tr><th>标的 / 类型</th><th>快照方向</th><th class="num"><button class="sort-button" data-action="quant-sort" data-sort="weighted_accuracy">加权命中率 ${icon('sort')}</button></th><th class="num">未加权</th><th><button class="sort-button" data-action="quant-sort" data-sort="coverage">中性占比 ${icon('sort')}</button></th><th class="num">预测次数</th><th class="num">持有期</th><th></th></tr></thead><tbody>${rows.slice((quantPage-1)*per,quantPage*per).map(r=>`<tr><td><button class="text-button" data-action="stock-detail" data-key="${key(r)}"><strong>${esc(r.name)}</strong></button><small>${r.code} · ${r.category}</small></td><td>${directionPill(r)}</td><td class="num positive">${pct(r.weighted_accuracy,2)}</td><td class="num">${pct(r.plain_accuracy,2)}</td><td class="bar-cell"><div class="inline-bar"><span class="bar-track"><i style="width:${(1-r.coverage)*100}%"></i></span>${pct(1-r.coverage)}</div></td><td class="num">${num(r.predictions)}</td><td class="num">H${r.horizon}</td><td><button class="icon-button" data-action="watch-toggle" data-key="${key(r)}" aria-label="${state.watchlist.includes(key(r))?'取消关注':'关注'}${esc(r.name)}" style="color:${state.watchlist.includes(key(r))?'#478968':'#b4bfc1'}">${icon('bookmark')}</button></td></tr>`).join('')}</tbody></table>${!rows.length?empty('当前条件没有匹配标的','调整类型、方向、搜索词或任务配置。',btn('调整筛选条件','research-settings','btn-sm')):''}</div><div class="table-pagination"><span>共 ${num(rows.length)} 个标的 · 每页 20 条 <span class="muted">/ 不会重新拟合</span></span><div class="pagination-actions">${btn('上一页','quant-prev','btn-sm',quantPage===1?'disabled':'')}<span class="mono">${quantPage} / ${pages}</span>${btn('下一页','quant-next','btn-sm',quantPage===pages?'disabled':'')}</div></div></div>`;}
-  function directionPill(r){return `<span class="pill ${r.latest_direction===1?'red':r.latest_direction===-1?'green':''}">${r.latest_direction===1?'上涨':r.latest_direction===-1?'下跌':'中性'}${r.latest_direction?` · 第 ${r.horizon} 根后`:''}</span>`;}
-  function quantPageView(){return `${heading('quant',btn('完整报告','report-link','','data-path="fullfit/table_fullmarket.html"','external')+btn('调整筛选','research-settings','btn-primary','','sliders'))}${banner('以下数值来自已完成的全历史拟合快照，不是留出测试，不是实时预测。货币 ETF / 债券指数等极端高分也保留于快照；请在完整报告中查看特殊标的标注。')}<div class="metrics">${metric('已收录',num(D.records.length),'全市场 8,228 个文件中入选','database')}${metric('加权均值',pct(D.totals.weighted_accuracy,2),'逐标的命中率的简单平均','chart')}${metric('快照有方向',num(D.records.filter(r=>r.latest_direction!==0).length),'截至 '+D.snapshot,'sliders')}${metric('最低历史覆盖',pct(Math.min(...D.records.map(r=>r.coverage)),2),'仅对可评估样本计算','shield')}</div><div class="toolbar"><div class="segmented" aria-label="标的类型">${['全部','个股','ETF','指数'].map(t=>`<button data-action="quant-filter" data-filter="${t}" class="${quantFilter===t?'active':''}">${t}</button>`).join('')}</div><select id="quant-signal" class="filter-select" aria-label="方向筛选"><option value="all" ${quantSignal==='all'?'selected':''}>全部方向</option><option value="1" ${quantSignal==='1'?'selected':''}>看涨</option><option value="-1" ${quantSignal==='-1'?'selected':''}>看跌</option><option value="0" ${quantSignal==='0'?'selected':''}>中性</option></select><span class="compact-note">${poolLabel()} · 命中率 ≥ ${state.research.minAccuracy}%</span><div class="toolbar-end"><label class="search-input">${icon('search')}<input id="quant-search" type="search" value="${esc(quantQuery)}" placeholder="代码 / 名称 / 规则" aria-label="搜索标的"></label></div></div><div id="quant-table">${quantTableHTML()}</div>`;}
-  function getFixtureQuant(code){return byCode(code);}
-  function fundPass(s,config=state.research){return s.pe<=config.maxPE&&s.dividend>=config.minDividend;}
-  function calcVotes(s,cfg=cfgSnapshot()){
-    const votes=cfg.experts.filter(e=>e.enabled).map(e=>{const kind=e.strategyKind||e.id;let vote=s.votes[kind]??0,why=({buffett:`价值样本：PE ${s.pe}×，股息 ${s.dividend}%。以估值和现金分红门槛检查安全边际。`,cigar:`股息样本：当前 ${s.dividend}% 对比门槛 ${e.params.minDividend}%，PE ${s.pe}× 对比上限 ${e.params.maxPE}×。`,pa:`结构样本：${s.trend}，演示强度 ${s.strength}；回看 ${e.params.breakout} 根，目标 ${e.params.rr}R。`,growth:'成长样本：关注行业景气和盈利加速；未接财报，当前只是内置观点。',board:'情绪样本：缺少分时与涨停证据，沿用内置示例意见，不能直接交易。',hotmoney:'题材样本：没有接入龙虎榜和新闻，沿用内置示例意见，等待真实核验。'})[kind]||'自定义决策逻辑已保存；离线原型不解释执行自然语言，默认保持观望。';const q=getFixtureQuant(s.code);
-      if(kind==='neutral'){vote=q&&q.weighted_accuracy>=Number(e.params.minAccuracy||60)/100&&q.coverage>=.1?q.latest_direction:0;why=q?`本地快照 H${q.horizon}，历史加权命中率 ${pct(q.weighted_accuracy,2)}；当前${vote===0?'中性':vote>0?'看涨':'看跌'}。`:'没有对应的量化快照，保持中性。';}
-      if(['buffett','cigar'].includes(kind)){if(s.pe>Number(e.params.maxPE||25))vote=-1;else if(s.dividend<Number(e.params.minDividend||3))vote=0;}
-      if(kind==='pa'){const gate=Math.min(80,40+Number(e.params.breakout)*.5);if(s.strength<gate||Number(e.params.rr)>3)vote=0;why+=` 本地强度门槛 ${gate}，目标高于 3R 时演示弃权。`;}
-      const evaluable=!!e.tools.length&&!!e.basis.trim()&&(kind!=='neutral'||e.tools.includes('quant'));
-      if(!evaluable){vote=0;why='未配置必要的证据工具或决策依据，无法评估；不允许弃权也不会补造方向。';}
-      if(evaluable&&!cfg.team.abstain&&vote===0&&kind!=='custom'){vote=fundPass(s,cfg.research)?1:-1;why+=' 当前配置不允许弃权，此方向仅是演示补全。';}
-      return {id:e.id,name:e.name,vote,weight:e.weight,why,evaluable,bg:e.bg,color:e.color,initial:e.initial};});
-    const total=cfg.team.consensus==='weighted'?votes.reduce((a,v)=>a+v.weight,0):votes.length;
-    const support=votes.filter(v=>v.vote===1).reduce((a,v)=>a+(cfg.team.consensus==='weighted'?v.weight:1),0);
-    const veto=cfg.team.veto&&votes.some(v=>v.vote<0),share=total?support/total:0;
-    const admitted=!veto&&(!cfg.team.evidence||votes.every(v=>v.evaluable))&&(cfg.team.consensus==='unanimous'?votes.every(v=>v.vote===1):share>=cfg.team.threshold/100);
-    return {votes,share,admitted,veto,up:votes.filter(v=>v.vote===1).length,flat:votes.filter(v=>v.vote===0).length,down:votes.filter(v=>v.vote<0).length};
-  }
-  function computeResearch(cfg){let fixtures=FIXTURES.slice();if(cfg.research.pool==='watchlist')fixtures=fixtures.filter(s=>(cfg.watchlist||[]).includes('个股|'+s.code));const eligible=fixtures.filter(s=>fundPass(s,cfg.research));const technical=eligible.filter(s=>s.strength>=Math.min(80,40+cfg.research.breakout*.5)&&s.rrPotential>=cfg.research.rr);const quantified=technical.filter(s=>{const q=getFixtureQuant(s.code);return q&&q.weighted_accuracy>=cfg.research.minAccuracy/100&&q.coverage>=cfg.research.minCoverage/100&&q.horizon>=cfg.research.hMin&&q.horizon<=cfg.research.hMax;});const assessments=quantified.map(s=>({code:s.code,...calcVotes(s,cfg)}));return {counts:[fixtures.length,eligible.length,technical.length,quantified.length,assessments.filter(x=>x.admitted).length],codes:quantified.map(s=>s.code),admitted:assessments.filter(x=>x.admitted).map(x=>x.code),assessments};}
-  function currentAssessment(s){const task=activeResult();if(task){const stored=task.result.assessments.find(a=>a.code===s.code);if(stored)return {assessment:stored,cfg:task.config,stored:true};return {assessment:calcVotes(s,task.config),cfg:task.config,stored:false};}return {assessment:calcVotes(s),cfg:cfgSnapshot(),stored:false};}
-  function reviewStored(r){return r.category==='个股'?activeResult()?.result.assessments.find(a=>a.code===r.code):null;}
-  function reviewFixture(r){return r.category==='个股'?FIXTURES.find(s=>s.code===r.code):null;}
-  function reviewState(r){return reviewStored(r)?'record':reviewFixture(r)?'sample':'pending';}
-  function reviewRows(){
-    let source=D.records;
-    if(reviewScope==='task'){const codes=activeResult()?.result.codes||[];source=source.filter(r=>r.category==='个股'&&codes.includes(r.code));}
-    if(reviewScope==='watchlist')source=source.filter(r=>state.watchlist.includes(key(r)));
-    const query=reviewQuery.trim().toLowerCase();
-    const rows=source.filter(r=>(reviewType==='全部'||r.category===reviewType)&&(!query||(r.code+' '+r.name).toLowerCase().includes(query))&&(reviewStatus==='all'||reviewState(r)===reviewStatus));
-    const pages=Math.max(1,Math.ceil(rows.length/15));reviewPage=Math.max(1,Math.min(reviewPage,pages));
-    return {sourceCount:source.length,rows,pages,pageRows:rows.slice((reviewPage-1)*15,reviewPage*15)};
-  }
-  function aiPage(){
-    const {sourceCount,rows,pages,pageRows}=reviewRows();
-    let selected=pageRows.find(r=>key(r)===reviewSelection);if(!selected)selected=pageRows[0];reviewSelection=selected?key(selected):null;
-    const task=activeResult();
-    return `${heading('ai',btn('协作设置','team-settings','','','sliders')+btn('任务记录','nav','','data-view="history"','history'))}${staleBanner()}<div class="review-toolbar"><div class="segmented" aria-label="会审标的范围">${[['all','全市场快照',D.records.length],['task','本次任务',task?.result.codes.length||0],['watchlist','研究清单',state.watchlist.length]].map(([v,t,n])=>`<button data-action="review-scope" data-scope="${v}" class="${reviewScope===v?'active':''}" aria-pressed="${reviewScope===v}">${t}<span class="review-scope-count">${num(n)}</span></button>`).join('')}</div><span class="compact-note">${task?`最近任务 ${esc(task.id)} · 配置 v${task.config.revision}`:'尚无已完成任务 · 可先浏览历史快照'}</span></div><div class="review-layout"><aside class="panel review-browser" aria-label="会审股票列表"><div class="review-browser-head"><div><strong>选择研究标的</strong><span>${num(rows.length)} / ${num(sourceCount)}</span></div><label class="search-input">${icon('search')}<input id="review-search" type="search" aria-label="搜索会审标的" placeholder="搜索代码或名称…" value="${esc(reviewQuery)}"></label><div class="review-filters"><select id="review-type" class="filter-select" aria-label="会审标的类型">${['全部','个股','ETF','指数'].map(t=>`<option value="${t}" ${reviewType===t?'selected':''}>${t==='全部'?'全部类型':t}</option>`).join('')}</select><select id="review-status" class="filter-select" aria-label="会审记录状态">${[['all','全部状态'],['record','已有会审记录'],['sample','演示预览'],['pending','待分析']].map(([v,t])=>`<option value="${v}" ${reviewStatus===v?'selected':''}>${t}</option>`).join('')}</select></div></div><div class="review-stock-list" aria-label="当前页标的">${pageRows.map(r=>`<button class="review-stock-row ${reviewSelection===key(r)?'selected':''}" data-action="review-select" data-key="${key(r)}" aria-pressed="${reviewSelection===key(r)}"><span class="review-stock-name"><strong>${esc(r.name)}</strong><small>${r.code} <span>· ${r.category}</span></small></span><span class="review-stock-meta"><b>${pct(r.weighted_accuracy,1)}</b><small class="${reviewState(r)==='record'?'record':''}">${{record:'模拟记录',sample:'演示预览',pending:'待分析'}[reviewState(r)]}</small></span></button>`).join('')}${!pageRows.length?empty('没有匹配的标的',reviewScope==='task'&&!task?'先通过 Super Agent 发起一次模拟研究。':'请更换范围、类型或搜索词。',btn('清除筛选','review-clear','btn-sm')):''}</div><div class="review-pagination"><button class="icon-button" data-action="review-prev" aria-label="上一页股票" ${reviewPage===1?'disabled':''}>${icon('chevron-right')}</button><span class="mono">${reviewPage} / ${num(pages)}</span><button class="icon-button" data-action="review-next" aria-label="下一页股票" ${reviewPage===pages?'disabled':''}>${icon('chevron-right')}</button></div><p class="review-list-note">每页 15 只 · 百分比为历史量化命中率，不是专家共识。</p></aside><div class="review-detail" id="review-detail">${selected?reviewDetail(selected):`<section class="panel">${empty('选择一个标的，查看完整研究','支持全市场、任务候选与个人清单；不会把无记录标的冒充成已会审。')}</section>`}</div></div>`;
-  }
-  function reviewDetail(r){
-    const fixture=reviewFixture(r),stored=reviewStored(r);
-    return `<section class="panel review-selection-header"><div><span class="section-label">${stored?'SAVED SIMULATION':fixture?'DEMO PREVIEW':'AWAITING ANALYSIS'}</span><h2>${esc(r.name)} <small class="mono">${r.code} · ${r.category}</small></h2><p>${stored?'已完成任务的模拟会审记录':fixture?'仅为内置样本预览，未运行则不算完成会审':'只有历史量化快照，尚未生成专家会审记录'}</p></div><div class="button-group">${btn('量化详情','stock-detail','btn-sm',`data-key="${key(r)}"`,'chart')}${btn(state.watchlist.includes(key(r))?'已在清单':'加入清单','watch-toggle','btn-sm',`data-key="${key(r)}"`,'bookmark')}</div></section>${fixture?fixtureAssessmentContent(fixture):`<section class="panel"><div class="panel-header"><h2>专家意见</h2><span class="pill">尚未会审</span></div><div class="panel-body"><div class="review-pending-heading">${icon('users')}<h3>这只标的还没有会审结论</h3><p>已纳入标的列表不等于已完成分析。当前在线模型与财报服务未连接，不能为这只股票补造专家意见或共识。</p>${btn('交给 Super Agent','review-ask','btn-primary',`data-key="${key(r)}"`,'message')}</div><div class="review-pending-metrics"><div><small>历史加权命中率</small><b>${pct(r.weighted_accuracy,2)}</b></div><div><small>历史中性占比</small><b>${pct(1-r.coverage,1)}</b></div><div><small>持有期</small><b>H${r.horizon}</b></div><div><small>专家共识</small><b>—</b></div></div><p class="compact-note">以上为截止 ${D.snapshot} 的全历史拟合快照，不是本次预测概率。</p></div></section>`}`;
-  }
-  function fixtureAssessmentContent(stock){const {assessment:a,cfg,stored}=currentAssessment(stock);const count=a.votes.length;return `<div class="analysis-grid"><section class="panel"><div class="panel-header"><h2>${stock.name} <span class="mono muted">${stock.code}</span></h2><span class="pill amber">意见为模拟样本</span></div><div class="panel-body">${a.votes.map(v=>`<div class="analyst-vote">${avatar(v)}<div class="vote-details"><h3>${esc(v.name)}${v.id===cfg.lead?'<span class="pill green">主视角</span>':''}<span class="pill ${v.vote>0?'green':v.vote<0?'red':''}">${v.vote>0?'支持研究':v.vote<0?'反对':'观望'}</span></h3><p>${esc(v.why)}</p><small class="muted">权重 ${v.weight.toFixed(1)}× · ${esc(cfg.experts.find(e=>e.id===v.id)?.model||'')}</small></div></div>`).join('')}</div></section><div class="card-stack"><section class="panel"><div class="panel-body"><div class="rail-heading">会审共识<span class="pill green">${{weighted:'加权投票',majority:'等权投票',unanimous:'全体一致'}[cfg.team.consensus]}</span></div><div class="consensus-number">${pct(a.share,0)}</div><div class="consensus-label">支持继续研究的${cfg.team.consensus==='weighted'?'权重':'人数'}占比，不是上涨概率</div><div class="consensus-track"><i style="background:#8daf9a;width:${a.up/count*100}%"></i><i style="background:#d7dfda;width:${a.flat/count*100}%"></i><i style="background:#d6acaa;width:${a.down/count*100}%"></i></div><div class="kv"><span>支持 / 观望 / 反对</span><b class="mono">${a.up} / ${a.flat} / ${a.down}</b></div><div class="kv"><span>入选门槛</span><b>${cfg.team.consensus==='unanimous'?'全票同意':cfg.team.threshold+'%'}</b></div><div class="kv"><span>结果</span><b>${a.veto?'触发反方否决':a.admitted?'进入研究候选':'暂不入选'}</b></div><div class="mini-divider"></div><p class="rail-note">${cfg.team.evidence?'要求证据引用。演示样本的财务与消息来源尚未连接，结论必须等待核验。':'当前允许不完整证据，生产系统不应直接放行此设置。'}</p></div></section><section class="panel"><div class="panel-body"><div class="rail-heading">下一步不是下单</div><p class="compact-note">补全真实财报、公告和价格路径，检查分歧。研究清单只保存在本机，不包含任何交易操作。</p><div class="rail-actions">${btn(state.watchlist.includes('个股|'+stock.code)?'已加入清单':'加入研究清单','watch-toggle','btn-sm full-width',`data-key="个股|${stock.code}"`,'bookmark')}</div></div></section></div></div>`;}
-  function fundPage(){return `${heading('fund',btn('设置筛选条件','research-settings','btn-primary','','sliders'))}${banner('财务数字为界面演示样本，未接入真实财报或估值服务。调整条件会即时筛选这 4 个样本，并在下一次模拟任务中生效。')}<div class="metrics">${metric('演示样本','04','不是全市场实际筛选结果','layers')}${metric('最低股息率',state.research.minDividend+'%','模拟筛选条件','chart')}${metric('最高市盈率',state.research.maxPE+'×','模拟筛选条件','sliders')}${metric('满足条件',String(FIXTURES.filter(s=>fundPass(s)).length).padStart(2,'0'),'仅在 4 个内置样本中','check')}</div><div class="panel table-panel"><div class="panel-header"><h2>基本面候选</h2><span class="pill amber">DEMO DATA</span></div><div class="table-scroll"><table class="data-table"><thead><tr><th>标的</th><th>行业</th><th class="num">PE</th><th class="num">PB</th><th class="num">股息率</th><th class="num">ROE</th><th>筛选状态</th><th></th></tr></thead><tbody>${FIXTURES.map(s=>`<tr><td><strong>${s.name}</strong><small>${s.code}</small></td><td>${s.industry}</td><td class="num">${s.pe}×</td><td class="num">${s.pb}×</td><td class="num">${s.dividend}%</td><td class="num">${s.roe}%</td><td><span class="pill ${fundPass(s)?'green':''}">${fundPass(s)?'满足演示条件':'不满足条件'}</span></td><td>${btn('查看证据','fixture-detail','btn-sm',`data-code="${s.code}"`)}</td></tr>`).join('')}</tbody></table></div></div><div class="notice-bar">${icon('info')}只按 PE 与股息率做演示筛选。盈利质量、现金流、分红可持续性必须接入真实数据后才能核实。</div>`;}
-  function technicalChart(seed=0){const candles=Array.from({length:40},(_,i)=>{const mid=140-i*1.5+Math.sin(i*.55+seed)*15;const green=Math.sin(i*2.3+seed)>0;return `<line x1="${14+i*12}" x2="${14+i*12}" y1="${mid-9-i%4}" y2="${mid+15}" stroke="${green?'#93b4a3':'#ce9c9c'}" stroke-width="1"/><rect x="${11+i*12}" y="${mid-3}" width="6" height="${8+i%5}" rx=".5" fill="${green?'#93b4a3':'#ce9c9c'}"/>`;}).join('');return `<div class="chart-container"><svg viewBox="0 0 510 210" preserveAspectRatio="none" role="img" aria-label="技术结构示意图，非真实行情">${[35,75,115,155,195].map(y=>`<path d="M0 ${y}H510" stroke="#eff3f0" stroke-width="1" stroke-dasharray="3 4"/>`).join('')}${candles}<path d="M0 161Q100 128 210 133T510 88" fill="none" stroke="#d9bd81" stroke-width="1.5"/><path d="M0 170Q150 166 260 131T510 104" fill="none" stroke="#8faabc" stroke-width="1.5"/></svg></div>`;}
-  function techPage(){return `${heading('tech',btn('结构参数','research-settings','btn-primary','','sliders'))}${banner('下方 K 线为程序绘制的结构示意，不是标的真实行情；调整参数只改变本地演示筛选逻辑。')}<div class="analysis-grid"><section class="panel"><div class="panel-header"><h2>价格行为 · 趋势与回踩</h2><span class="pill amber">示意图</span></div><div class="panel-body"><div class="chart-legend"><span><i></i>日线结构</span><span><i style="background:#d9bd81"></i>EMA 20</span><span><i style="background:#8faabc"></i>EMA 50</span></div>${technicalChart()}<div class="chart-caption"><span>历史窗口 →</span><span>仅展示读图布局，不对应真实时间与价格</span></div></div></section><section class="panel"><div class="panel-body"><div class="rail-heading">结构筛选参数</div><div class="kv"><span>突破回看窗口</span><b class="mono">${state.research.breakout} 根</b></div><div class="kv"><span>目标风险回报</span><b class="mono">${state.research.rr} R</b></div><div class="kv"><span>演示结构门槛</span><b class="mono">${Math.min(80,40+state.research.breakout*.5)}</b></div><div class="mini-divider"></div><p class="rail-note">先区分趋势与区间，再检查突破和失败。参数配置可以改变演示候选，不会生成真实买卖信号。</p><div class="rail-actions">${btn('调整参数','research-settings','btn-sm full-width','','sliders')}</div></div></section></div><div class="rule-list" style="margin-top:20px">${[['趋势识别','连续高低点、波动扩张与均线方向必须相互印证。'],['结构证伪','失去结构支撑即重新评估，不用临时理由延长假设。'],['风险先行','目标和止损只是研究方案，未模拟涨跌停与实际成交。']].map(([t,p])=>`<div class="rule-item"><strong>${t}</strong><p>${p}</p></div>`).join('')}</div>`;}
-  function picksPage(){const rows=state.watchlist.map(k=>D.records.find(r=>key(r)===k)).filter(Boolean),result=activeResult();return `${heading('picks',btn('导出清单','export-watchlist','','','download')+btn('添加标的','nav','btn-primary','data-view="quant"','plus'))}${staleBanner()}<div class="toolbar"><span class="pill green">${rows.length} 个关注标的</span><span class="compact-note">研究关注 ≠ 买入建议 · 自选不会自动执行交易</span></div>${result?`<div class="result-callout" style="margin-bottom:20px">${icon('file')}<span>最近演示任务：${result.result.counts.join(' → ')}，共 ${result.result.admitted.length} 个样本达到该次会审门槛。</span><button class="text-button" data-action="task-detail" data-id="${result.id}">查看过程</button></div>`:''}<div class="card-stack">${rows.map(r=>`<article class="panel stock-card"><div class="stock-header"><h3>${esc(r.name)}<small>${r.code} / ${r.category}</small></h3><div class="button-group">${directionPill(r)}${btn('详情','stock-detail','btn-sm',`data-key="${key(r)}"`)}<button class="icon-button" data-action="watch-toggle" data-key="${key(r)}" aria-label="移除${esc(r.name)}">${icon('close')}</button></div></div><div class="stock-stats"><div><small>历史加权命中率</small><strong>${pct(r.weighted_accuracy,2)}</strong></div><div><small>中性占比</small><strong>${pct(1-r.coverage)}</strong></div><div><small>预测样本数</small><strong>${num(r.predictions)}</strong></div><div><small>最佳持有期</small><strong>H${r.horizon}</strong></div></div><p>第 ${r.horizon} 根后${r.latest_direction===1?'上涨':r.latest_direction===-1?'下跌':'方向中性'}${r.latest_direction?'，历史加权命中率 '+pct(r.weighted_accuracy,2):'，当前无规则信号'}。数据截止 ${D.snapshot}，所列频率未经概率校准。</p></article>`).join('')}</div>${!rows.length?empty('还没有关注标的','从量化信号中添加，建立自己的研究清单。',btn('浏览量化信号','nav','btn-primary','data-view="quant"')):''}`;}
-  function historyPage(){return `${heading('history',btn('导出任务记录','export-tasks','','','download')+btn('新建模拟任务','run','btn-primary','','play'))}${running?`<div class="panel" style="margin-bottom:18px"><div class="panel-body">${progressInline()}</div></div>`:''}<div class="panel">${state.tasks.map(t=>`<div class="task-row"><div class="avatar">${icon(t.status==='completed'?'check':'clock')}</div><div><h3>${esc(t.title)}</h3><small>${esc(t.created)} <span class="mono">/ ${esc(t.id)}</span> · 配置 v${t.config.revision}</small></div><span class="pill ${t.status==='completed'?'green':''}">${{completed:'演示已完成',cancelled:'已取消',interrupted:'已中断'}[t.status]}</span><div class="button-group">${btn('查看记录','task-detail','btn-sm',`data-id="${esc(t.id)}"`)}${btn('按原配置重跑','rerun-task','btn-sm',`data-id="${esc(t.id)}"`)}</div></div>`).join('')}${!state.tasks.length?empty('第一份研究，从一个问题开始','运行一次模拟任务，配置快照、筛选过程和会审结果会保存在这里。',btn('开始模拟研究','run','btn-primary','','play')):''}</div><div class="notice-bar">${icon('clock')}只记录浏览器内的演示任务。关闭页面会中止尚未完成的运行；已完成任务保留在本地存储中。</div>`;}
-  function dataPage(){return `${heading('data',btn('导出本地配置','export-config','','','download'))}<div class="metrics">${metric('数据目录文件','8,228','目录扫描结果，不是任务实际运行数','database')}${metric('已拟合标的',num(D.records.length),'历史研究快照','file')}${metric('横截面面板','7,175','2015 起的既有面板','layers')}${metric('快照日期',D.snapshot.slice(5).replace('-',' / '),'2026 年 · 不是实时行情','clock')}</div><div class="data-grid">${[['file','全市场历史明细','真实的本地历史研究报告，包含中性占比、类型、命中率与特殊标的标注。','查看完整报告','fullfit/table_fullmarket.html'],['layers','横截面研究报告','相对强弱、波动率分层与分位价差。此页面不重新计算报告。','打开横截面报告','crosssection/report_crosssection.html'],['chart','历史拟合排行','逐标的最优持有期与规则组合。数字为全历史拟合，不是留出测试。','查看历史排行','fullfit/ranking_fullfit.html']].map(([ic,t,p,b,path])=>`<section class="panel source-card">${icon(ic)}<h3>${t}</h3><p>${p}</p>${btn(b,'report-link','btn-sm',`data-path="${path}"`,'external')}</section>`).join('')}</div><section class="panel" style="margin-top:23px"><div class="panel-header"><h2>连接状态</h2><span class="pill">不存储 API 密钥</span></div><div class="panel-body"><div class="kv"><span>历史日线拟合</span><b class="pill green">静态快照已内嵌</b></div><div class="kv"><span>实时行情 / 财报 / 新闻 / 模型</span><b class="pill amber">未连接</b></div><div class="kv"><span>券商与交易执行</span><b class="pill">未提供，原型不下单</b></div><div class="kv"><span>配置保存</span><b class="pill green">${storageAvailable?'浏览器 localStorage':'存储受限'}</b></div></div></section>`;}
-  function scrollChat(){const el=document.getElementById('chat-thread');if(el)el.scrollTop=el.scrollHeight;}
-  function sendMessage(text){
-    text=text.trim();if(!text)return;
-    if(running){toast('任务正在进行，可以查看过程或停止后继续对话。','clock');return;}
-    const previous=state.messages.slice().reverse().find(m=>m.recordKeys?.length);
-    const conversation=currentConversation();if(conversation)conversation.draft='';
-    appendChatMessage({role:'user',text,time:now()});
-    if(/运行|重跑|团队研究|模拟研究|交叉研究/.test(text)&&!/不要运行|别运行/.test(text)){
-      appendChatMessage({role:'assistant',time:now(),text:`收到。我会按当前配置 v${state.revision} 演示基本面、技术面、量化与团队会审四步流程，把进度和结果留在这个对话。\n这是本地模拟任务，不调用在线模型，也不会重新拟合全市场。`});
-      persist();startRun(text);return;
-    }
-    let answer='',recordKeys=[];
-    const found=text.match(/\b\d{6}\b/);
-    let q=found?(byCode(found[0])||D.records.find(r=>r.code===found[0])):null;
-    if(!found&&/风险|继续|详细|持有期|准确率|命中率/.test(text)&&previous)q=D.records.find(r=>key(r)===previous.recordKeys[0]);
-    if(found||q){
-      if(q){recordKeys=[key(q)];answer=`${q.name}（${q.code}），我先把可核实的历史量化证据整理给你。\n\n最佳持有期：第 ${q.horizon} 根后。\n历史加权命中率：${pct(q.weighted_accuracy,2)}；预测 ${num(q.predictions)} 次；中性占比 ${pct(1-q.coverage)}。\n快照方向：${q.latest_direction===1?'上涨':q.latest_direction===-1?'下跌':'中性，目前没有发出预测'}。\n\n需要保留的边界：这是截止 ${D.snapshot} 的内样本频率，不是这一次的已校准概率；财报与实时消息还未接入。你可以继续问这只标的，或让我组织一次团队模拟研究。`;}
-      else answer='我没有在本地量化快照中找到这个代码。你可以核对代码或到量化工具里按名称检索；缺少的数据我会明确留空，不补造信号。';
-    }else if(/看涨|偏多|上涨|信号|量化机会/.test(text)){
-      const rows=effectiveQuantRows().filter(r=>r.latest_direction===1).sort((a,b)=>b.weighted_accuracy-a.weighted_accuracy).slice(0,3);recordKeys=rows.map(key);
-      answer=rows.length?`我按当前研究范围找到了这些看涨快照，先给你三项继续研究的线索：\n\n${rows.map(r=>`${r.name}：第 ${r.horizon} 根后，历史加权命中率 ${pct(r.weighted_accuracy,2)}。`).join('\n')}\n\n这些方向截止 ${D.snapshot}，不是实时推荐。点下面的标的卡片可以追查预测次数、中性占比与具体规则。`:'当前条件下没有看涨标的。我们可以调整研究范围、命中率或持有期，但不会为了给出答案而强行补信号。';
-    }else if(/团队|专家|巴菲特|烟蒂/.test(text)){
-      answer=`我还是你直接对话的 Super Agent；${leadExpert().name}是协作团队的主视角，不会替代这个入口。\n\n当前有 ${enabled().length} 位专家，采用${modeLabel(state.team.mode)}，共识门槛 ${state.team.threshold}%。你可以把任务交给我，或先修改团队的权重、决策依据与权限，再让我运行一次模拟研究。`;
-    }else if(/你好|您好|你是谁|主页|hello|hi\b/i.test(text)){
-      answer='你好，我是 Super Agent，你的投研总助。\n\n不用先去各个工具页面操作，直接告诉我你想研究什么就行：一只股票、一个筛选条件，或者让团队交叉看一个问题。\n\n当前在线模型还未接入，我可以查询本地历史快照、带你走完模拟研究流程，并把过程保留在当前会话。';
-    }else{
-      answer='我收到你的问题了。当前是 Super Agent 的离线交互原型，还不能对任意问题调用在线推理。\n\n我们可以先从三件事开始：给我一个六位代码，我整理历史快照；告诉我想找哪类方向，我筛选已有信号；或说「让团队运行模拟研究」，我把过程和结果回到这里给你。\n\n没有接入的财报、新闻和实时数据，我不会编造。';
-    }
-    appendChatMessage({role:'assistant',text:answer,time:now(),...(recordKeys.length?{recordKeys}:{})});persist();render();scrollChat();document.getElementById('chat-input')?.focus();
-  }
-  function startRun(title='盘后多视角研究',snapshot=null){
-    if(running){openRunDrawer();return;}
-    syncConversationState(state);const conversation=currentConversation();if(conversation?.title==='新对话')conversation.title=title.slice(0,32);
-    const cfg=snapshot?clone(snapshot):cfgSnapshot();
-    running={id:'SIM-'+Date.now().toString(36).toUpperCase(),title:title.slice(0,100),created:stamp(),config:cfg,step:0,conversationId:state.activeConversationId};
-    log('启动本地研究流程演示 · 配置 v'+cfg.revision);
-    if(currentView!=='chat')navigate('chat');else render();scrollChat();runTimer=setTimeout(advanceRun,700);
-  }
-  function advanceRun(){
-    if(!running)return;
-    if(running.step<3){running.step++;render();if(drawerKind==='run')openRunDrawer(true);scrollChat();runTimer=setTimeout(advanceRun,750);return;}
-    const task={...running,status:'completed',result:computeResearch(running.config),finished:stamp()};state.tasks.unshift(task);state.tasks=state.tasks.slice(0,40);state.lastResult=task;running=null;runTimer=null;
-    appendChatMessage({role:'assistant',time:now(),taskId:task.id,text:`这次团队模拟研究完成了。\n\n${task.result.counts[0]} 个内置样本中，${task.result.counts[1]} 个通过基本面演示条件、${task.result.counts[2]} 个满足技术条件、${task.result.counts[3]} 个满足量化快照条件，最后 ${task.result.admitted.length} 个达到这次配置的团队共识门槛。\n\n过程与配置快照都保存在下面，你不需要离开对话才能知道任务做到哪一步。`},task.conversationId);
-    log('模拟研究完成 · '+task.id);if(drawerKind==='run')closeDrawerImmediate();render();scrollChat();toast('任务完成，结果已回到对话。');
-  }
-  function cancelRun(){
-    if(!running)return;clearTimeout(runTimer);const task={...running,status:'cancelled',result:{counts:[],codes:[],admitted:[],assessments:[]}};state.tasks.unshift(task);state.tasks=state.tasks.slice(0,40);running=null;runTimer=null;
-    appendChatMessage({role:'assistant',time:now(),taskId:task.id,text:'已停止这次模拟研究。任务记录保留，没有生成完整结论；你可以修改条件后继续。'},task.conversationId);
-    log('已取消本地演示任务 · '+task.id);if(drawerKind==='run')closeDrawerImmediate();render();scrollChat();toast('任务已停止。');
-  }
-  function progressInline(){return `<div class="progress-wrap" id="run-progress"><div class="rail-heading"><span class="check-line"><i class="spinner"></i> 本地研究流程演示</span><button class="text-button" data-action="cancel-run">取消</button></div><div class="progress-track"><i style="width:${Math.min(100,(running.step+1)*25)}%"></i></div><div class="run-step active">${['整理基本面样本','检查技术结构条件','读取历史量化快照','依据团队配置生成会审'][running.step]||'整理研究结果'} · 不调用远程服务</div></div>`;}
-  function setDrawer(title,subtitle,body,footer='',headAvatar=''){const d=document.getElementById('drawer');if(d.hidden)returnFocus=document.activeElement;document.getElementById('overlay').hidden=false;d.hidden=false;d.innerHTML=`<div class="drawer-head">${headAvatar}<div><h2 id="drawer-title">${title}</h2><p>${subtitle}</p></div><button class="icon-button" data-action="close-drawer" aria-label="关闭设置">${icon('close')}</button></div>${body}${footer}`;hydrate(d);document.body.classList.add('drawer-open');document.querySelector('.app-shell').inert=true;setTimeout(()=>{if(!d.hidden&&!d.contains(document.activeElement)){const control=[...d.querySelectorAll('input,select,textarea,button')].find(n=>n.offsetParent!==null&&!n.disabled);control?.focus();}},0);}
-  function closeDrawerImmediate(){document.getElementById('drawer').hidden=true;document.getElementById('overlay').hidden=true;document.body.classList.remove('drawer-open');document.querySelector('.app-shell').inert=false;drawerKind=null;drawerDraft=null;drawerOriginal=null;returnFocus?.isConnected&&returnFocus.focus();}
-  function formDirty(){return drawerOriginal&&JSON.stringify(drawerDraft)!==drawerOriginal;}
-  function requestCloseDrawer(after){if(formDirty()){showModal('放弃未保存的修改？','这些修改还没有保存。继续编辑可以保留当前内容，放弃则恢复已保存的配置。',btn('继续编辑','close-modal')+btn('放弃修改','discard-drawer','btn-danger'));pendingAfterClose=after||null;}else{closeDrawerImmediate();after?.();}}
-  let pendingAfterClose=null;
-  const input=(name,value,type='text',extra='')=>`<input name="${name}" type="${type}" value="${esc(value)}" ${extra}>`;
-  const field=(label,control,help='')=>`<div class="form-group"><label>${label}</label>${control}${help?`<p class="help-text">${help}</p>`:''}</div>`;
-  const textarea=(name,value,rows=4)=>`<textarea name="${name}" rows="${rows}" maxlength="5000">${esc(value)}</textarea>`;
-  const select=(name,value,items)=>`<select name="${name}">${items.map(([v,t])=>`<option value="${esc(v)}" ${String(value)===String(v)?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
-  function decorateFormLabels(){document.querySelectorAll('#drawer .form-group').forEach((el,i)=>{const label=el.querySelector(':scope > label'),control=el.querySelector('input,select,textarea');if(label&&control){control.id='drawer-field-'+i;label.htmlFor=control.id;}});}
-  function expertTabsHTML(){const d=drawerDraft,k=d.strategyKind||d.id;return `<div class="tabs" role="tablist" aria-label="专家配置分组">${[['basic','基本信息'],['logic','决策逻辑'],['model','模型与工具']].map(([v,t])=>`<button type="button" role="tab" aria-selected="${drawerTab===v}" class="tab ${drawerTab===v?'active':''}" data-action="expert-tab" data-tab="${v}">${t}</button>`).join('')}</div><form id="expert-form" class="drawer-form" novalidate><div class="drawer-content"><div class="form-error" id="form-error" hidden></div><div class="form-tabs-panel" ${drawerTab!=='basic'?'hidden':''}>${field('显示名称 <span class="required">*</span>',input('name',d.name,'text','required maxlength="24"'))}<div class="form-grid">${field('研究岗位',input('role',d.role,'text','maxlength="40"'))}${field('风格标签',input('tag',d.tag,'text','maxlength="50"'))}</div>${field('研究简介',textarea('desc',d.desc,3))}${field('方法来源',input('source',d.source,'text','maxlength="150"'),'只记录方法论来源，不代表本人参与或背书。')}<div class="form-grid">${field('投票权重',`<div class="range-row"><input name="weight" type="range" min="0.1" max="3" step="0.1" value="${d.weight}"><output>${d.weight.toFixed(1)}×</output></div>`)}${field('启用状态',select('enabled',String(d.enabled),[['true','启用并参加会审'],['false','停用，仅保留配置']]))}</div><div class="notice-box">主视角必须保持启用。要停用当前主视角，请先在团队页指定另一位。</div></div><div class="form-tabs-panel" ${drawerTab!=='logic'?'hidden':''}>${field('决策依据 <span class="required">*</span>',textarea('basis',d.basis,6),'一行一个条件。供下一次模拟研究记录，离线原型不会执行自然语言策略。')}${field('已知缺陷 / 弃权条件',textarea('flaw',d.flaw,3))}<div class="form-section">${['buffett','cigar'].includes(k)?'价值筛选参数':k==='neutral'?'量化筛选参数':k==='pa'?'价格结构参数':'研究约束参数'} · 演示配置</div><div class="form-grid">${k==='neutral'?field('最低历史命中率（%）',input('params.minAccuracy',d.params.minAccuracy,'number','min="50" max="100" step="1" required')):['buffett','cigar'].includes(k)?field('最低股息率（%）',input('params.minDividend',d.params.minDividend,'number','min="0" max="20" step="0.1" required')):field('结构回看（根）',input('params.breakout',d.params.breakout,'number','min="5" max="120" step="1" required'))}${['buffett','cigar'].includes(k)?field('最高 PE（倍）',input('params.maxPE',d.params.maxPE,'number','min="1" max="200" step="0.1" required')):field('目标风险回报（R）',input('params.rr',d.params.rr,'number','min="0.5" max="10" step="0.1" required'))}</div><p class="compact-note">这些参数参与本地样本判断：价值专家检查 PE / 股息门槛；量化专家检查命中率；价格行为使用回看窗口推导演示结构门槛，目标高于 3R 时弃权。其他自定义框架只保存参数，默认观望；不执行自然语言策略。</p></div><div class="form-tabs-panel" ${drawerTab!=='model'?'hidden':''}><div class="notice-box amber" style="margin-bottom:20px">所有模型路由均未连接。这里只保存配置，不发送网络请求，不需要 API 密钥。</div>${field('模型路由',select('model',d.model,MODELS.map(x=>[x,x])))}<div class="form-grid">${field('温度',`<div class="range-row"><input name="temperature" type="range" min="0" max="1" step="0.05" value="${d.temperature}"><output>${d.temperature.toFixed(2)}</output></div>`)}${field('最大输出 tokens',input('tokens',d.tokens,'number','min="256" max="16384" step="256" required'))}</div>${field('单次超时（秒）',input('timeout',d.timeout,'number','min="15" max="300" step="5" required'))}<div class="form-section">只读工具权限</div>${[['kline','历史日线数据','内嵌静态快照','green'],['quant','量化研究报告','内嵌静态快照','green'],['filings','财报与公告','未连接','amber'],['news','新闻与事件','未连接','amber'],['memory','研究记忆','仅本地演示记录','']].map(([id,n,s,t])=>`<label class="tool-option"><input type="checkbox" name="tools" value="${id}" ${d.tools.includes(id)?'checked':''}><span>${n}<small>只读研究权限，不包括交易</small></span><span class="pill ${t}">${s}</span></label>`).join('')}</div></div><div class="drawer-footer"><span class="save-hint">${drawerDraft.isNew?'新专家 · 尚未创建':'仅在本机保存'}<span id="dirty-hint"></span></span><button type="button" class="btn" data-action="close-drawer">取消</button><button type="submit" class="btn btn-primary">${icon('check')}保存配置</button></div></form>`;}
-  function editExpert(id,copy=false){let e=copy&&drawerDraft?.id===id?clone(drawerDraft):state.experts.find(x=>x.id===id);if(!e){e={...defaultExperts()[0],id:'custom-'+Date.now().toString(36),strategyKind:'custom',name:'自定义研究员',initial:'研',role:'独立研究',tag:'自定义框架',desc:'用可核实的数据提出可证伪的研究假设。',basis:'先核实数据来源\n再检查风险与反例\n证据不足时保持中性',flaw:'尚未验证的自定义研究方法。',source:'个人研究框架',isNew:true};}else{e=clone(e);if(copy){e.id='custom-'+Date.now().toString(36);e.name=e.name.slice(0,20)+' 副本';e.isNew=true;}}drawerKind='expert';drawerDraft=e;drawerOriginal=JSON.stringify(e);drawerTab='basic';renderExpertDrawer();}
-  function renderExpertDrawer(){setDrawer(drawerDraft.isNew?'新增分析专家':'配置分析专家','修改决策框架、模型路由与工具权限。',expertTabsHTML(),' ',avatar(drawerDraft));decorateFormLabels();const footer=document.querySelector('#drawer .drawer-head');if(!drawerDraft.isNew){const more=document.createElement('button');more.className='icon-button';more.dataset.action='expert-more';more.dataset.id=drawerDraft.id;more.setAttribute('aria-label','更多专家操作');more.innerHTML=icon('copy');footer.insertBefore(more,footer.lastElementChild);}setTimeout(()=>document.querySelector('#drawer .form-tabs-panel:not([hidden]) input:not([type=range]),#drawer .form-tabs-panel:not([hidden]) textarea,#drawer .form-tabs-panel:not([hidden]) select')?.focus(),0);}
-  function updateDraft(target){if(!drawerDraft||!target.name)return;let name=target.name,value;if(target.type==='checkbox')value=target.checked;else if(target.type==='range'||target.type==='number')value=Number(target.value);else value=target.value;if(name==='tools'){drawerDraft.tools=[...document.querySelectorAll('#drawer input[name="tools"]:checked')].map(t=>t.value);}else if(name.startsWith('params.'))drawerDraft.params[name.slice(7)]=value;else if(name==='enabled')drawerDraft.enabled=value==='true';else drawerDraft[name]=value;const out=target.closest('.range-row')?.querySelector('output');if(out)out.textContent=name==='weight'?Number(value).toFixed(1)+'×':name==='temperature'?Number(value).toFixed(2):String(value);document.getElementById('dirty-hint')&&(document.getElementById('dirty-hint').textContent=formDirty()?' · 未保存':'');}
-  function saveExpert(){const d=drawerDraft;const invalid=[...document.querySelectorAll('#expert-form input,#expert-form select,#expert-form textarea')].find(el=>!el.checkValidity());if(invalid){const name=invalid.name,panels=[...document.querySelectorAll('#expert-form .form-tabs-panel')];drawerTab=['basic','logic','model'][panels.indexOf(invalid.closest('.form-tabs-panel'))]||'basic';renderExpertDrawer();formError('请检查必填字段、数值范围和步长。');setTimeout(()=>{const el=document.querySelector('#expert-form [name="'+name+'"]');el?.focus();el?.reportValidity();},0);return;}if(!d.name.trim()||!d.basis.trim()){drawerTab=!d.name.trim()?'basic':'logic';renderExpertDrawer();formError('请填写专家名称和决策依据。');return;}if(d.id===state.lead&&!d.enabled){formError('当前主视角不能停用，请先在团队页设置另一位主视角。');return;}if(!d.enabled&&!state.experts.some(e=>e.enabled&&e.id!==d.id)){formError('至少需要保留一位启用的专家。');return;}const clean=clone(d);delete clean.isNew;clean.name=clean.name.trim();if(state.experts.some(e=>e.name===clean.name&&e.id!==clean.id)){formError('已存在同名专家，请使用可区分的名称。');return;}if(d.isNew&&state.experts.length>=24){formError('最多支持 24 位专家。');return;}try{const proposed=d.isNew?[...state.experts,clean]:state.experts.map(e=>e.id===clean.id?clean:e);state.experts=validateState({...state,experts:proposed}).experts;}catch(error){formError(error.message);return;}closeDrawerImmediate();configChanged('保存专家配置 · '+clean.name);}
-  function formError(text){const el=document.getElementById('form-error');if(el){el.hidden=false;el.textContent=text;el.scrollIntoView({block:'nearest'});}else toast(text,'info');}
-  function settingsDrawer(kind){drawerKind=kind;drawerDraft=clone(kind==='team'?state.team:state.research);drawerOriginal=JSON.stringify(drawerDraft);renderSettingsDrawer();}
-  function renderSettingsDrawer(){const d=drawerDraft,isTeam=drawerKind==='team';const teamFields=`<div class="form-section">协作与共识</div>${field('分析编排',select('mode',d.mode,[['parallel','并行独立研究'],['sequential','顺序证据审阅'],['debate','多轮交叉讨论']]),'演示任务记录此编排选择；离线流程不会调度真实模型。')}${field('共识机制',select('consensus',d.consensus,[['weighted','按专家权重投票'],['majority','等权投票'],['unanimous','全体一致（不使用百分比门槛）']]))}${field('支持门槛（%）',input('threshold',d.threshold,'number','min="1" max="100" step="1" required'),'观望票保留在分母；隐藏或编辑卡片不会偷偷减少共识分母。')}<div class="form-grid">${field('最大讨论轮数',input('rounds',d.rounds,'number','min="1" max="5" required'))}${field('任务超时（秒）',input('timeout',d.timeout,'number','min="15" max="300" required'))}</div><div class="form-section">研究纪律</div>${[['evidence','要求注明证据来源','未连接的数据只允许标记待核验。'],['abstain','允许中性与弃权','无明确方向时不强行得出结论。'],['veto','允许反方否决','任何反对意见均阻止进入研究候选。']].map(([id,n,t])=>`<label class="tool-option"><span>${n}<small>${t}</small></span><input type="checkbox" name="${id}" ${d[id]?'checked':''}></label>`).join('')}<p class="help-text compact-note" style="margin-top:15px">共识机制、权重、门槛、允许弃权和反方否决会影响模拟结果；讨论轮数与超时仅保存，不伪称在线执行。</p>`;
-    const researchFields=`<div class="form-section">量化快照筛选</div>${field('研究范围',select('pool',d.pool,[['mainstream','主流标的池（62 个）'],['all','全市场已拟合快照（6,244 个）'],['watchlist','我的研究清单']]),'量化页筛选真实历史快照。四步模拟研究只演示该范围内最多 4 个内置样本。')}<div class="form-grid">${field('最低历史命中率（%）',input('minAccuracy',d.minAccuracy,'number','min="50" max="100" step="0.1" required'))}${field('最低覆盖率（%）',input('minCoverage',d.minCoverage,'number','min="10" max="100" step="0.1" required'),'硬下限 10%，不允许降到 10% 以下。')}${field('最短持有期（根）',input('hMin',d.hMin,'number','min="1" max="20" step="1" required'))}${field('最长持有期（根）',input('hMax',d.hMax,'number','min="1" max="20" step="1" required'))}</div><div class="notice-box">这里只筛选报告中已选中的最佳 H，不会重新搜索规则或重新拟合。设置 H 范围会隐藏最佳 H 不在范围内的标的。</div><div class="form-section" style="margin-top:22px">基本面 / 技术面演示条件</div><div class="form-grid">${field('最低股息率（%）',input('minDividend',d.minDividend,'number','min="0" max="20" step="0.1" required'))}${field('最高 PE（倍）',input('maxPE',d.maxPE,'number','min="1" max="200" step="0.1" required'))}${field('突破回看（根）',input('breakout',d.breakout,'number','min="5" max="120" step="1" required'))}${field('目标风险回报（R）',input('rr',d.rr,'number','min="0.5" max="10" step="0.1" required'))}</div>`;
-    setDrawer(isTeam?'团队协作设置':'研究任务配置',isTeam?'定义专家如何协作、如何形成共识。':'所有配置可保存，下一次模拟任务使用保存的快照。',`<form id="settings-form" class="drawer-form"><div class="drawer-content"><div id="form-error" class="form-error" hidden></div>${isTeam?teamFields:researchFields}</div><div class="drawer-footer"><button type="button" class="text-button save-hint" data-action="restore-draft">恢复默认</button><button type="button" class="btn" data-action="close-drawer">取消</button><button type="submit" class="btn btn-primary">${icon('check')}保存配置</button></div></form>`);decorateFormLabels();}
-  function saveSettings(){const d=drawerDraft;if(drawerKind==='research'&&(d.minCoverage<10||d.minCoverage>100||d.hMin>d.hMax)){formError('覆盖率必须为 10–100%，最短持有期不能超过最长持有期。');return;}state[drawerKind==='team'?'team':'research']=clone(d);const name=drawerKind==='team'?'团队协作设置':'研究任务设置';closeDrawerImmediate();quantPage=1;configChanged('保存'+name);}
-  function openRunDrawer(refresh=false){if(!running){navigate('history');return;}drawerKind='run';drawerDraft=null;drawerOriginal=null;setDrawer('模拟研究进行中','仅在本机演示，不发送任何网络请求。',`<div class="drawer-content">${progressInline()}<div class="mini-divider"></div><div class="kv"><span>配置版本</span><b>v${running.config.revision}</b></div><div class="kv"><span>参与专家</span><b>${running.config.experts.filter(e=>e.enabled).length} 位</b></div><div class="kv"><span>编排</span><b>${modeLabel(running.config.team.mode)}</b></div><div class="kv"><span>研究范围</span><b>最多 4 个内置演示样本</b></div><p class="rail-note">配置变更不会悄悄改变正在进行的任务。完成后按启动时的配置快照保存。</p></div>`,`<div class="drawer-footer"><span class="save-hint">可关闭此面板继续浏览</span>${btn('后台继续','close-drawer')}${btn('取消任务','cancel-run','btn-danger')}</div>`);}
-  function stockDetail(k){const r=D.records.find(r=>key(r)===k);if(!r)return;drawerKind='detail';drawerDraft=null;drawerOriginal=null;setDrawer(esc(r.name),`${r.code} · ${r.category} · 历史快照 ${D.snapshot}`,`<div class="drawer-content"><div class="badge-row">${directionPill(r)}<span class="pill amber">全历史拟合 · 内样本</span></div><div class="form-section">方向与频率</div><div class="chart-stat">H${r.horizon} <span style="font-size:14px">${r.latest_direction===0?'当前中性':r.latest_direction>0?'上涨':'下跌'}</span></div><p class="compact-note">${r.latest_direction?`第 ${r.horizon} 根后${r.latest_direction>0?'上涨':'下跌'}，历史加权命中率 ${pct(r.weighted_accuracy,2)}。`:'当前无预测，不把历史基准涨率包装成当前信号。'}该频率未经概率校准。</p><div class="mini-divider"></div>${[['加权命中率',pct(r.weighted_accuracy,2)],['未加权命中率',pct(r.plain_accuracy,2)],['中性占比',pct(1-r.coverage,2)],['历史覆盖率',pct(r.coverage,2)],['发出预测',num(r.predictions)+' 次'],['可评估样本',num(r.eligible)+' 根'],['最近一年命中率',pct(r.recent_accuracy,2)],['历史基准上涨率',pct(r.base_up_rate,2)]].map(([k,v])=>`<div class="kv"><span>${k}</span><b class="mono">${v}</b></div>`).join('')}<div class="form-section" style="margin-top:22px">选中规则</div>${r.rules.map(x=>`<div class="json-code" style="margin-bottom:8px">${esc(x)}</div>`).join('')}<p class="rail-note">数据来自既有报告。此工作台不重新计算信号；不含执行成本、路径回撤或未来验证。</p></div>`,`<div class="drawer-footer"><span class="save-hint">仅用于研究</span>${btn(state.watchlist.includes(k)?'从清单移除':'加入研究清单','watch-toggle','btn-primary',`data-key="${k}"`,'bookmark')}</div>`);}
-  function fixtureDetail(code){const s=FIXTURES.find(x=>x.code===code);if(!s)return;drawerKind='fixture';drawerDraft=null;drawerOriginal=null;setDrawer(s.name+' · 演示证据',s.code+' / '+s.industry,`<div class="drawer-content"><div class="notice-box amber">这是内置财务 / 技术样本，不是已核实的公司数据。</div>${[['PE',s.pe+'×'],['PB',s.pb+'×'],['股息率',s.dividend+'%'],['ROE',s.roe+'%'],['价格结构',s.trend],['演示强度',s.strength]].map(([k,v])=>`<div class="kv"><span>${k}</span><b>${v}</b></div>`).join('')}<p class="rail-note">${s.notes}</p><div class="mini-divider"></div><h3 class="drawer-section-title">下一步待核验</h3><p class="compact-note">财报原文、报告期、分红公告、估值时间点与复权价格尚未连接。不能把界面样本当作公司当前情况。</p></div>`,`<div class="drawer-footer"><span class="save-hint">量化另有真实历史快照</span>${btn('查看量化快照','stock-detail','btn-primary',`data-key="个股|${code}"`)}</div>`);}
-  function taskDetail(id){const t=state.tasks.find(t=>t.id===id);if(!t)return;drawerKind='task';drawerDraft=null;drawerOriginal=null;setDrawer('研究任务记录',esc(t.id)+' · '+esc(t.created),`<div class="drawer-content"><div class="badge-row"><span class="pill green">${t.status==='completed'?'演示已完成':'已取消'}</span><span class="pill">配置 v${t.config.revision}</span></div><p class="compact-note">${esc(t.title)}</p><div class="form-section" style="margin-top:22px">筛选过程 · 内置样本</div>${t.status==='completed'?['起始样本','基本面条件','技术结构','量化快照','会审通过'].map((s,i)=>`<div class="kv"><span>${s}</span><b class="mono">${t.result.counts[i]??0} 个</b></div>`).join(''):'<p class="compact-note">任务已取消，未生成完整筛选结果。</p>'}<div class="form-section" style="margin-top:22px">不可变配置快照</div><div class="json-code">${esc(JSON.stringify({lead:t.config.experts.find(e=>e.id===t.config.lead)?.name,experts:t.config.experts.filter(e=>e.enabled).map(e=>({name:e.name,weight:e.weight,model:e.model})),team:t.config.team,research:t.config.research},null,2))}</div></div>`,`<div class="drawer-footer"><span class="save-hint">按原配置重跑不会覆盖当前设置</span>${btn('导出记录','export-task','',`data-id="${t.id}"`,'download')}${btn('按原配置重跑','rerun-task','btn-primary',`data-id="${t.id}"`,'play')}</div>`);}
-  function activityDrawer(){drawerKind='activity';drawerDraft=null;drawerOriginal=null;setDrawer('工作区活动记录','只记录本机操作，不上传服务器。',`<div class="drawer-content"><div class="timeline">${state.activity.length?state.activity.slice(0,40).map(a=>`<div class="timeline-item"><time>${esc(a.time)}</time><p>${esc(a.text)}</p></div>`).join(''):empty('还没有操作记录','保存配置或运行模拟任务后，记录会出现在这里。')}</div></div>`);}
-  function showModal(title,text,actions){const m=document.getElementById('modal');m.innerHTML=`<div class="modal-body"><h2 id="modal-title">${title}</h2><p>${text}</p></div><div class="modal-actions">${actions}</div>`;if(!m.open)m.showModal();}
-  function closeModal(){document.getElementById('modal').close();}
-  function commandModal(){const m=document.getElementById('modal');m.innerHTML=`<div class="command-box"><label class="search-input" style="border:0">${icon('search')}<input id="command-input" aria-label="搜索工作台" placeholder="跳转到页面或开始一个操作…" autocomplete="off"><kbd>ESC</kbd></label></div><div class="command-items" id="command-items">${commandItems('')}</div>`;m.showModal();document.getElementById('command-input').focus();}
-  function commandItems(query){const options=[...Object.entries(VIEWS).map(([id,v])=>({label:v[0],action:'command-nav',extra:`data-view="${id}"`,ic:id==='team'?'users':'file'})),{label:'运行模拟研究',action:'command-run',extra:'',ic:'play'},{label:'编辑团队协作设置',action:'command-team',extra:'',ic:'sliders'},{label:'新增分析专家',action:'command-add',extra:'',ic:'plus'}];return options.filter(x=>x.label.includes(query)).map(x=>`<button class="command-item" data-action="${x.action}" ${x.extra}>${icon(x.ic)}<span>${x.label}</span>${icon('chevron-right')}</button>`).join('')||'<div class="empty-state">没有匹配的页面或操作</div>';}
-  function helpModal(){showModal('一张桌面，完成研究闭环','① 在研究工作台输入代码、查看快照或运行模拟研究。<br>② 分析团队可新增、启停、复制专家，配置模型、权重、决策逻辑与工具权限。<br>③ 设置保存到本机，刷新保留；JSON 导入 / 导出用于备份。<br>④ 模拟任务只演示 4 个内置样本。量化表是真实历史快照，专家意见、财务数字和 K 线图示为演示。<br><br>所有服务均未连接；不需要密钥，不联网调用模型，不下单。<br>快捷键：Ctrl / ⌘ K 搜索，Esc 关闭，Enter 发送。',btn('开始使用','close-modal','btn-primary'));}
-  function workspaceSettings(){drawerKind='workspace';drawerDraft=null;drawerOriginal=null;setDrawer('研究空间设置','个人工作区 · 本地存储，不同步云端。',`<div class="drawer-content"><div class="notice-box">设置保存于当前浏览器、当前文件地址。换浏览器、移动文件或清理站点数据后可能不可见，请导出备份。</div><h3 class="drawer-section-title">配置管理</h3><div class="button-group">${btn('导出配置','export-config','','','download')}${btn('导入配置','import-config','','','upload')}</div><div class="mini-divider"></div><div class="kv"><span>配置格式</span><b class="mono">schema v3</b></div><div class="kv"><span>当前修订</span><b class="mono">v${state.revision}</b></div><div class="kv"><span>本地存储</span><b>${storageAvailable?'可用':'受限'}</b></div><div class="kv"><span>模型 / 财报 / 行情</span><b class="pill amber">未连接</b></div><div class="mini-divider"></div><h3 class="drawer-section-title">恢复默认配置</h3><p class="compact-note">只恢复专家、编排与研究参数，保留研究清单、历史任务和对话；此操作需要确认。</p><div style="margin-top:14px">${btn('恢复默认配置','reset-settings','btn-danger','','refresh')}</div></div>`);}
-  function download(data,filename,mime='application/json'){const blob=new Blob([typeof data==='string'?data:JSON.stringify(data,null,2)],{type:mime+';charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);toast('导出文件已生成。');}
-  function exportConfig(){const {schemaVersion,revision,lead,experts,team,research,watchlist}=state;download({schemaVersion,revision,lead,experts,team,research,watchlist},'super-trader-config.json');}
-  let pendingImport=null;
-  async function importFile(file){try{if(!file)return;if(file.size>1024*1024)throw Error('配置文件不能大于 1 MB。');const raw=JSON.parse(await file.text());pendingImport=validateState(raw);showModal('应用导入的配置？',`将导入 ${pendingImport.experts.length} 位专家及其编排设置。现有对话与历史任务会保留，研究清单将替换为导入配置中的清单。`,btn('取消','cancel-import')+btn('确认导入','apply-import','btn-primary'));}catch(e){toast('导入失败：'+e.message,'info');}document.getElementById('config-import').value='';}
-  function toggleExpert(id){const e=state.experts.find(x=>x.id===id);if(!e)return;if(e.enabled&&e.id===state.lead){toast('请先把另一位启用专家设为主视角。','info');return;}if(e.enabled&&enabled().length===1){toast('至少保留一位启用的专家。','info');return;}e.enabled=!e.enabled;configChanged(`${e.enabled?'启用':'停用'}专家 · ${e.name}`);}
-  function setLead(id){const e=state.experts.find(x=>x.id===id);if(!e)return;if(!e.enabled){toast('请先启用这位专家，再设为主视角。','info');return;}state.lead=id;configChanged('设置主视角 · '+e.name);}
-  function watchToggle(k){const r=D.records.find(r=>key(r)===k);if(!r)return;const index=state.watchlist.indexOf(k);if(index>=0)state.watchlist.splice(index,1);else{if(state.watchlist.length>=500){toast('最多关注 500 个标的。','info');return;}state.watchlist.push(k);}if(state.research.pool==='watchlist')state.revision++;log((index>=0?'移除关注 · ':'加入研究清单 · ')+r.name);toast(index>=0?'已从研究清单移除。':'已加入研究清单。');if(drawerKind==='detail')stockDetail(k);render();}
-  function refreshReviewBrowser(preserveScroll=false){const oldList=document.querySelector('.review-stock-list');if(!oldList)return;const scroll=preserveScroll?oldList.scrollTop:0;const template=document.createElement('template');template.innerHTML=aiPage();for(const selector of ['.review-stock-list','.review-pagination','#review-detail']){const current=document.querySelector(selector),next=template.content.querySelector(selector);if(current&&next)current.replaceWith(next);}const count=document.querySelector('.review-browser-head>div:first-child>span'),nextCount=template.content.querySelector('.review-browser-head>div:first-child>span');if(count&&nextCount)count.textContent=nextCount.textContent;document.querySelector('.review-stock-list').scrollTop=scroll;}
-  function refreshQuantTable(){const host=document.getElementById('quant-table');if(host){host.innerHTML=quantTableHTML();hydrate(host);}}
-  document.addEventListener('click',event=>{const el=event.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;const id=el.dataset.id;
-    const handler={
-      'review-scope':()=>{reviewScope=el.dataset.scope;reviewPage=1;reviewSelection=null;render();},'review-select':()=>{reviewSelection=el.dataset.key;refreshReviewBrowser(true);},'review-prev':()=>{reviewPage--;reviewSelection=null;render();},'review-next':()=>{reviewPage++;reviewSelection=null;render();},'review-clear':()=>{reviewQuery='';reviewType='全部';reviewStatus='all';reviewPage=1;reviewSelection=null;render();},'review-ask':()=>{const r=D.records.find(r=>key(r)===el.dataset.key);if(r){navigate('chat');setTimeout(()=>{const input=document.getElementById('chat-input');if(input){input.value='请帮我研究 '+r.code+' '+r.name+'，先列出已有证据与待核实问题';const c=currentConversation();if(c)c.draft=input.value;persist();input.focus();}},0);}},nav:()=>navigate(el.dataset.view),run:()=>startRun(),prompt:()=>{const inputEl=document.getElementById('chat-input');if(inputEl){inputEl.value=el.dataset.prompt;inputEl.focus();}},'new-chat':()=>{if(drawerKind)closeDrawerImmediate();newConversation();},'confirm-new-chat':()=>{closeModal();newConversation();},'switch-conversation':()=>openConversation(id),'conversation-list':conversationList,'agent-settings':agentSettings,'export-conversation':()=>{const c=state.conversations.find(c=>c.id===id);if(c)download(c,'super-agent-'+c.id+'.json');},'delete-conversation':()=>{showModal('删除这份对话？','删除后不能在此恢复。历史任务仍保留，建议先导出会话备份。',btn('取消','close-modal')+btn('确认删除','confirm-delete-conversation','btn-danger',`data-id="${esc(id)}"`));},'confirm-delete-conversation':()=>{if(id!==state.activeConversationId){state.conversations=state.conversations.filter(c=>c.id!==id);persist();}closeModal();conversationList();},'task-review':()=>{const task=state.tasks.find(t=>t.id===id);if(task){state.lastResult=task;reviewScope='task';reviewQuery='';reviewType='全部';reviewStatus='all';reviewPage=1;reviewSelection=null;persist();navigate('ai');}},'research-settings':()=>settingsDrawer('research'),'team-settings':()=>settingsDrawer('team'),'workspace-settings':workspaceSettings,'add-expert':()=>{if(state.experts.length>=24)toast('最多支持 24 位专家。','info');else editExpert();},'edit-expert':()=>editExpert(id),'toggle-expert':()=>toggleExpert(id),'lead-expert':()=>setLead(id),'team-filter':()=>{teamFilter=el.dataset.filter;render();},'expert-tab':()=>{drawerTab=el.dataset.tab;renderExpertDrawer();},'expert-more':()=>showModal('更多专家操作','复制当前草稿会创建独立副本（不会改动原专家）；删除不会修改过去任务的配置快照。',btn('取消','close-modal')+btn('复制专家','duplicate-expert','',`data-id="${id}"`,'copy')+btn('删除专家','delete-expert','btn-danger',`data-id="${id}"`,'trash')),'duplicate-expert':()=>{closeModal();if(state.experts.length>=24){toast('最多支持 24 位专家。','info');return;}editExpert(id,true);},'delete-expert':()=>{if(id===state.lead){closeModal();toast('当前主视角不能删除，请先指定另一位。','info');return;}state.experts=state.experts.filter(e=>e.id!==id);closeModal();closeDrawerImmediate();configChanged('删除专家配置');},'close-drawer':()=>requestCloseDrawer(),'discard-drawer':()=>{closeModal();closeDrawerImmediate();const after=pendingAfterClose;pendingAfterClose=null;after?.();},'close-modal':closeModal,'restore-draft':()=>{drawerDraft=clone(defaultState()[drawerKind==='team'?'team':'research']);renderSettingsDrawer();},'export-config':exportConfig,'import-config':()=>{if(formDirty()){toast('请先保存或取消正在编辑的配置。','info');return;}document.getElementById('config-import').click();},'cancel-import':()=>{pendingImport=null;closeModal();},'apply-import':()=>{if(!pendingImport)return;state={...state,experts:pendingImport.experts,lead:pendingImport.lead,team:pendingImport.team,research:pendingImport.research,watchlist:pendingImport.watchlist};pendingImport=null;closeModal();closeDrawerImmediate();configChanged('导入本地团队与研究配置');},'reset-settings':()=>showModal('恢复默认研究配置？','专家、协作规则和研究参数将恢复默认。历史任务、对话与研究清单会保留。',btn('取消','close-modal')+btn('确认恢复','confirm-reset','btn-danger')),'confirm-reset':()=>{const d=defaultState();state.experts=d.experts;state.lead=d.lead;state.team=d.team;state.research=d.research;closeModal();closeDrawerImmediate();configChanged('恢复默认研究配置');},command:commandModal,help:helpModal,activity:activityDrawer,'toggle-nav':()=>{const sidebar=document.getElementById('sidebar');const open=sidebar.classList.toggle('open');document.querySelector('.mobile-scrim').hidden=!open;},'close-nav':()=>{document.getElementById('sidebar').classList.remove('open');document.querySelector('.mobile-scrim').hidden=true;},'quant-filter':()=>{quantFilter=el.dataset.filter;quantPage=1;render();},'quant-sort':()=>{if(quantSort===el.dataset.sort)quantDescending=!quantDescending;else{quantSort=el.dataset.sort;quantDescending=true;}refreshQuantTable();},'quant-prev':()=>{quantPage--;refreshQuantTable();document.querySelector('.table-panel')?.scrollIntoView({block:'start'});},'quant-next':()=>{quantPage++;refreshQuantTable();document.querySelector('.table-panel')?.scrollIntoView({block:'start'});},'stock-detail':()=>stockDetail(el.dataset.key),'fixture-detail':()=>fixtureDetail(el.dataset.code),'watch-toggle':()=>watchToggle(el.dataset.key),'select-stock':()=>{selectedStock=el.dataset.code;render();},'task-detail':()=>taskDetail(id),'cancel-run':cancelRun,'rerun-task':()=>{const t=state.tasks.find(t=>t.id===id);if(t){closeDrawerImmediate();startRun('重跑 · '+t.title,t.config);}},'export-task':()=>{const t=state.tasks.find(t=>t.id===id);if(t)download(t,t.id+'.json');},'export-tasks':()=>download(state.tasks,'super-trader-tasks.json'),'export-watchlist':()=>download(state.watchlist.map(k=>D.records.find(r=>key(r)===k)),'super-trader-watchlist.json'),'report-link':()=>{const allowed=['fullfit/table_fullmarket.html','crosssection/report_crosssection.html','fullfit/ranking_fullfit.html'];if(allowed.includes(el.dataset.path))window.open(el.dataset.path,'_blank','noopener');},'command-nav':()=>{closeModal();navigate(el.dataset.view);},'command-run':()=>{closeModal();startRun();},'command-team':()=>{closeModal();settingsDrawer('team');},'command-add':()=>{closeModal();editExpert();}
-    }[a];if(handler){event.preventDefault();handler();}
+
+  const defaultPlugins = () => ([
+    {id:'quant', kind:'quant', name:'量化概率', icon:'chart', enabled:true, note:'按规则历史命中率计算未来第 N 根涨跌概率'},
+    {id:'experts', kind:'experts', name:'专家团队', icon:'users', enabled:true, note:'蒸馏专家对候选标的给出可证伪的判断'},
+    {id:'watchlist', kind:'watchlist', name:'自选股', icon:'bookmark', enabled:true, note:'自己挑的标的，结合量化信号与专家研判'},
+    {id:'journal', kind:'journal', name:'操盘记录', icon:'file', enabled:true, note:'记录专家选股与买卖理由，供以后复盘'}
+  ]);
+  const defaultExperts = () => EXPERT_SEEDS.map(([id, name, tag, initial, desc, basis, flaw, source, role, bg, color]) => ({
+    id, name, tag, initial, desc, basis, flaw, source, role, bg, color,
+    enabled: true, weight: id === 'neutral' ? 1.5 : 1, model: MODELS[0]
+  }));
+  const defaultState = () => ({
+    schemaVersion: 4, revision: 1, plugins: defaultPlugins(), experts: defaultExperts(),
+    team: {consensus:'weighted', threshold:60, abstain:true},
+    watchlist: ['个股|601088'], journal: [], conversations: [], activeConversationId: '', messages: [], activity: []
   });
-  document.addEventListener('input',e=>{const t=e.target;if(t.id==='review-search'){reviewQuery=t.value;reviewPage=1;reviewSelection=null;refreshReviewBrowser();}if(t.id==='chat-input'){const c=currentConversation();if(c)c.draft=t.value.slice(0,1500);persist();}if(t.closest('#drawer')&&t.name)updateDraft(t);if(t.dataset.weightId){t.closest('label').querySelector('output').textContent=Number(t.value).toFixed(1)+'×';}if(t.id==='team-search'){teamQuery=t.value.toLowerCase();const pos=t.selectionStart;render();const n=document.getElementById('team-search');n.focus();n.setSelectionRange(pos,pos);}if(t.id==='quant-search'){quantQuery=t.value.toLowerCase();quantPage=1;refreshQuantTable();}if(t.id==='command-input')document.getElementById('command-items').innerHTML=commandItems(t.value.trim());});
-  document.addEventListener('change',e=>{const t=e.target;if(t.id==='review-type'||t.id==='review-status'){if(t.id==='review-type')reviewType=t.value;else reviewStatus=t.value;reviewPage=1;reviewSelection=null;refreshReviewBrowser();}if(t.dataset.weightId){const exp=state.experts.find(x=>x.id===t.dataset.weightId);if(exp){exp.weight=Number(t.value);configChanged('调整投票权重 · '+exp.name);}}if(t.id==='quant-signal'){quantSignal=t.value;quantPage=1;refreshQuantTable();}if(t.id==='config-import')importFile(t.files[0]);if(t.closest('#drawer')&&t.name)updateDraft(t);});
-  document.addEventListener('submit',e=>{if(e.target.id==='chat-form'){e.preventDefault();sendMessage(document.getElementById('chat-input').value);}if(e.target.id==='expert-form'){e.preventDefault();saveExpert();}if(e.target.id==='settings-form'){e.preventDefault();saveSettings();}});
-  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.altKey&&e.key.toLowerCase()==='n'){e.preventDefault();if(!drawerKind&&!document.getElementById('modal').open)newConversation();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(!document.getElementById('modal').open&&!drawerKind)commandModal();}if(e.key==='Escape'&&drawerKind&&!document.getElementById('modal').open){e.preventDefault();requestCloseDrawer();}if(e.target.id==='chat-input'&&e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();sendMessage(e.target.value);}if(e.key==='Tab'&&drawerKind&&!document.getElementById('modal').open){const list=[...document.querySelectorAll('#drawer button:not([disabled]),#drawer input,#drawer select,#drawer textarea')].filter(n=>n.offsetParent!==null),first=list[0],last=list[list.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
-  document.getElementById('overlay').addEventListener('click',()=>requestCloseDrawer());
-  window.addEventListener('hashchange',route);
-  window.addEventListener('beforeunload',e=>{if(formDirty()){e.preventDefault();e.returnValue='';}});
-  Object.assign(state,normalizeConversationState(state));hydrate();route();if(startupWarning)toast(startupWarning,'info');
-  // 浏览器刷新会恢复上次滚动位置，导致顶部标题与操作按钮被顶出视口；加载完成后归位。
-  window.addEventListener('load',()=>{document.getElementById('workspace').scrollTop=0;});
-  setTimeout(()=>{document.getElementById('workspace').scrollTop=0;},0);
+
+  // ---------------------------------------------------------------- 状态校验
+  function validateState(raw) {
+    if (!raw || typeof raw !== 'object') throw Error('配置格式无效。');
+    const base = defaultState();
+    if (raw.schemaVersion !== 4 && raw.schemaVersion !== 3) throw Error('配置版本不受支持。');
+    const text = (v, max = 2000) => typeof v === 'string' ? v.slice(0, max) : '';
+    const numOr = (v, min, max, fallback) => Number.isFinite(Number(v)) ? Math.min(max, Math.max(min, Number(v))) : fallback;
+
+    if (Array.isArray(raw.experts) && raw.experts.length === 0) throw Error('至少需要一位专家。');
+    const seen = new Set();
+    const experts = (Array.isArray(raw.experts) && raw.experts.length ? raw.experts : base.experts)
+      .filter(e => e && typeof e.id === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(e.id) && !seen.has(e.id) && (seen.add(e.id), true))
+      .slice(0, 24)
+      .map(e => {
+        const seed = base.experts.find(x => x.id === e.id) || {...base.experts[0], id: e.id, initial: '研'};
+        const name = text(e.name, 24).trim();
+        if (!name) throw Error('专家名称不能为空。');
+        return {...seed, id: e.id, name, tag: text(e.tag, 40), desc: text(e.desc, 4000),
+          basis: text(e.basis, 4000), flaw: text(e.flaw, 3000), source: text(e.source, 200), role: text(e.role, 40),
+          enabled: e.enabled !== false, weight: numOr(e.weight, 0.1, 3, 1),
+          model: MODELS.includes(e.model) ? e.model : MODELS[0]};
+      });
+    if (!experts.length) throw Error('至少需要一位专家。');
+    if (!experts.some(e => e.enabled)) experts[0].enabled = true;
+
+    const plugins = (Array.isArray(raw.plugins) ? raw.plugins : base.plugins)
+      .filter(p => p && typeof p.id === 'string' && /^[a-zA-Z0-9_-]{1,40}$/.test(p.id) && !seen.has('p:' + p.id) && (seen.add('p:' + p.id), true))
+      .slice(0, 16)
+      .map((p, i) => ({
+        id: p.id,
+        kind: ['quant', 'experts', 'watchlist', 'journal', 'custom'].includes(p.kind) ? p.kind : 'custom',
+        name: text(p.name, 30).trim() || '未命名插件',
+        icon: typeof p.icon === 'string' && ICONS[p.icon] ? p.icon : 'layers',
+        enabled: p.enabled !== false,
+        order: Number.isFinite(Number(p.order)) ? Number(p.order) : i,
+        note: text(p.note, 200)
+      }))
+      .sort((a, b) => a.order - b.order)
+      .map((p, i) => ({...p, order: i}));
+    for (const builtin of base.plugins) {
+      if (!plugins.some(p => p.id === builtin.id)) plugins.push({...builtin, order: plugins.length});
+    }
+    plugins.forEach((p, i) => { p.order = i; });
+    if (!plugins.length) throw Error('至少需要一个插件。');
+    if (!plugins.some(p => p.enabled)) plugins[0].enabled = true;
+
+    const team = {...base.team, ...(raw.team || {})};
+    team.consensus = ['weighted', 'majority', 'unanimous'].includes(team.consensus) ? team.consensus : 'weighted';
+    team.threshold = numOr(team.threshold, 1, 100, 60);
+    team.abstain = team.abstain !== false;
+
+    const conv = (typeof normalizeConversationState === 'function') ? normalizeConversationState(raw) : null;
+    return {
+      ...base,
+      revision: Math.max(1, Math.floor(Number(raw.revision) || 1)),
+      plugins, experts, team,
+      watchlist: Array.isArray(raw.watchlist) ? raw.watchlist.filter(k => typeof k === 'string').slice(0, 300) : base.watchlist,
+      journal: normalizeJournal(raw.journal),
+      ...(conv || {}),
+      messages: (conv ? conv.messages : []),
+      activity: Array.isArray(raw.activity) ? raw.activity.slice(0, 50)
+        .filter(a => a && typeof a.text === 'string')
+        .map(a => ({text: text(a.text, 240), time: text(a.time, 40)})) : []
+    };
+  }
+
+  // ---------------------------------------------------------------- 操盘记录
+  const ACTIONS = {watch: '观察', buy: '买入', add: '加仓', sell: '卖出', close: '清仓'};
+  const ACTION_SIDE = {watch: 0, buy: 1, add: 1, sell: -1, close: -1};
+  function normalizeJournal(raw) {
+    const out = [];
+    const seen = new Set();
+    for (const r of Array.isArray(raw) ? raw.slice(0, 400) : []) {
+      if (!r || typeof r.id !== 'string' || seen.has(r.id)) continue;
+      if (typeof r.code !== 'string' || !ACTIONS[r.action]) continue;
+      seen.add(r.id);
+      const price = Number(r.price), now = Number(r.nowPrice);
+      out.push({
+        id: r.id.slice(0, 60),
+        time: typeof r.time === 'string' ? r.time.slice(0, 40) : '',
+        code: r.code.slice(0, 12),
+        category: ['个股', 'ETF', '指数'].includes(r.category) ? r.category : '个股',
+        name: typeof r.name === 'string' ? r.name.slice(0, 30) : '',
+        action: r.action,
+        expert: typeof r.expert === 'string' ? r.expert.slice(0, 24) : '团队',
+        horizon: Math.min(20, Math.max(1, Math.round(Number(r.horizon) || 10))),
+        direction: [-1, 0, 1].includes(r.direction) ? r.direction : 0,
+        accuracy: Number.isFinite(Number(r.accuracy)) ? Math.min(1, Math.max(0, Number(r.accuracy))) : null,
+        reason: typeof r.reason === 'string' ? r.reason.slice(0, 4000) : '',
+        votes: Array.isArray(r.votes) ? r.votes.slice(0, 24).map(v => ({
+          name: typeof v.name === 'string' ? v.name.slice(0, 24) : '专家',
+          vote: [-1, 0, 1].includes(v.vote) ? v.vote : 0,
+          why: typeof v.why === 'string' ? v.why.slice(0, 800) : ''
+        })) : [],
+        price: Number.isFinite(price) && price > 0 ? Math.min(1e7, price) : null,
+        nowPrice: Number.isFinite(now) && now > 0 ? Math.min(1e7, now) : null,
+        closed: r.closed === true,
+        note: typeof r.note === 'string' ? r.note.slice(0, 1000) : ''
+      });
+    }
+    return out;
+  }
+  function journalReturn(record) {
+    if (!record.price || !record.nowPrice) return null;
+    const side = ACTION_SIDE[record.action];
+    if (!side) return null;
+    return ((record.nowPrice - record.price) / record.price) * side;
+  }
+  function journalCreate(symbol, action, opts = {}) {
+    const horizon = Math.min(20, Math.max(1, Number(opts.horizon) || wlHorizon));
+    const p = probabilityFor(symbol, horizon);
+    const verdicts = expertVerdicts(symbol, horizon);
+    const record = {
+      id: 'J-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 4),
+      time: stamp(), code: symbol.c, category: symbol.k, name: symbol.n,
+      action: ACTIONS[action] ? action : 'watch',
+      expert: opts.expert || '团队',
+      horizon,
+      direction: p ? p.direction : 0,
+      accuracy: p && p.probability !== null ? p.probability : null,
+      reason: opts.reason || `记录当时的量化与专家意见：共识 ${pct(verdicts.share, 0)}，支持 ${verdicts.up} / 观望 ${verdicts.flat} / 反对 ${verdicts.down}。`,
+      votes: verdicts.votes.map(v => ({name: v.name, vote: v.vote, why: v.why})),
+      price: Number(opts.price) > 0 ? Number(opts.price) : null,
+      nowPrice: null, closed: false, note: typeof opts.note === 'string' ? opts.note : ''
+    };
+    return record;
+  }
+
+  // ---------------------------------------------------------------- 插件
+  function pluginAdd(current, name) {
+    const clean = String(name || '').trim().slice(0, 30);
+    if (!clean) throw Error('插件名称不能为空。');
+    if (current.plugins.length >= 16) throw Error('最多 16 个插件。');
+    if (current.plugins.some(p => p.name === clean)) throw Error('已存在同名插件。');
+    const id = 'plg-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const plugin = {id, kind: 'custom', name: clean, icon: 'layers', enabled: true, order: current.plugins.length, note: '由 Super Agent 创建，数据源未接入'};
+    return {...current, revision: current.revision + 1, plugins: [...current.plugins, plugin]};
+  }
+  function pluginRemove(current, id) {
+    const target = current.plugins.find(p => p.id === id);
+    if (!target) throw Error('插件不存在。');
+    if (target.kind !== 'custom') throw Error('内置插件不能删除，可以停用。');
+    if (current.plugins.filter(p => p.enabled).length === 1 && target.enabled) throw Error('至少保留一个启用的插件。');
+    const plugins = current.plugins.filter(p => p.id !== id).map((p, i) => ({...p, order: i}));
+    return {...current, revision: current.revision + 1, plugins};
+  }
+  function pluginToggle(current, id, enabled) {
+    const target = current.plugins.find(p => p.id === id);
+    if (!target) throw Error('插件不存在。');
+    if (!enabled && current.plugins.filter(p => p.enabled).length === 1) throw Error('至少保留一个启用的插件。');
+    const plugins = current.plugins.map(p => p.id === id ? {...p, enabled} : p);
+    return {...current, revision: current.revision + 1, plugins};
+  }
+  function pluginMove(current, id, delta) {
+    const list = current.plugins.slice().sort((a, b) => a.order - b.order);
+    const at = list.findIndex(p => p.id === id);
+    const to = at + delta;
+    if (at < 0) throw Error('插件不存在。');
+    if (to < 0 || to >= list.length) return current;
+    const [item] = list.splice(at, 1);
+    list.splice(to, 0, item);
+    return {...current, revision: current.revision + 1, plugins: list.map((p, i) => ({...p, order: i}))};
+  }
+
+  // ---------------------------------------------------------------- 概率
+  function symbolKey(s) { return s.k + '|' + s.c; }
+  function findSymbol(code, category) {
+    const list = DATA.symbols || [];
+    if (category) return list.find(s => s.c === code && s.k === category) || null;
+    return list.find(s => s.c === code) || null;
+  }
+  function searchSymbols(query, category) {
+    const q = String(query || '').trim().toLowerCase();
+    return (DATA.symbols || []).filter(s =>
+      (!category || category === '全部' || s.k === category) &&
+      (!q || s.c.includes(q) || String(s.n).toLowerCase().includes(q)));
+  }
+  /** 第 n 根（1..20）的方向概率；返回 null 表示该周期没有可用模型。 */
+  function probabilityFor(symbol, horizon) {
+    if (!symbol || !Array.isArray(symbol.r)) return null;
+    const row = symbol.r[horizon - 1];
+    if (!row) return null;
+    const [prob, predictions, direction, baseUp, coverage] = row;
+    return {
+      horizon, direction,
+      accuracy: prob / 1000,
+      predictions, coverage: coverage / 1000,
+      baseUp: baseUp / 1000,
+      /** direction=+1 时是上涨概率，-1 时是下跌概率；0 表示没有信号 */
+      label: direction === 1 ? '上涨' : direction === -1 ? '下跌' : '中性',
+      probability: direction === 0 ? null : prob / 1000
+    };
+  }
+  /** A 股近似交易日：从快照日往后数工作日，用于「未来某日」。 */
+  function tradingDaysAhead(targetDate, fromISO) {
+    const from = new Date(fromISO + 'T00:00:00');
+    const to = new Date(String(targetDate) + 'T00:00:00');
+    if (Number.isNaN(to.getTime())) return null;
+    let days = 0;
+    const cursor = new Date(from);
+    while (cursor < to) {
+      cursor.setDate(cursor.getDate() + 1);
+      const dow = cursor.getDay();
+      if (dow !== 0 && dow !== 6) days++;
+    }
+    return days;
+  }
+  function bestHorizon(symbol) {
+    let best = null;
+    for (let h = 1; h <= 20; h++) {
+      const p = probabilityFor(symbol, h);
+      if (p && p.probability !== null && (!best || p.probability > best.probability)) best = {...p};
+    }
+    return best;
+  }
+
+  // ---------------------------------------------------------------- 专家
+  function verdictFor(expert, symbol, probability) {
+    const fixture = FIXTURES.find(f => f.code === symbol.c);
+    if (fixture) {
+      const raw = fixture.votes[expert.id];
+      if (typeof raw === 'number') {
+        return {vote: raw, why: fixture.notes + `（PE ${fixture.pe}×，股息 ${fixture.dividend}%，ROE ${fixture.roe}%）`, evidence: '内置演示样本'};
+      }
+      return {vote: 0, why: '这位专家没有配置针对该样本的判断依据，保持观望。', evidence: '无依据'};
+    }
+    if (expert.id === 'neutral') {
+      if (!probability || probability.probability === null) {
+        return {vote: 0, why: `第 ${probability ? probability.horizon : '—'} 根该标的没有发出预测，保持中性。`, evidence: '历史量化快照'};
+      }
+      return {vote: probability.direction, why: `历史同信号命中率 ${pct(probability.accuracy, 2)}，覆盖率 ${pct(probability.coverage, 1)}，样本 ${num(probability.predictions)} 次。内样本频率，不是本次概率。`, evidence: '历史量化快照'};
+    }
+    return {vote: 0, why: '缺少该标的的财报、估值与公告原文，无法按这个框架判断；不投票，也不补造理由。', evidence: '数据未接入'};
+  }
+  function expertVerdicts(symbol, horizon) {
+    const p = probabilityFor(symbol, horizon);
+    const votes = state.experts.filter(e => e.enabled).map(e => ({id: e.id, name: e.name, initial: e.initial, bg: e.bg, color: e.color, ...verdictFor(e, symbol, p)}));
+    const total = votes.reduce((n, v) => n + (state.team.consensus === 'weighted' ? state.experts.find(e => e.id === v.id).weight : 1), 0);
+    const support = votes.filter(v => v.vote === 1).reduce((n, v) => n + (state.team.consensus === 'weighted' ? state.experts.find(e => e.id === v.id).weight : 1), 0);
+    const share = total ? support / total : 0;
+    return {votes, share, admitted: share >= state.team.threshold / 100,
+      up: votes.filter(v => v.vote === 1).length, flat: votes.filter(v => v.vote === 0).length, down: votes.filter(v => v.vote < 0).length};
+  }
+
+  // ---------------------------------------------------------------- 运行时
+  let state = defaultState();
+  let storageAvailable = true, startupWarning = '', currentView = 'chat';
+  let qSymbol = null, qHorizon = 10, qQuery = '', qCategory = '全部', qPage = 1, qDate = '';
+  let eQuery = '', ePage = 1, eSymbol = null, eHorizon = 10;
+  let wlQuery = '', wlHorizon = 10, wlDetail = '', wlAddQuery = '';
+  let journalFilter = 'all', journalExpert = 'all';
+  let drawerKind = null, drawerDraft = null, drawerOriginal = null, returnFocus = null;
+
+  function currentPlugin() {
+    const id = currentView.startsWith('p-') ? currentView.slice(2) : null;
+    return id ? state.plugins.find(p => p.id === id) : null;
+  }
+
+  // ---------------------------------------------------------------- 启动
+  function boot() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem('super-trader.workbench.v3') || 'null');
+      if (saved) state = validateState(saved);
+    } catch (e) { startupWarning = '本地配置未能恢复，已使用默认配置。'; }
+    if (!state.conversations.length) Object.assign(state, normalizeConversationState(state));
+    qSymbol = findSymbol('601088') || (DATA.symbols || [])[0];
+    eSymbol = qSymbol;
+    document.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); });
+    window.addEventListener('hashchange', route);
+    document.addEventListener('click', onClick);
+    document.addEventListener('input', onInput);
+    document.addEventListener('change', onChange);
+    document.addEventListener('submit', onSubmit);
+    document.addEventListener('keydown', onKey);
+    document.getElementById('overlay').addEventListener('click', () => requestClose());
+    route();
+    if (startupWarning) toast(startupWarning, 'info');
+  }
+
+  function persist() {
+    try {
+      if (Array.isArray(state.conversations)) syncConversationState(state);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      storageAvailable = true;
+    } catch (e) { storageAvailable = false; }
+    if (HAS_DOM) updateChrome();
+  }
+  function log(text) { state.activity.unshift({text, time: stamp()}); state.activity = state.activity.slice(0, 50); persist(); }
+  function toast(text, kind = 'check') {
+    if (!HAS_DOM) return;
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = icon(kind) + `<span>${esc(text)}</span>`;
+    document.getElementById('toasts').append(el);
+    setTimeout(() => el.remove(), 3800);
+  }
+
+  function route() {
+    const raw = location.hash.slice(1);
+    const plugins = state.plugins.filter(p => p.enabled);
+    if (!raw || raw === 'chat') currentView = 'chat';
+    else if (raw.startsWith('p-') && plugins.some(p => 'p-' + p.id === raw)) currentView = raw;
+    else currentView = 'chat';
+    if (HAS_DOM) { render(); document.getElementById('sidebar').classList.remove('open'); document.querySelector('.mobile-scrim').hidden = true; }
+  }
+  function navigate(view) {
+    if (drawerKind) { requestClose(() => { location.hash = view; }); return; }
+    if (location.hash === '#' + view) { currentView = view; render(); } else location.hash = view;
+  }
+
+  function updateChrome() {
+    const nav = document.getElementById('main-nav');
+    if (nav) {
+      const items = [{id: 'chat', name: 'Super Agent', icon: 'sparkles', builtin: true}]
+        .concat(state.plugins.filter(p => p.enabled).map(p => ({id: 'p-' + p.id, name: p.name, icon: p.icon})));
+      nav.innerHTML = items.map(i => `<a class="nav-item ${currentView === i.id ? 'active' : ''}" href="#${i.id}" data-view="${i.id}">
+        <span data-icon="${i.icon}"></span><span>${esc(i.name)}</span>${i.builtin ? '<span class="home-label">主页</span>' : ''}</a>`).join('')
+        + `<button class="new-conversation-button" data-action="new-chat"><span data-icon="plus"></span><span>新建对话</span></button>`;
+      nav.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); });
+    }
+    const title = currentView === 'chat' ? 'Super Agent' : (currentPlugin()?.name || '工作台');
+    const pt = document.getElementById('page-title'); if (pt) pt.textContent = title;
+    const sd = document.getElementById('snapshot-date'); if (sd) sd.textContent = (DATA.snapshot || '').replaceAll('-', '.');
+    const ss = document.getElementById('save-state'); if (ss) ss.textContent = storageAvailable ? '设置保存在本机' : '存储受限 · 请导出备份';
+    const sl = document.getElementById('status-left');
+    if (sl) sl.textContent = `工作区就绪 · ${state.plugins.filter(p => p.enabled).length} 个插件 · ${state.experts.filter(e => e.enabled).length} 位专家 · v${state.revision}`;
+  }
+
+  function render() {
+    updateChrome();
+    const host = document.getElementById('workspace');
+    host.classList.toggle('agent-workspace', currentView === 'chat');
+    const plugin = currentPlugin();
+    let body;
+    if (currentView === 'chat') body = chatPage();
+    else if (plugin?.kind === 'quant') body = quantPage();
+    else if (plugin?.kind === 'experts') body = expertsPage();
+    else if (plugin?.kind === 'watchlist') body = watchlistPage();
+    else if (plugin?.kind === 'journal') body = journalPage();
+    else body = customPluginPage(plugin);
+    host.innerHTML = `<div class="page ${currentView === 'chat' ? 'agent-page' : ''}">${body}</div>`;
+    host.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); });
+    if (currentView === 'chat') scrollChat();
+  }
+
+  // ---------------------------------------------------------------- 对话
+  function currentConversation() { return (state.conversations || []).find(c => c.id === state.activeConversationId); }
+  function appendMessage(message) {
+    syncConversationState(state);
+    state.messages = cleanMessages([...state.messages, message]);
+    const c = currentConversation(); if (c) c.updated = stamp();
+    persist();
+  }
+  function newConversation() {
+    const current = syncConversationState(state);
+    if (!current.messages.length && !current.draft) { navigate('chat'); return; }
+    createConversationState(state, 'chat-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), stamp());
+    persist(); navigate('chat'); render();
+  }
+  function chatPage() {
+    const c = currentConversation();
+    const has = state.messages.length > 0;
+    return `<div class="agent-topline"><div class="agent-identity"><span class="agent-status-mark">${icon('sparkles')}</span><div>
+      <h1>Super Agent <span class="agent-role">你的工作台总助</span></h1>
+      <p>${has ? esc(c?.title || '当前对话') : '对话即入口：让我加插件、算概率、请专家。'}</p></div></div>
+      <div class="agent-top-actions"><span class="pill">离线交互演示</span>
+      <button class="icon-button" data-action="plugin-manager" aria-label="管理工作台插件" title="管理工作台插件">${icon('plus')}</button>
+      <button class="icon-button" data-action="conversation-list" aria-label="打开对话历史" title="对话历史">${icon('history')}</button></div></div>
+      <div class="agent-thread ${has ? 'has-messages' : ''}" id="chat-thread" role="log" aria-label="与 Super Agent 的对话">
+        <div class="agent-transcript">${has ? state.messages.map(messageHTML).join('') : welcomeHTML()}</div></div>
+      <div class="agent-compose-region"><form id="chat-form" class="agent-composer">
+        <label for="chat-input" class="sr-only">向 Super Agent 发送消息</label>
+        <textarea id="chat-input" rows="3" placeholder="让 Super Agent 做点什么：加一个插件、算某日概率、请专家选股…" maxlength="1500">${esc(c?.draft || '')}</textarea>
+        <div class="agent-compose-bottom"><div class="agent-context-controls">
+          <button type="button" class="agent-mode-button" data-action="help">${icon('sparkles')}Super Agent${icon('chevron-down')}</button>
+          <button type="button" class="agent-context-button" data-action="plugin-manager">${icon('layers')}${state.plugins.filter(p => p.enabled).length} 个插件</button>
+          <button type="button" class="agent-context-button" data-action="open-experts">${icon('users')}专家 ${state.experts.filter(e => e.enabled).length}</button>
+        </div><button class="agent-send" type="submit" aria-label="发送" title="发送 · Enter">${icon('arrow')}</button></div>
+      </form><div class="agent-compose-caption"><span>Enter 发送 · Shift + Enter 换行</span><span>在线模型未接入，当前为本地演示与真实历史快照</span></div></div>`;
+  }
+  function welcomeHTML() {
+    const starters = [
+      ['chart', '算一算某日概率', '按规则命中率给出未来第 N 根涨跌概率', 'quant'],
+      ['users', '请专家团队选股', '多位蒸馏专家交叉看同一只标的', 'experts'],
+      ['layers', '改造工作台', '像 DSH 一样，让我加一个插件', 'plugin'],
+      ['file', '查看历史对话', '回到之前的研究，不丢上下文', 'history']
+    ];
+    return `<section class="agent-welcome"><div class="agent-welcome-emblem">${icon('sparkles')}</div>
+      <div class="agent-welcome-eyebrow">SUPER AGENT WORKSPACE</div>
+      <h2>今天，想让我怎么改造工作台？</h2>
+      <p>这是一个可以被对话改造的工作台。<br>万物皆插件：加一个页面、算一次概率、请一组专家。</p>
+      <div class="agent-starters">${starters.map(([ic, t, s, act]) => `<button type="button" class="agent-starter" data-action="starter" data-starter="${act}">${icon(ic)}<span><strong>${t}</strong><small>${s}</small></span>${icon('chevron-right')}</button>`).join('')}</div>
+      <div class="agent-ready-note"><span class="live-dot"></span>${num((DATA.symbols || []).length)} 个标的历史快照 <span>·</span> ${state.experts.filter(e => e.enabled).length} 位专家 <span>·</span> 对话与插件保存在本机</div></section>`;
+  }
+  function messageHTML(m) {
+    return `<div class="turn agent-turn ${m.role === 'user' ? 'is-user' : 'is-agent'}">
+      <span class="avatar ${m.role === 'user' ? 'user' : ''}">${m.role === 'user' ? 'ME' : icon('sparkles')}</span>
+      <div class="turn-content"><div class="turn-meta"><b>${m.role === 'user' ? '你' : 'Super Agent'}</b>${m.role === 'assistant' ? '<span class="agent-response-tag">本地演示</span>' : ''}<time>${esc(m.time)}</time></div>
+      <div class="${m.role === 'user' ? 'user-bubble' : 'assistant-text'}">${esc(m.text).replaceAll('\n', '<br>')}</div></div></div>`;
+  }
+  function scrollChat() { const el = document.getElementById('chat-thread'); if (el) el.scrollTop = el.scrollHeight; }
+
+  function sendMessage(text) {
+    text = String(text || '').trim();
+    if (!text) return;
+    const c = currentConversation(); if (c) c.draft = '';
+    appendMessage({role: 'user', text, time: now()});
+    let reply = '';
+    const add = text.match(/(?:添加|新建|加|安装)\s*(?:一个)?\s*(?:插件|页面)\s*[「“"]?([^\s」”"，。]{1,20})/);
+    const del = text.match(/(?:删除|卸载|移除)\s*(?:插件|页面)?\s*[「“"]?([^\s」”"，。]{1,20})/);
+    const show = text.match(/(?:显示|启用)\s*(?:插件|页面)?\s*[「“"]?([^\s」”"，。]{1,20})/);
+    const hide = text.match(/(?:隐藏|停用|禁用)\s*(?:插件|页面)?\s*[「“"]?([^\s」”"，。]{1,20})/);
+    if (add) {
+      try {
+        state = pluginAdd(state, add[1]); persist(); render();
+        reply = `已添加插件「${add[1]}」，它出现在左侧导航里了。\n\n这是本地演示插件：结构、顺序、启停都会保存，但真正的数据源还没接入。你可以在「管理工作台插件」里改名、排序或删除。`;
+      } catch (e) { reply = '添加失败：' + e.message; }
+    } else if (del) {
+      const p = state.plugins.find(x => x.name === del[1]);
+      try {
+        if (!p) throw Error(`没有找到名为「${del[1]}」的插件。`);
+        state = pluginRemove(state, p.id); persist(); render();
+        reply = `已删除插件「${p.name}」。内置插件只能停用，不能删除。`;
+      } catch (e) { reply = '删除失败：' + e.message; }
+    } else if (show || hide) {
+      const name = (show || hide)[1];
+      const p = state.plugins.find(x => x.name === name);
+      try {
+        if (!p) throw Error(`没有找到名为「${name}」的插件。`);
+        state = pluginToggle(state, p.id, Boolean(show)); persist(); render();
+        reply = `插件「${p.name}」已${show ? '启用' : '停用'}。`;
+      } catch (e) { reply = '操作失败：' + e.message; }
+    } else if (/插件|页面/.test(text) && /(加|增|建|删|卸|隐藏|显示)/.test(text)) {
+      reply = '我可以直接改这个工作台。试一句:「添加插件 龙虎榜」或「隐藏插件 专家团队」。\n\n插件是真实状态：会出现在导航、可排序、可启停，并保存在本机；但这些是演示插件，没有接入对应数据源。';
+    } else if (/概率|上涨|下跌|涨|跌|未来|第.*根|哪天/.test(text)) {
+      const code = (text.match(/\b(\d{6})\b/) || [])[1];
+      const symbol = code ? findSymbol(code) : qSymbol;
+      if (!symbol) { reply = '给我一个六位代码，我来算它未来第 N 根的方向概率。'; }
+      else {
+        const best = bestHorizon(symbol);
+        const p = probabilityFor(symbol, best ? best.horizon : 10);
+        qSymbol = symbol; qHorizon = p ? p.horizon : 10;
+        reply = `${symbol.n}（${symbol.c}）\n\n最佳周期：第 ${p.horizon} 根。\n` +
+          (p.probability === null
+            ? `当前这条规则没有发出方向预测（中性）。该周期的单边基准上涨率是 ${pct(p.baseUp)}，但那不是模型结论。`
+            : `方向：${p.label}，历史同信号命中率 ${pct(p.probability, 2)}。\n预测样本 ${num(p.predictions)} 次，覆盖率 ${pct(p.coverage, 1)}。`) +
+          `\n\n这是截止 ${DATA.snapshot} 的全历史内样本频率，不是这一次的已校准概率。想看别的周期或日期，去「量化概率」。`;
+      }
+    } else if (/操盘|复盘|记录|平仓/.test(text)) {
+      const rows = state.journal;
+      reply = rows.length
+        ? `你有 ${rows.length} 条操盘记录，其中 ${rows.filter(r => !r.closed).length} 条持仓中。\n\n` +
+          rows.slice(0, 4).map(r => `· ${r.name}（${r.code}）${ACTIONS[r.action]} · ${r.expert} · 当时第 ${r.horizon} 根${r.direction === 1 ? '看涨' : r.direction === -1 ? '看跌' : '中性'} · 现在${journalDrift(r).label}`).join('\n') +
+          `\n\n完整理由、逐位专家意见和复盘收益在「操盘记录」页。`
+        : '还没有操盘记录。在「专家团队」或「自选股」点「记录操盘」，会连当时的理由和信号一起存下来。';
+    } else if (/自选/.test(text)) {
+      const code = (text.match(/\b(\d{6})\b/) || [])[1];
+      if (code) {
+        const symbol = findSymbol(code);
+        if (!symbol) reply = `快照里没有 ${code}。核对一下代码？`;
+        else if (/移出|删除|去掉/.test(text)) { state.watchlist = state.watchlist.filter(k => k !== symbolKey(symbol)); persist(); render(); reply = `已把 ${symbol.n} 移出自选。`; }
+        else { addWatch(symbolKey(symbol)); reply = `已把 ${symbol.n}（${symbol.c}）加入自选。
+
+去「自选股」页可以按同一持有期批量看量化方向与专家共识。`; }
+      } else {
+        const rows = watchBatch(wlHorizon);
+        reply = rows.length
+          ? `你的自选有 ${rows.length} 只，第 ${wlHorizon} 根批量研判：
+
+` + rows.map(r => `· ${r.symbol.n}：量化${r.p ? (r.p.direction === 1 ? '看涨' : r.p.direction === -1 ? '看跌' : '中性') : '无信号'}${r.p && r.p.probability !== null ? '（历史命中 ' + pct(r.p.probability, 1) + '）' : ''}，专家共识 ${pct(r.verdicts.share, 0)}`).join('\n') + `\n\n完整表格和逐位专家理由在「自选股」页。`
+          : '自选还是空的。说「把 600900 加入自选」就行。';
+      }
+    } else if (/专家|巴菲特|段永平|选股|团队/.test(text)) {
+      const code = (text.match(/\b(\d{6})\b/) || [])[1];
+      const symbol = code ? findSymbol(code) : eSymbol;
+      if (symbol) { eSymbol = symbol; }
+      reply = `当前专家团队有 ${state.experts.filter(e => e.enabled).length} 位：${state.experts.filter(e => e.enabled).map(e => e.name).join('、')}。\n\n` +
+        (symbol ? `以 ${symbol.n}（${symbol.c}）为例，点「专家团队」可以看到每个人各自的判断依据与弃权理由。` : '去「专家团队」选一只标的。') +
+        `\n\n说明：只有量化专家能读历史快照；价值类专家缺少财报与公告，会明确弃权，而不是编理由。`;
+    } else if (/你好|hi|hello|你是谁/i.test(text)) {
+      reply = '我是 Super Agent，这个工作台的总入口。\n\n我能做三件事：\n① 改造工作台——加/删/启停/排序插件；\n② 用量化规则算某只标的未来第 N 根的方向概率；\n③ 请专家团队交叉研判候选标的。\n\n在线模型未接入，其余能力我会明确说做不到。';
+    } else {
+      reply = '这个工作台目前只做三件事：插件化管理、量化概率、专家选股。\n\n试试：「添加插件 龙虎榜」「601088 第 10 根上涨概率」「专家怎么看 600900」。\n\n超出范围的问题我不会假装能回答，也不会编造数据。';
+    }
+    appendMessage({role: 'assistant', text: reply, time: now()});
+    render(); scrollChat();
+    const input = document.getElementById('chat-input'); if (input) input.focus();
+  }
+
+  // ---------------------------------------------------------------- 量化概率页
+  function quantListHTML(list, pages) {
+    const per = 12;
+    const rows = list.slice((qPage - 1) * per, qPage * per);
+    return `<div class="quant-list">${rows.map(s => `<button class="quant-row ${s === qSymbol ? 'selected' : ''}" data-action="q-pick" data-key="${symbolKey(s)}">
+      <span><strong>${esc(s.n)}</strong><small>${s.c} · ${s.k}</small></span>
+      <span class="quant-row-side">${(() => { const b = bestHorizon(s); return b ? `<b>${pct(b.probability, 1)}</b><small>H${b.horizon}</small>` : '<b>—</b><small>无信号</small>'; })()}</span></button>`).join('') || empty('没有匹配的标的', '换个代码或名称试试。')}</div>
+      <div class="quant-pager"><button class="icon-button" data-action="q-prev" ${qPage === 1 ? 'disabled' : ''} aria-label="上一页">${'<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>'}</button>
+      <span class="mono">${qPage} / ${num(pages)}</span>
+      <button class="icon-button" data-action="q-next" ${qPage === pages ? 'disabled' : ''} aria-label="下一页">${'<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>'}</button></div>`;
+  }
+  function refreshProbCard() {
+    const host = document.querySelector('.prob-card');
+    if (!host || !qSymbol) return;
+    const curve = Array.from({length: 20}, (_, i) => probabilityFor(qSymbol, i + 1));
+    const tmp = document.createElement('template');
+    tmp.innerHTML = probabilityPanel(qSymbol, probabilityFor(qSymbol, qHorizon), curve, qDate ? tradingDaysAhead(qDate, DATA.snapshot) : null);
+    host.replaceWith(tmp.content.querySelector('.prob-card'));
+  }
+  function refreshQuantList() {
+    const list = searchSymbols(qQuery, qCategory);
+    const pages = Math.max(1, Math.ceil(list.length / 12));
+    qPage = Math.min(Math.max(qPage, 1), pages);
+    const host = document.querySelector('.quant-list'); const pager = document.querySelector('.quant-pager');
+    if (!host) return;
+    const changed = !qSymbol || !list.includes(qSymbol);
+    if (changed) qSymbol = list[0] || qSymbol;
+    const tmp = document.createElement('template');
+    tmp.innerHTML = quantListHTML(list, pages);
+    host.replaceWith(tmp.content.querySelector('.quant-list'));
+    if (pager) pager.replaceWith(tmp.content.querySelector('.quant-pager'));
+    if (changed) refreshProbCard();
+  }
+  function quantPage() {
+    const list = searchSymbols(qQuery, qCategory);
+    const per = 12, pages = Math.max(1, Math.ceil(list.length / per));
+    qPage = Math.min(Math.max(qPage, 1), pages);
+    if (!qSymbol || !list.some(s => s === qSymbol)) qSymbol = list[0] || qSymbol;
+    const p = qSymbol ? probabilityFor(qSymbol, qHorizon) : null;
+    const curve = qSymbol ? Array.from({length: 20}, (_, i) => probabilityFor(qSymbol, i + 1)) : [];
+    const rows = list.slice((qPage - 1) * per, qPage * per);
+    const daysFromDate = qDate ? tradingDaysAhead(qDate, DATA.snapshot) : null;
+    return `<div class="page-heading"><div><div class="eyebrow">QUANT PROBABILITY</div><h1>量化概率</h1>
+      <p class="subtitle">按历史规则命中率，给出某只标的「未来第 N 根」的上涨或下跌概率。${num((DATA.symbols || []).length)} 个标的 · 1–20 根。</p></div>
+      <div class="heading-actions"><button class="btn" data-action="wl-add-current">${icon('bookmark')}${qSymbol && state.watchlist.includes(symbolKey(qSymbol)) ? '已在自选' : '加入自选'}</button><span class="pill amber">内样本频率，非预测</span></div></div>
+      <div class="quant-layout"><aside class="panel quant-picker">
+        <div class="panel-header"><h2>选择标的</h2><span class="meta">${num(list.length)} / ${num((DATA.symbols || []).length)}</span></div>
+        <div class="quant-picker-body"><label class="search-input">${icon('search')}<input id="q-search" type="search" placeholder="代码或名称…" value="${esc(qQuery)}" aria-label="搜索标的"></label>
+        <div class="segmented quant-types">${['全部', '个股', 'ETF', '指数'].map(t => `<button data-action="q-type" data-type="${t}" class="${qCategory === t ? 'active' : ''}">${t}</button>`).join('')}</div></div>
+        ${quantListHTML(list, pages)}
+      </aside>
+      <section class="quant-result">${qSymbol ? probabilityPanel(qSymbol, p, curve, daysFromDate) : empty('先选一只标的', '左侧列表可以搜索全部标的。')}</section></div>`;
+  }
+  function probabilityPanel(symbol, p, curve, days) {
+    const headline = !p ? '没有可用模型'
+      : p.probability === null ? '当前无方向信号'
+      : `第 ${p.horizon} 根后${p.label}概率`;
+    const big = !p ? '—' : p.probability === null ? pct(p.baseUp, 1) : pct(p.probability, 1);
+    const sub = !p ? '' : p.probability === null
+      ? '显示的是该周期单边基准上涨率，不是模型结论'
+      : `历史同信号命中率 · 样本 ${num(p.predictions)} 次 · 覆盖率 ${pct(p.coverage, 1)}`;
+    const bars = curve.map((c, i) => {
+      const h = i + 1, v = c && c.probability !== null ? c.probability : (c ? c.baseUp : 0);
+      const active = h === qHorizon;
+      return `<button class="qbar ${active ? 'on' : ''} ${c && c.probability === null ? 'flat' : ''}" data-action="q-horizon" data-h="${h}"
+        title="第 ${h} 根 · ${c ? (c.probability === null ? '无信号' : pct(c.probability, 1)) : '无模型'}" aria-label="第 ${h} 根">
+        <i style="height:${Math.max(6, Math.min(100, (v - 0.45) / 0.3 * 100))}%"></i><span>${h}</span></button>`;
+    }).join('');
+    return `<div class="panel prob-card"><div class="prob-head"><div>
+        <div class="section-label">${esc(symbol.c)} · ${esc(symbol.k)}</div>
+        <h2>${esc(symbol.n)}</h2>
+        <div class="prob-horizon">持有期 <b>第 ${qHorizon} 根</b>${days !== null ? ` · 你选的日期约第 ${days} 个交易日` : ''}</div></div>
+        <div class="prob-hero"><div class="prob-direction ${p && p.direction === 1 ? 'up' : p && p.direction === -1 ? 'down' : 'flat'}">${headline}</div>
+        <div class="prob-value">${big}</div><div class="prob-sub">${sub}</div></div></div>
+      <div class="prob-controls">
+        <label class="prob-field"><span>目标日期</span><input id="q-date" type="date" value="${esc(qDate)}" min="${esc(DATA.snapshot)}">
+        </label><div class="prob-hint">${days === null ? '或直接选下面的持有期' : days > 20 ? `约 ${days} 个交易日，超出 1–20 根范围` : `约 ${days} 个交易日 → 已切到第 ${qHorizon} 根`}</div>
+        <label class="prob-field"><span>持有期</span><select id="q-horizon-select">${Array.from({length: 20}, (_, i) => `<option value="${i + 1}" ${qHorizon === i + 1 ? 'selected' : ''}>第 ${i + 1} 根</option>`).join('')}</select></label>
+      </div>
+      <div class="prob-chart" role="group" aria-label="1 到 20 根概率曲线">${bars}</div>
+      <div class="prob-legend"><span><i class="ok"></i>有方向信号</span><span><i class="none"></i>无信号（显示基准）</span></div>
+      <div class="prob-table-wrap"><table class="prob-table"><thead><tr><th>第 N 根</th><th class="num">方向</th><th class="num">历史命中率</th><th class="num">预测次数</th><th class="num">覆盖率</th><th class="num">单边基准</th></tr></thead><tbody>
+        ${curve.map((c, i) => `<tr class="${i + 1 === qHorizon ? 'on' : ''}"><td>第 ${i + 1} 根</td><td class="num">${c ? (c.direction === 1 ? '上涨' : c.direction === -1 ? '下跌' : '中性') : '—'}</td>
+          <td class="num">${c && c.probability !== null ? pct(c.probability, 2) : '—'}</td><td class="num">${c ? num(c.predictions) : '—'}</td>
+          <td class="num">${c ? pct(c.coverage, 1) : '—'}</td><td class="num muted">${c ? pct(c.baseUp, 1) : '—'}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="prob-note">${icon('info')}全历史拟合的内样本命中率，不是校准后的概率；无信号时不把基准涨率包装成结论。数据截止 ${esc(DATA.snapshot)}。</p>
+    </div>`;
+  }
+
+  // ---------------------------------------------------------------- 专家页
+  function candListHTML(list, pages) {
+    const per = 10; const rows = list.slice((ePage - 1) * per, ePage * per);
+    return `<div class="cand-list">${rows.map(s => `<button class="cand-row ${s === eSymbol ? 'selected' : ''}" data-action="e-pick" data-key="${symbolKey(s)}"><span><strong>${esc(s.n)}</strong><small>${s.c} · ${s.k}</small></span>${(() => { const b = bestHorizon(s); return b ? `<b>${pct(b.probability, 1)}</b>` : '<b class="muted">—</b>'; })()}</button>`).join('') || empty('没有匹配的标的', '换个搜索词。')}</div>
+      <div class="quant-pager"><button class="icon-button" data-action="e-prev" ${ePage === 1 ? 'disabled' : ''} aria-label="上一页">${'<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>'}</button><span class="mono">${ePage} / ${num(pages)}</span><button class="icon-button" data-action="e-next" ${ePage === pages ? 'disabled' : ''} aria-label="下一页">${'<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>'}</button></div>`;
+  }
+  function refreshVerdictPanel() {
+    const host = document.querySelector('.verdict-panel');
+    if (!host || !eSymbol) return;
+    const tmp = document.createElement('template');
+    tmp.innerHTML = verdictPanel(eSymbol, expertVerdicts(eSymbol, eHorizon), probabilityFor(eSymbol, eHorizon));
+    host.replaceWith(tmp.content.querySelector('.verdict-panel'));
+  }
+  function refreshCandList() {
+    const list = searchSymbols(eQuery, '全部');
+    const pages = Math.max(1, Math.ceil(list.length / 10));
+    ePage = Math.min(Math.max(ePage, 1), pages);
+    const host = document.querySelector('.cand-list'); if (!host) return;
+    const changed = !eSymbol || !list.includes(eSymbol);
+    if (changed) eSymbol = list[0] || eSymbol;
+    const tmp = document.createElement('template');
+    tmp.innerHTML = candListHTML(list, pages);
+    host.replaceWith(tmp.content.querySelector('.cand-list'));
+    const pager = document.querySelector('.verdict-panel') ? document.querySelectorAll('.quant-pager')[1] : null;
+    const fresh = tmp.content.querySelector('.quant-pager');
+    if (pager && fresh) pager.replaceWith(fresh);
+    if (changed) refreshVerdictPanel();
+  }
+  function expertsPage() {
+    const list = searchSymbols(eQuery, '全部');
+    const per = 10, pages = Math.max(1, Math.ceil(list.length / per));
+    ePage = Math.min(Math.max(ePage, 1), pages);
+    if (!eSymbol || !list.some(s => s === eSymbol)) eSymbol = list[0] || eSymbol;
+    const rows = list.slice((ePage - 1) * per, ePage * per);
+    const verdicts = eSymbol ? expertVerdicts(eSymbol, eHorizon) : null;
+    const p = eSymbol ? probabilityFor(eSymbol, eHorizon) : null;
+    return `<div class="page-heading"><div><div class="eyebrow">EXPERT TEAM</div><h1>专家团队</h1>
+      <p class="subtitle">蒸馏专家的判断函数，用来辅助选股。每位专家独立给结论，缺少证据就弃权。</p></div>
+      <div class="heading-actions"><button class="btn" data-action="journal-new">${icon('file')}记录操盘</button><button class="btn" data-action="wl-add-current">${icon('bookmark')}加入自选</button><span class="pill">${state.experts.filter(e => e.enabled).length} 位启用</span></div></div>
+      <div class="experts-layout"><aside class="panel experts-team">
+        <div class="panel-header"><h2>团队</h2><span class="meta">${state.experts.length} 位</span></div>
+        <div class="expert-mini-list">${state.experts.map(e => `<div class="expert-mini ${e.enabled ? '' : 'off'}">
+          <span class="avatar" style="background:${e.bg};color:${e.color}">${esc(e.initial)}</span>
+          <span class="expert-mini-name"><strong>${esc(e.name)}</strong><small>${esc(e.tag)}</small></span>
+          <button class="switch" role="switch" aria-checked="${e.enabled}" data-action="toggle-expert" data-id="${e.id}" aria-label="${e.enabled ? '停用' : '启用'}${esc(e.name)}"></button>
+        </div>`).join('')}</div>
+        <div class="expert-mini-actions"><button class="text-button" data-action="edit-expert" data-id="${state.experts[0]?.id}">${icon('sliders')}查看/编辑专家设置</button></div>
+      </aside>
+      <section class="experts-main"><div class="panel experts-candidates">
+        <div class="panel-header"><h2>候选标的</h2><span class="meta">${num(list.length)}</span></div>
+        <div class="experts-cand-body"><label class="search-input">${icon('search')}<input id="e-search" type="search" placeholder="搜索候选标的…" value="${esc(eQuery)}" aria-label="搜索候选标的"></label>
+        ${candListHTML(list, pages)}</div>
+      </div>
+      ${verdicts ? verdictPanel(eSymbol, verdicts, p) : ''}</section></div>`;
+  }
+  function verdictPanel(symbol, v, p) {
+    const total = state.experts.filter(e => e.enabled).length;
+    return `<div class="panel verdict-panel"><div class="panel-header"><h2>${esc(symbol.n)} <span class="mono muted">${symbol.c}</span></h2>
+      <div class="button-group"><span class="pill ${v.admitted ? 'green' : ''}">共识 ${pct(v.share, 0)}</span>
+      <select id="e-horizon" class="filter-select" aria-label="会审持有期">${Array.from({length: 20}, (_, i) => `<option value="${i + 1}" ${eHorizon === i + 1 ? 'selected' : ''}>第 ${i + 1} 根</option>`).join('')}</select></div></div>
+      <div class="verdict-summary"><div class="verdict-bar"><i class="up" style="width:${v.up / total * 100}%"></i><i class="flat" style="width:${v.flat / total * 100}%"></i><i class="down" style="width:${v.down / total * 100}%"></i></div>
+      <div class="verdict-legend"><span>支持 ${v.up}</span><span>观望 ${v.flat}</span><span>反对 ${v.down}</span><span class="muted">门槛 ${state.team.threshold}%</span></div></div>
+      <div class="verdict-list">${v.votes.map(x => `<div class="verdict-row"><span class="avatar" style="background:${x.bg};color:${x.color}">${esc(x.initial)}</span>
+        <div class="verdict-body"><div class="verdict-head"><strong>${esc(x.name)}</strong><span class="pill ${x.vote === 1 ? 'green' : x.vote === -1 ? 'red' : ''}">${x.vote === 1 ? '支持' : x.vote === -1 ? '反对' : '观望/弃权'}</span><span class="verdict-evidence">${esc(x.evidence)}</span></div>
+        <p>${esc(x.why)}</p></div></div>`).join('')}</div>
+      <p class="prob-note">${icon('info')}专家意见来自蒸馏框架 + 本地快照/内置样本；未接入财报与公告时，价值类专家会弃权而不是编造理由。共识比例是「支持权重占比」，不是上涨概率。</p></div>`;
+  }
+
+  // ---------------------------------------------------------------- 自选股
+  function watchlistSymbols() {
+    return (state.watchlist || []).map(k => {
+      const [cat, code] = k.split('|');
+      return findSymbol(code, cat);
+    }).filter(Boolean);
+  }
+  function watchBatch(horizon) {
+    return watchlistSymbols().map(s => ({symbol: s, p: probabilityFor(s, horizon), verdicts: expertVerdicts(s, horizon)}));
+  }
+  function watchlistPage() {
+    const rows = watchBatch(wlHorizon);
+    const candidates = searchSymbols(wlAddQuery, '全部').filter(s => !state.watchlist.includes(symbolKey(s))).slice(0, 6);
+    const detail = wlDetail ? rows.find(r => symbolKey(r.symbol) === wlDetail) : null;
+    const avg = rows.filter(r => r.verdicts).length
+      ? rows.reduce((n, r) => n + r.verdicts.share, 0) / rows.length : 0;
+    return `<div class="page-heading"><div><div class="eyebrow">MY WATCHLIST</div><h1>自选股</h1>
+      <p class="subtitle">自己挑的标的放在一起，用同一套量化信号与专家团队批量研判。</p></div>
+      <div class="heading-actions"><select id="wl-horizon" class="filter-select" aria-label="自选股研判持有期">${Array.from({length: 20}, (_, i) => `<option value="${i + 1}" ${wlHorizon === i + 1 ? 'selected' : ''}>第 ${i + 1} 根</option>`).join('')}</select>
+      <span class="pill">${rows.length} 只 · 平均共识 ${pct(avg, 0)}</span></div></div>
+      <div class="watch-layout"><aside class="panel watch-add">
+        <div class="panel-header"><h2>添加标的</h2><span class="meta">${num((DATA.symbols || []).length)}</span></div>
+        <div class="watch-add-body"><label class="search-input">${icon('search')}<input id="wl-add-search" type="search" placeholder="代码或名称…" value="${esc(wlAddQuery)}" aria-label="搜索要加入自选的标的"></label>
+        <div class="watch-candidates">${candidates.map(s => `<button class="cand-row" data-action="wl-add" data-key="${symbolKey(s)}"><span><strong>${esc(s.n)}</strong><small>${s.c} · ${s.k}</small></span>${icon('plus')}</button>`).join('') || (wlAddQuery ? empty('没有匹配', '换个代码或名称。') : `<p class="rail-note">输入代码或名称即可加入。也可以先到「量化概率」看某只标的，再点「加入自选」。</p>`)}</div></div>
+        <div class="watch-list-head">当前自选 <span>${rows.length}</span></div>
+        <div class="watch-list">${rows.map(r => `<div class="watch-row ${wlDetail === symbolKey(r.symbol) ? 'selected' : ''}">
+          <button class="watch-row-main" data-action="wl-detail" data-key="${symbolKey(r.symbol)}"><strong>${esc(r.symbol.n)}</strong><small>${r.symbol.c} · ${r.symbol.k}</small></button>
+          <button class="icon-button" data-action="wl-remove" data-key="${symbolKey(r.symbol)}" aria-label="移出自选">${icon('close')}</button></div>`).join('') || empty('自选还是空的', '从左侧搜索并加入。')}</div>
+      </aside>
+      <section class="watch-main">
+        ${rows.length ? `<div class="panel watch-table-panel"><div class="panel-header"><h2>批量研判 · 第 ${wlHorizon} 根</h2><span class="meta">量化信号 + 专家共识</span></div>
+          <div class="table-scroll"><table class="data-table watch-table"><thead><tr><th>标的</th><th>量化方向</th><th class="num">历史命中率</th><th class="num">覆盖率</th><th class="num">专家共识</th><th>支持 / 观望 / 反对</th><th></th></tr></thead><tbody>
+          ${rows.map(r => { const v = r.verdicts; const p = r.p; return `<tr class="${wlDetail === symbolKey(r.symbol) ? 'on' : ''}">
+            <td><strong>${esc(r.symbol.n)}</strong><small>${r.symbol.c} · ${r.symbol.k}</small></td>
+            <td><span class="pill ${p && p.direction === 1 ? 'red' : p && p.direction === -1 ? 'green' : ''}">${p ? (p.direction === 1 ? '上涨' : p.direction === -1 ? '下跌' : '中性') : '—'}</span></td>
+            <td class="num">${p && p.probability !== null ? pct(p.probability, 2) : '<span class="muted">无信号</span>'}</td>
+            <td class="num">${p ? pct(p.coverage, 1) : '—'}</td>
+            <td class="num"><b>${pct(v.share, 0)}</b></td>
+            <td><span class="verdict-mini"><i class="up" style="width:${v.up / Math.max(1, v.votes.length) * 100}%"></i><i class="flat" style="width:${v.flat / Math.max(1, v.votes.length) * 100}%"></i><i class="down" style="width:${v.down / Math.max(1, v.votes.length) * 100}%"></i></span><small class="muted">${v.up} / ${v.flat} / ${v.down}</small></td>
+            <td><button class="text-button" data-action="journal-new-symbol" data-key="${symbolKey(r.symbol)}">记录</button><button class="text-button" data-action="wl-detail" data-key="${symbolKey(r.symbol)}">展开 ${icon('chevron-right')}</button></td></tr>`; }).join('')}
+          </tbody></table></div>
+          <p class="prob-note">${icon('info')}量化命中率是截止 ${esc(DATA.snapshot)} 的内样本频率；共识是支持权重占比。价值类专家在没有财报时弃权。</p></div>
+          ${detail && detail.p ? verdictPanel(detail.symbol, detail.verdicts, detail.p) : ''}`
+        : `<div class="panel">${empty('先往自选里放几只标的', '加入后，这里会用同一持有期批量给出量化方向与专家共识，并可展开逐位专家的理由。')}</div>`}
+      </section></div>`;
+  }
+
+  // ---------------------------------------------------------------- 操盘记录页
+  function journalRows() {
+    return (state.journal || []).slice().sort((a, b) => (a.time < b.time ? 1 : -1))
+      .filter(r => (journalFilter === 'all' || (journalFilter === 'open' ? !r.closed : r.closed))
+        && (journalExpert === 'all' || r.expert === journalExpert));
+  }
+  function journalConflict(r) {
+    const side = ACTION_SIDE[r.action];
+    if (!side || !r.direction) return false;
+    return side > 0 ? r.direction < 0 : r.direction > 0;
+  }
+  function journalDrift(r) {
+    const symbol = findSymbol(r.code, r.category);
+    if (!symbol) return {label: '标的不在快照', cls: 'muted'};
+    const now = probabilityFor(symbol, r.horizon);
+    if (!now) return {label: '无模型', cls: 'muted'};
+    if (!r.direction) return {label: now.direction ? '现在有信号了' : '仍无信号', cls: 'muted'};
+    if (now.direction === 0) return {label: '信号已消失', cls: 'amber'};
+    return now.direction === r.direction
+      ? {label: '方向仍一致', cls: 'green'}
+      : {label: '方向已反转', cls: 'red'};
+  }
+  function journalPage() {
+    const rows = journalRows();
+    const open = state.journal.filter(r => !r.closed).length;
+    const experts = [...new Set(state.journal.map(r => r.expert))];
+    return `<div class="page-heading"><div><div class="eyebrow">TRADING JOURNAL</div><h1>操盘记录</h1>
+      <p class="subtitle">专家选股与买卖的当时理由都记在这里；以后复盘时能看到「当时怎么想」和「信号后来怎么变」。</p></div>
+      <div class="heading-actions"><button class="btn" data-action="journal-export">${icon('download')}导出记录</button>
+      <button class="btn btn-primary" data-action="journal-new">${icon('plus')}记录一笔</button></div></div>
+      <div class="metrics journal-metrics">
+        <div class="metric"><div class="metric-label">${icon('file')}全部记录</div><div class="metric-number">${String(state.journal.length).padStart(2, '0')}</div><div class="metric-note">本地保存</div></div>
+        <div class="metric"><div class="metric-label">${icon('clock')}持仓中</div><div class="metric-number">${String(open).padStart(2, '0')}</div><div class="metric-note">尚未平仓</div></div>
+        <div class="metric"><div class="metric-label">${icon('users')}参与专家</div><div class="metric-number">${String(experts.length).padStart(2, '0')}</div><div class="metric-note">${experts.slice(0, 3).map(esc).join('、') || '—'}</div></div>
+        <div class="metric"><div class="metric-label">${icon('chart')}复盘收益</div><div class="metric-number">${(() => { const rs = state.journal.map(journalReturn).filter(v => v !== null); return rs.length ? pct(rs.reduce((a, b) => a + b, 0) / rs.length, 2) : '—'; })()}</div><div class="metric-note">仅统计已填写买入与现价的记录</div></div>
+      </div>
+      <div class="toolbar"><div class="segmented">${[['all', '全部'], ['open', '持仓中'], ['closed', '已平仓']].map(([v, t]) => `<button data-action="journal-filter" data-filter="${v}" class="${journalFilter === v ? 'active' : ''}">${t}</button>`).join('')}</div>
+      <select id="journal-expert" class="filter-select" aria-label="按专家筛选"><option value="all">全部专家</option>${experts.map(x => `<option value="${esc(x)}" ${journalExpert === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+      <span class="compact-note">${rows.length} 条记录 · 复盘对比的是「现在的信号」，不是真实盈亏</span></div>
+      <div class="panel table-panel"><div class="table-scroll"><table class="data-table journal-table"><thead><tr>
+        <th>时间</th><th>标的</th><th>动作</th><th>专家</th><th>当时信号</th><th>现在对比</th><th class="num">复盘收益</th><th></th></tr></thead><tbody>
+        ${rows.map(r => { const drift = journalDrift(r); const ret = journalReturn(r); return `<tr class="journal-row ${r.closed ? 'closed' : ''}">
+          <td class="mono muted small">${esc(r.time)}</td>
+          <td><button class="text-button" data-action="journal-detail" data-id="${esc(r.id)}"><strong>${esc(r.name)}</strong></button><small>${esc(r.code)} · ${esc(r.category)}</small></td>
+          <td><span class="pill ${ACTION_SIDE[r.action] > 0 ? 'red' : ACTION_SIDE[r.action] < 0 ? 'green' : ''}">${ACTIONS[r.action]}</span>${journalConflict(r) ? '<small class="conflict">与量化方向相反</small>' : ''}</td>
+          <td>${esc(r.expert)}</td>
+          <td><span class="pill">第 ${r.horizon} 根 · ${r.direction === 1 ? '上涨' : r.direction === -1 ? '下跌' : '中性'}</span>${r.accuracy !== null ? `<small>命中 ${pct(r.accuracy, 1)}</small>` : ''}</td>
+          <td><span class="pill ${drift.cls}">${drift.label}</span></td>
+          <td class="num">${ret === null ? '<span class="muted">待填价格</span>' : `<b class="${ret >= 0 ? 'positive' : 'negative'}">${(ret * 100).toFixed(2)}%</b>`}</td>
+          <td><button class="text-button" data-action="journal-detail" data-id="${esc(r.id)}">复盘 ${icon('chevron-right')}</button></td></tr>`; }).join('') || ''}
+      </tbody></table></div>${rows.length ? '' : empty('还没有操盘记录', '在「专家团队」或「自选股」里点「记录操盘」，当时的理由和信号会一起存下来。', btn('去专家团队', 'journal-to-experts', 'btn-sm'))}</div>`;
+  }
+  function journalDrawer(id) {
+    const r = state.journal.find(x => x.id === id);
+    if (!r) return;
+    const drift = journalDrift(r);
+    const ret = journalReturn(r);
+    drawerKind = 'journal'; drawerDraft = null; drawerOriginal = null;
+    setDrawer(`复盘 · ${esc(r.name)}`, `${esc(r.code)} · ${esc(r.category)} · ${esc(r.time)}`,
+      `<div class="drawer-content">
+        <div class="badge-row"><span class="pill ${ACTION_SIDE[r.action] > 0 ? 'red' : ACTION_SIDE[r.action] < 0 ? 'green' : ''}">${ACTIONS[r.action]}</span>${journalConflict(r) ? '<span class="pill amber">与当时量化方向相反</span>' : ''}
+          <span class="pill">${esc(r.expert)}</span><span class="pill">第 ${r.horizon} 根</span>
+          <span class="pill ${drift.cls}">${drift.label}</span>${r.closed ? '<span class="pill">已平仓</span>' : ''}</div>
+        <h3 class="drawer-section-title">当时的理由</h3>
+        <p class="compact-note">${esc(r.reason)}</p>
+        <div class="journal-votes">${r.votes.map(v => `<div class="journal-vote"><strong>${esc(v.name)}</strong><span class="pill ${v.vote === 1 ? 'green' : v.vote === -1 ? 'red' : ''}">${v.vote === 1 ? '支持' : v.vote === -1 ? '反对' : '观望'}</span><p>${esc(v.why)}</p></div>`).join('') || '<p class="compact-note">这条记录没有保存逐位专家意见。</p>'}</div>
+        <h3 class="drawer-section-title">复盘：价格与结果</h3>
+        <div class="form-grid"><div class="form-group"><label for="j-price">记录时价格</label><input id="j-price" type="number" step="0.0001" min="0" value="${r.price ?? ''}" placeholder="例如 38.50"></div>
+        <div class="form-group"><label for="j-now">现在价格（手动填）</label><input id="j-now" type="number" step="0.0001" min="0" value="${r.nowPrice ?? ''}" placeholder="例如 41.20"></div></div>
+        <div class="journal-return ${ret === null ? '' : ret >= 0 ? 'positive' : 'negative'}">${ret === null ? '填写两个价格后计算复盘收益' : `复盘收益 ${(ret * 100).toFixed(2)}%（${ACTION_SIDE[r.action] > 0 ? '做多' : '做空'}口径）`}</div>
+        <p class="rail-note">没有接入实时行情，收益按你手动填写的价格计算；它只用于复盘判断，不是账户净值。</p>
+        <div class="form-group" style="margin-top:14px"><label for="j-note">复盘备注</label><textarea id="j-note" rows="3" placeholder="后来发生了什么？当时的判断对不对？">${esc(r.note)}</textarea></div>
+        <label class="tool-option"><span>标记为已平仓<small>平仓后不再计入持仓中</small></span><input type="checkbox" id="j-closed" ${r.closed ? 'checked' : ''}></label>
+        <div class="button-group" style="margin-top:18px"><button class="btn btn-danger" data-action="journal-delete" data-id="${esc(r.id)}">${icon('trash')}删除记录</button></div>
+      </div>`,
+      `<div class="drawer-footer"><span class="save-hint">复盘不会改动历史记录的理由</span><button class="btn" data-action="close-drawer">取消</button><button class="btn btn-primary" data-action="journal-save" data-id="${esc(r.id)}">${icon('check')}保存复盘</button></div>`);
+  }
+  function journalFormDrawer(symbol) {
+    if (!symbol) { toast('先选一只标的。', 'info'); return; }
+    drawerKind = 'journal-new'; drawerDraft = null; drawerOriginal = null;
+    const v = expertVerdicts(symbol, wlHorizon);
+    setDrawer('记录一笔操盘', `${esc(symbol.n)} · ${esc(symbol.c)} · ${esc(symbol.k)}`,
+      `<div class="drawer-content"><div class="notice-box">这里记录的是「当时的判断」。价格可以先留空，复盘时再填；没有实时行情，不计算真实盈亏。</div>
+        <div class="form-group"><label for="j-action">动作</label><select id="j-action">${Object.entries(ACTIONS).map(([k, t]) => `<option value="${k}" ${k === 'buy' ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+        <div class="form-grid"><div class="form-group"><label for="j-horizon">持有期</label><select id="j-horizon">${Array.from({length: 20}, (_, i) => `<option value="${i + 1}" ${wlHorizon === i + 1 ? 'selected' : ''}>第 ${i + 1} 根</option>`).join('')}</select></div>
+        <div class="form-group"><label for="j-price2">记录时价格（可留空）</label><input id="j-price2" type="number" step="0.0001" min="0" placeholder="可选"></div></div>
+        <div class="form-group"><label for="j-reason">当时的理由</label><textarea id="j-reason" rows="4">${esc(`专家共识 ${pct(v.share, 0)}，支持 ${v.up} / 观望 ${v.flat} / 反对 ${v.down}。`)}</textarea></div>
+        <p class="rail-note">保存时会自动附上当时的量化方向与逐位专家意见快照，之后不会被改写。</p></div>`,
+      `<div class="drawer-footer"><span class="save-hint">${state.experts.filter(e => e.enabled).length} 位专家参与</span><button class="btn" data-action="close-drawer">取消</button><button class="btn btn-primary" data-action="journal-create" data-code="${esc(symbol.c)}" data-cat="${esc(symbol.k)}">${icon('check')}保存记录</button></div>`);
+  }
+
+  // ---------------------------------------------------------------- 插件页
+  function customPluginPage(plugin) {
+    if (!plugin) return empty('插件不存在', '它可能已被删除。');
+    return `<div class="page-heading"><div><div class="eyebrow">PLUGIN</div><h1>${esc(plugin.name)}</h1>
+      <p class="subtitle">由 Super Agent 安装的演示插件：结构、排序、启停都会保存，但数据源尚未接入。</p></div>
+      <div class="heading-actions"><button class="btn" data-action="plugin-manager">${icon('sliders')}插件管理</button></div></div>
+      <div class="panel plugin-blank"><div class="plugin-blank-body">
+        <div class="plugin-blank-icon">${icon(plugin.icon)}</div>
+        <h2>${esc(plugin.name)} 已安装</h2>
+        <p>这是一个自定义插件槽位。真实插件需要提供数据源与渲染器；当前版本只演示「Super Agent 可以改造工作台」这一层。</p>
+        <div class="kv"><span>插件 ID</span><b class="mono">${esc(plugin.id)}</b></div>
+        <div class="kv"><span>类型</span><b>自定义</b></div>
+        <div class="kv"><span>状态</span><b>${plugin.enabled ? '已启用' : '已停用'}</b></div>
+        <div class="button-group" style="margin-top:16px">
+          <button class="btn" data-action="plugin-rename" data-id="${plugin.id}">${icon('sliders')}重命名</button>
+          <button class="btn btn-danger" data-action="plugin-remove" data-id="${plugin.id}">${icon('trash')}删除插件</button>
+        </div></div></div>`;
+  }
+
+  // ---------------------------------------------------------------- 抽屉
+  function setDrawer(title, subtitle, body, footer = '', headAvatar = '') {
+    const d = document.getElementById('drawer');
+    if (d.hidden) returnFocus = document.activeElement;
+    document.getElementById('overlay').hidden = false;
+    d.hidden = false;
+    d.innerHTML = `<div class="drawer-head">${headAvatar}<div><h2 id="drawer-title">${title}</h2><p>${subtitle}</p></div>
+      <button class="icon-button" data-action="close-drawer" aria-label="关闭">${icon('close')}</button></div>${body}${footer}`;
+    d.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); });
+    document.querySelector('.app-shell').inert = true;
+    setTimeout(() => { if (!d.hidden && !d.contains(document.activeElement)) d.querySelector('input,select,textarea,button')?.focus(); }, 0);
+  }
+  function closeDrawer() {
+    const d = document.getElementById('drawer');
+    d.hidden = true; document.getElementById('overlay').hidden = true;
+    document.querySelector('.app-shell').inert = false;
+    drawerKind = null; drawerDraft = null; drawerOriginal = null;
+    if (returnFocus && returnFocus.isConnected) returnFocus.focus();
+  }
+  function requestClose(after) { closeDrawer(); after?.(); }
+  function pluginManager() {
+    drawerKind = 'plugins'; drawerDraft = null; drawerOriginal = null;
+    setDrawer('管理工作台插件', '万物皆插件：增删、启停、排序都会保存到本机。',
+      `<div class="drawer-content"><div class="plugin-add"><input id="plugin-name" placeholder="新插件名称，例如 龙虎榜" maxlength="30"><button class="btn btn-primary" data-action="plugin-create">${icon('plus')}添加</button></div>
+      <p class="rail-note">内置插件只能停用，不能删除；自定义插件可随时移除。</p>
+      <div class="plugin-list">${state.plugins.map((p, i) => `<div class="plugin-row">
+        <span class="plugin-row-icon">${icon(p.icon)}</span>
+        <span class="plugin-row-name"><strong>${esc(p.name)}</strong><small>${p.kind === 'custom' ? '自定义 · 数据源未接入' : '内置'} · 顺序 ${i + 1}</small></span>
+        <button class="icon-button" data-action="plugin-up" data-id="${p.id}" ${i === 0 ? 'disabled' : ''} aria-label="上移">${icon('chevron-down')}</button>
+        <button class="icon-button" data-action="plugin-down" data-id="${p.id}" ${i === state.plugins.length - 1 ? 'disabled' : ''} aria-label="下移">${icon('chevron-right')}</button>
+        <button class="switch" role="switch" aria-checked="${p.enabled}" data-action="plugin-toggle" data-id="${p.id}" aria-label="${p.enabled ? '停用' : '启用'}${esc(p.name)}"></button>
+        ${p.kind === 'custom' ? `<button class="icon-button" data-action="plugin-remove" data-id="${p.id}" aria-label="删除${esc(p.name)}">${icon('trash')}</button>` : ''}
+      </div>`).join('')}</div>
+      <p class="rail-note">也可以在对话里直接说「添加插件 龙虎榜」。插件是真实状态，但演示插件没有数据源。</p></div>`,
+      `<div class="drawer-footer"><span class="save-hint">最多 16 个插件</span><button class="btn" data-action="close-drawer">完成</button></div>`);
+  }
+  function conversationList() {
+    drawerKind = 'conversations'; drawerDraft = null; drawerOriginal = null;
+    setDrawer('历史对话', '对话保存在这台浏览器。', `<div class="drawer-content"><div class="conversation-list">${state.conversations.map(c => `<div class="conversation-history-row">
+      <button data-action="switch-conversation" data-id="${esc(c.id)}"><strong>${esc(c.title)}</strong><small>${c.messages.length} 条消息 · ${esc(c.updated || '尚未发送')}</small></button>
+      ${c.id === state.activeConversationId ? '<span class="pill green">当前</span>' : `<button class="icon-button" data-action="delete-conversation" data-id="${esc(c.id)}" aria-label="删除">${icon('trash')}</button>`}
+    </div>`).join('')}</div></div>`, `<div class="drawer-footer"><span class="save-hint">新建不会清空旧对话</span><button class="btn btn-primary" data-action="new-chat">${icon('plus')}新建对话</button></div>`);
+  }
+  function editExpert(id) {
+    const e = state.experts.find(x => x.id === id); if (!e) return;
+    drawerKind = 'expert'; drawerDraft = clone(e); drawerOriginal = JSON.stringify(e);
+    renderExpertDrawer();
+  }
+  function renderExpertDrawer() {
+    const d = drawerDraft;
+    setDrawer(`配置专家 · ${esc(d.name)}`, '决定函数、权重与可用证据；保存后参与下一次研判。',
+      `<form id="expert-form" class="drawer-form" novalidate><div class="drawer-content"><div id="form-error" class="form-error" hidden></div>
+        <div class="form-group"><label for="ef-name">显示名称</label><input id="ef-name" name="name" value="${esc(d.name)}" maxlength="24" required></div>
+        <div class="form-grid"><div class="form-group"><label for="ef-tag">风格标签</label><input id="ef-tag" name="tag" value="${esc(d.tag)}" maxlength="40"></div>
+        <div class="form-group"><label for="ef-weight">投票权重</label><div class="range-row"><input id="ef-weight" name="weight" type="range" min="0.1" max="3" step="0.1" value="${d.weight}"><output>${Number(d.weight).toFixed(1)}×</output></div></div></div>
+        <div class="form-group"><label for="ef-desc">研究简介</label><textarea id="ef-desc" name="desc" rows="3" maxlength="4000">${esc(d.desc)}</textarea></div>
+        <div class="form-group"><label for="ef-basis">判断依据（一行一条）</label><textarea id="ef-basis" name="basis" rows="4" maxlength="4000">${esc(d.basis)}</textarea></div>
+        <div class="form-group"><label for="ef-flaw">已知缺陷 / 弃权条件</label><textarea id="ef-flaw" name="flaw" rows="3" maxlength="3000">${esc(d.flaw)}</textarea></div>
+        <div class="form-group"><label for="ef-enabled">启用</label><select id="ef-enabled" name="enabled"><option value="true" ${d.enabled ? 'selected' : ''}>启用</option><option value="false" ${!d.enabled ? 'selected' : ''}>停用</option></select></div>
+        <div class="notice-box">模型未连接：这里只保存决策框架，不会发起在线推理。</div></div>
+        <div class="drawer-footer"><button type="button" class="btn" data-action="close-drawer">取消</button><button type="submit" class="btn btn-primary">${icon('check')}保存</button></div></form>`,
+      '', `<span class="avatar" style="background:${d.bg};color:${d.color}">${esc(d.initial)}</span>`);
+  }
+  function saveExpert() {
+    const d = drawerDraft;
+    if (!d.name.trim()) { document.getElementById('form-error').hidden = false; document.getElementById('form-error').textContent = '专家名称不能为空。'; return; }
+    state.experts = state.experts.map(e => e.id === d.id ? {...e, ...d} : e);
+    closeDrawer(); persist(); render(); toast('专家设置已保存。');
+  }
+  function helpModal() {
+    const m = document.getElementById('modal');
+    m.innerHTML = `<div class="modal-body"><h2 id="modal-title">这是一个可以被对话改造的工作台</h2>
+      <p>① Super Agent 是唯一入口：说「添加插件 龙虎榜」就会真的多一个插件页面。<br>
+      ② 量化概率：选标的和持有期/日期，看历史规则给出的方向概率。<br>
+      ③ 专家团队：多位蒸馏专家独立研判，缺证据就弃权。<br>
+      ④ 自选股：自己挑标的，按同一持有期批量看量化信号与专家共识。<br>
+      ⑤ 操盘记录：把专家选股与买卖的理由存下来，以后复盘对比信号变化。<br><br>
+      数据来自 2026-11-05 的全历史拟合快照，是内样本频率；模型、财报与行情均未接入，不会下单。</p></div>
+      <div class="modal-actions"><button class="btn btn-primary" data-action="close-modal">知道了</button></div>`;
+    m.showModal();
+  }
+
+  // ---------------------------------------------------------------- 事件
+  function onClick(event) {
+    const el = event.target.closest('[data-action]');
+    if (!el) return;
+    const a = el.dataset.action, id = el.dataset.id, key = el.dataset.key;
+    const handlers = {
+      'starter': () => {
+        if (el.dataset.starter === 'quant') navigate('p-quant');
+        else if (el.dataset.starter === 'experts') navigate('p-experts');
+        else if (el.dataset.starter === 'history') conversationList();
+        else pluginManager();
+      },
+      'nav': () => navigate(el.dataset.view),
+      'toggle-nav': () => { const s = document.getElementById('sidebar'); const open = s.classList.toggle('open'); document.querySelector('.mobile-scrim').hidden = !open; },
+      'close-nav': () => { document.getElementById('sidebar').classList.remove('open'); document.querySelector('.mobile-scrim').hidden = true; },
+      'new-chat': () => { if (drawerKind) closeDrawer(); newConversation(); },
+      'open-experts': () => navigate('p-experts'),
+      'conversation-list': conversationList,
+      'switch-conversation': () => { if (switchConversationState(state, id)) { persist(); if (drawerKind) closeDrawer(); navigate('chat'); } },
+      'delete-conversation': () => { state.conversations = state.conversations.filter(c => c.id !== id); persist(); conversationList(); render(); },
+      'plugin-manager': pluginManager,
+      'plugin-create': () => {
+        const input = document.getElementById('plugin-name');
+        try { state = pluginAdd(state, input?.value || ''); persist(); pluginManager(); updateChrome(); render(); toast('插件已添加。'); }
+        catch (e) { toast(e.message, 'info'); }
+      },
+      'plugin-toggle': () => {
+        const p = state.plugins.find(x => x.id === id);
+        try { state = pluginToggle(state, id, !p.enabled); persist(); pluginManager(); render(); }
+        catch (e) { toast(e.message, 'info'); }
+      },
+      'plugin-up': () => { state = pluginMove(state, id, -1); persist(); pluginManager(); render(); },
+      'plugin-down': () => { state = pluginMove(state, id, 1); persist(); pluginManager(); render(); },
+      'plugin-remove': () => { try { state = pluginRemove(state, id); persist(); if (currentView === 'p-' + id) navigate('chat'); else { pluginManager(); render(); } } catch (e) { toast(e.message, 'info'); } },
+      'plugin-rename': () => {
+        const p = state.plugins.find(x => x.id === id);
+        const name = prompt('插件名称', p?.name || '');
+        if (!name || !name.trim()) return;
+        state.plugins = state.plugins.map(x => x.id === id ? {...x, name: name.trim().slice(0, 30)} : x);
+        persist(); render();
+      },
+      'toggle-expert': () => {
+        const e = state.experts.find(x => x.id === id);
+        if (e.enabled && state.experts.filter(x => x.enabled).length === 1) { toast('至少保留一位启用的专家。', 'info'); return; }
+        state.experts = state.experts.map(x => x.id === id ? {...x, enabled: !x.enabled} : x);
+        persist(); render();
+      },
+      'edit-expert': () => editExpert(id || state.experts[0].id),
+      'journal-new': () => journalFormDrawer(qSymbol || eSymbol || findSymbol('601088')),
+      'journal-create': () => {
+        const symbol = findSymbol(el.dataset.code, el.dataset.cat);
+        if (!symbol) return;
+        const action = document.getElementById('j-action').value;
+        const horizon = Number(document.getElementById('j-horizon').value);
+        const price = Number(document.getElementById('j-price2').value);
+        const reason = document.getElementById('j-reason').value;
+        state.journal.unshift(journalCreate(symbol, action, {horizon, price, reason}));
+        log(`记录操盘 · ${ACTIONS[action]} ${symbol.n}`);
+        persist(); closeDrawer(); render(); toast('已记录，之后可以复盘。');
+      },
+      'journal-detail': () => journalDrawer(id),
+      'journal-save': () => {
+        const record = state.journal.find(x => x.id === id);
+        if (!record) return;
+        const price = Number(document.getElementById('j-price').value);
+        const now = Number(document.getElementById('j-now').value);
+        record.price = Number.isFinite(price) && price > 0 ? price : null;
+        record.nowPrice = Number.isFinite(now) && now > 0 ? now : null;
+        record.note = document.getElementById('j-note').value.slice(0, 1000);
+        record.closed = document.getElementById('j-closed').checked;
+        persist(); closeDrawer(); render(); toast('复盘已保存。');
+      },
+      'journal-delete': () => {
+        state.journal = state.journal.filter(x => x.id !== id);
+        persist(); closeDrawer(); render(); toast('记录已删除。');
+      },
+      'journal-filter': () => { journalFilter = el.dataset.filter; render(); },
+      'journal-export': () => download({journal: state.journal}, 'super-trader-journal.json'),
+      'journal-to-experts': () => navigate('p-experts'),
+      'journal-new-symbol': () => journalFormDrawer((DATA.symbols || []).find(x => symbolKey(x) === key)),
+      'wl-add': () => addWatch(key),
+      'wl-add-current': () => addWatch(symbolKey(currentView === 'p-quant' ? qSymbol : eSymbol)),
+      'wl-remove': () => removeWatch(key),
+      'wl-detail': () => { wlDetail = wlDetail === key ? '' : key; render(); },
+      'q-pick': () => { qSymbol = (DATA.symbols || []).find(s => symbolKey(s) === key) || qSymbol; render(); },
+      'q-type': () => { qCategory = el.dataset.type; qPage = 1; render(); },
+      'q-prev': () => { qPage--; render(); },
+      'q-next': () => { qPage++; render(); },
+      'q-horizon': () => { qHorizon = Number(el.dataset.h); qDate = ''; render(); },
+      'e-pick': () => { eSymbol = (DATA.symbols || []).find(s => symbolKey(s) === key) || eSymbol; render(); },
+      'e-prev': () => { ePage--; render(); },
+      'e-next': () => { ePage++; render(); },
+      'close-drawer': () => requestClose(),
+      'close-modal': () => document.getElementById('modal').close(),
+      'help': helpModal,
+      'activity': () => setDrawer('活动记录', '只记录本机操作。', `<div class="drawer-content"><div class="timeline">${state.activity.length ? state.activity.map(a => `<div class="timeline-item"><time>${esc(a.time)}</time><p>${esc(a.text)}</p></div>`).join('') : empty('还没有记录', '改插件或保存设置后会出现在这里。')}</div></div>`),
+      'command': commandModal
+    };
+    const fn = handlers[a];
+    if (fn) { event.preventDefault(); fn(); }
+  }
+  function onInput(event) {
+    const t = event.target;
+    if (t.id === 'chat-input') { const c = currentConversation(); if (c) { c.draft = t.value.slice(0, 1500); persist(); } }
+    if (t.id === 'wl-add-search') { wlAddQuery = t.value; refreshWatchCandidates(); }
+    if (t.id === 'q-search') { qQuery = t.value; qPage = 1; refreshQuantList(); }
+    if (t.id === 'e-search') { eQuery = t.value; ePage = 1; refreshCandList(); }
+    if (t.closest('#drawer') && t.name === 'weight') { const out = t.closest('.range-row')?.querySelector('output'); if (out) out.textContent = Number(t.value).toFixed(1) + '×'; drawerDraft.weight = Number(t.value); }
+  }
+  function onChange(event) {
+    const t = event.target;
+    if (t.id === 'q-horizon-select') { qHorizon = Number(t.value); render(); }
+    if (t.id === 'e-horizon') { eHorizon = Number(t.value); render(); }
+    if (t.id === 'wl-horizon') { wlHorizon = Number(t.value); wlDetail = ''; render(); }
+    if (t.id === 'journal-expert') { journalExpert = t.value; render(); }
+    if (t.id === 'q-date') {
+      qDate = t.value; const days = tradingDaysAhead(qDate, DATA.snapshot);
+      if (days !== null && days >= 1 && days <= 20) { qHorizon = days; render(); }
+      else { render(); toast('该日期超出 1–20 个交易日范围，请直接选持有期。', 'info'); }
+    }
+    if (t.closest('#drawer')) {
+      const n = t.name;
+      if (n === 'name') drawerDraft.name = t.value;
+      if (n === 'tag') drawerDraft.tag = t.value;
+      if (n === 'desc') drawerDraft.desc = t.value;
+      if (n === 'basis') drawerDraft.basis = t.value;
+      if (n === 'flaw') drawerDraft.flaw = t.value;
+      if (n === 'enabled') drawerDraft.enabled = t.value === 'true';
+    }
+  }
+  function onSubmit(event) {
+    if (event.target.id === 'chat-form') { event.preventDefault(); sendMessage(document.getElementById('chat-input').value); }
+    if (event.target.id === 'expert-form') { event.preventDefault(); saveExpert(); }
+  }
+  function onKey(event) {
+    if (event.target.id === 'chat-input' && event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(event.target.value); return; }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); commandModal(); return; }
+    if (event.key === 'Escape' && drawerKind && !document.getElementById('modal').open) { event.preventDefault(); requestClose(); }
+  }
+  function commandModal() {
+    const m = document.getElementById('modal');
+    m.innerHTML = `<div class="command-box"><label class="search-input" style="border:0">${icon('search')}<input id="command-input" placeholder="跳转到插件或执行操作…" autocomplete="off"><kbd>ESC</kbd></label></div>
+      <div class="command-items" id="command-items">${commandItems('')}</div>`;
+    m.showModal();
+    document.getElementById('command-input').focus();
+  }
+  function commandItems(q) {
+    const items = [{label: 'Super Agent 主页', action: 'nav', view: 'chat'}]
+      .concat(state.plugins.filter(p => p.enabled).map(p => ({label: p.name, action: 'nav', view: 'p-' + p.id})))
+      .concat([{label: '管理工作台插件', action: 'plugin-manager'}, {label: '历史对话', action: 'conversation-list'}]);
+    return items.filter(i => i.label.includes(q)).map(i => `<button class="command-item" data-action="${i.action}" ${i.view ? `data-view="${i.view}"` : ''}>${icon('chevron-right')}<span>${esc(i.label)}</span></button>`).join('') || empty('没有匹配项', '试试插件名或「插件」。');
+  }
+
+  // ---------------------------------------------------------------- 导出给测试
+  globalThis.__wb = {
+    defaultState, validateState, pluginAdd, pluginRemove, pluginToggle, pluginMove,
+    probabilityFor, bestHorizon, tradingDaysAhead, searchSymbols, findSymbol, symbolKey,
+    verdictFor, expertVerdicts, FIXTURES, EXPERT_SEEDS,
+    journalCreate, journalReturn, normalizeJournal, ACTIONS, ACTION_SIDE,
+    getState: () => state, setState: v => { state = v; },
+    setLead: () => {}, data: DATA
+  };
+  function addWatch(k) {
+    if (!k || k === 'undefined') return;
+    if (state.watchlist.includes(k)) { toast('已经在自选里了。', 'info'); return; }
+    if (state.watchlist.length >= 200) { toast('自选最多 200 只。', 'info'); return; }
+    state.watchlist = [...state.watchlist, k];
+    log('加入自选 · ' + k);
+    persist(); render(); toast('已加入自选股。');
+  }
+  function removeWatch(k) {
+    state.watchlist = state.watchlist.filter(x => x !== k);
+    if (wlDetail === k) wlDetail = '';
+    log('移出自选 · ' + k);
+    persist(); render();
+  }
+  function refreshWatchCandidates() {
+    const host = document.querySelector('.watch-candidates');
+    if (!host) return;
+    const list = searchSymbols(wlAddQuery, '全部').filter(s => !state.watchlist.includes(symbolKey(s))).slice(0, 6);
+    host.innerHTML = list.map(s => `<button class="cand-row" data-action="wl-add" data-key="${symbolKey(s)}"><span><strong>${esc(s.n)}</strong><small>${s.c} · ${s.k}</small></span>${icon('plus')}</button>`).join('')
+      || (wlAddQuery ? empty('没有匹配', '换个代码或名称。') : `<p class="rail-note">输入代码或名称即可加入。</p>`);
+  }
+  function empty(title, text) { return `<div class="empty-state">${icon('layers')}<h3>${title}</h3><p>${text}</p></div>`; }
+
+  if (HAS_DOM) boot();
 })();

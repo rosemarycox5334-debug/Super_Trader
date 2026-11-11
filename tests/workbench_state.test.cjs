@@ -1,362 +1,247 @@
 'use strict';
-
-// Run from the repository root: node --test tests/workbench_state.test.cjs
-// Exercise production helpers, not a copied implementation. Only the snapshot
-// initializer and the DOM/event bootstrap are replaced in the in-memory source.
+// 依赖零第三方库：在无 DOM 的 vm 里加载会话工具与工作台脚本，验证状态层。
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const APP_PATH = path.resolve(__dirname, '../web/workbench/app.js');
-const STORAGE_KEY = 'super-trader.workbench.v3';
-const DATA_INITIALIZER = "  const D = JSON.parse(document.getElementById('workbench-data').textContent);";
-const EVENT_BOOTSTRAP = "  document.addEventListener('click',";
-const plain = value => JSON.parse(JSON.stringify(value));
+const ROOT = path.resolve(__dirname, '../web/workbench');
+const plain = v => JSON.parse(JSON.stringify(v));
 
-function tinySnapshot() {
-  const row = (code, name, horizon, accuracy, coverage, direction) => ({
-    category: '个股', code, name, horizon, rules: ['fixture_rule'],
-    weighted_accuracy: accuracy, plain_accuracy: accuracy,
-    predictions: Math.round(1000 * coverage), eligible: 1000, coverage,
-    recent_accuracy: accuracy, latest_direction: direction, base_up_rate: 0.51,
-  });
+function snapshot() {
+  const row = (prob, dir, base) => [prob, 400, dir, base, 300];
+  const rows = Array.from({length: 20}, (_, i) => row(560 + i, i % 3 === 0 ? 0 : 1, 520));
   return {
-    snapshot: '2026-11-05', generated_at: 'fixture-only',
-    totals: { weighted_accuracy: 0.7 },
-    mainstream: ['个股|601088', '个股|600900', '个股|000858', '个股|300750'],
-    records: [
-      row('601088', '中国神华', 1, 0.72, 0.35, 1),
-      row('600900', '长江电力', 3, 0.68, 0.10, 1),
-      row('000858', '五粮液', 5, 0.80, 0.099, 0),
-      row('300750', '宁德时代', 10, 0.66, 0.30, -1),
-    ],
+    snapshot: '2026-11-05', generated_at: 'x',
+    symbols: [
+      ['601088', '个股', '中国神华', rows],
+      ['600900', '个股', '长江电力', rows],
+      ['000001', '指数', '上证指数', rows],
+      ['000001', '个股', '平安银行', rows]
+    ]
   };
 }
 
-function loadWorkbench({ saved, rawSaved, snapshot = tinySnapshot() } = {}) {
-  let source = fs.readFileSync(APP_PATH, 'utf8');
-  assert.equal(source.split(DATA_INITIALIZER).length - 1, 1,
-    'The production snapshot initializer changed; update this test adapter explicitly.');
-  const bootstrapAt = source.indexOf(EVENT_BOOTSTRAP);
-  assert.ok(bootstrapAt > 0, 'The production event bootstrap marker must exist.');
-  assert.equal(source.indexOf(EVENT_BOOTSTRAP, bootstrapAt + 1), -1,
-    'The production event bootstrap marker must be unambiguous.');
-  source = source.slice(0, bootstrapAt).replace(DATA_INITIALIZER,
-    '  const D = globalThis.__snapshot;');
-  source += `
-  globalThis.__helpers = {
-    defaultState, validateState, validatedTask, cfgSnapshot, calcVotes,
-    computeResearch, effectiveQuantRows, currentAssessment, isStale,
-    fixtures: FIXTURES,
-    getState: () => state,
-    setState: value => { state = value; },
-    getStartupWarning: () => startupWarning,
-  };
-})();
-`;
+function load(saved) {
+  const helpers = fs.readFileSync(path.join(ROOT, 'conversation_helpers.js'), 'utf8');
+  const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
   const storage = new Map();
-  if (rawSaved !== undefined) storage.set(STORAGE_KEY, rawSaved);
-  else if (saved !== undefined) storage.set(STORAGE_KEY, JSON.stringify(saved));
+  if (saved) storage.set('super-trader.workbench.v4', JSON.stringify(saved));
   const context = vm.createContext({
-    __snapshot: plain(snapshot),
-    localStorage: {
-      getItem: key => storage.has(key) ? storage.get(key) : null,
-      setItem: (key, value) => storage.set(key, String(value)),
-    },
-    // Deliberately no document, window, timers, fetch, or DOM substitute.
+    __SNAPSHOT: snapshot(),
+    localStorage: {getItem: k => storage.has(k) ? storage.get(k) : null, setItem: (k, v) => storage.set(k, String(v))}
   });
-  const conversationHelpers = fs.readFileSync(path.resolve(__dirname, '../web/workbench/conversation_helpers.js'), 'utf8');
-  vm.runInContext(conversationHelpers + '\n' + source, context, { filename: APP_PATH, timeout: 1000 });
-  return { api: context.__helpers, context, storage };
+  vm.runInContext(helpers + '\n' + app, context, {timeout: 2000});
+  return {...context.__wb, helpers: {
+    normalize: context.normalizeConversationState, sync: context.syncConversationState,
+    create: context.createConversationState, switchTo: context.switchConversationState, clean: context.cleanMessages
+  }};
 }
 
-function freezeDeep(value) {
-  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    for (const child of Object.values(value)) freezeDeep(child);
-  }
-  return value;
-}
-
-function completedTask(api, id = 'SIM-FIXTURE') {
-  const config = api.cfgSnapshot();
-  return {
-    id, title: '固定快照模拟研究', status: 'completed',
-    created: '2026/11/7 09:00:00', finished: '2026/11/7 09:00:03',
-    config, result: api.computeResearch(config),
-  };
-}
-
-test('pure helpers load without DOM, network, timers, or report files', () => {
-  const { api, context } = loadWorkbench();
-  assert.equal(vm.runInContext('typeof document', context), 'undefined');
-  assert.equal(vm.runInContext('typeof window', context), 'undefined');
-  assert.equal(vm.runInContext('typeof fetch', context), 'undefined');
-  assert.equal(api.getStartupWarning(), '');
-  assert.equal(api.getState().experts.length, 7);
+test('默认工作台只有 Super Agent 需要的两个插件与六位专家', () => {
+  const wb = load();
+  const s = wb.defaultState();
+  assert.equal(s.schemaVersion, 4);
+  assert.equal(s.plugins.map(p => p.kind).join(','), 'quant,experts,watchlist,journal');
+  const names = s.experts.map(e => e.name);
+  assert.ok(names.includes('巴菲特') && names.includes('段永平'), names.join(','));
+  assert.equal(s.experts.length, 6);
 });
 
-test('persisted configuration survives JSON/localStorage startup roundtrip', () => {
-  const { api } = loadWorkbench();
-  const state = plain(api.defaultState());
-  state.revision = 9;
-  state.lead = 'pa';
-  state.experts[0].name = '价值研究员';
-  state.experts[0].desc = '研究简介'.repeat(750); // 3,000 characters must not become 2,000.
-  state.experts[0].basis = '核实来源\n检查反例\n证据不足则等待';
-  state.experts[0].flaw = '风险边界'.repeat(750);
-  state.experts[0].weight = 1.7;
-  state.experts[0].params.minDividend = 4.5;
-  state.experts[0].params.maxPE = 18;
-  state.experts[4].enabled = false;
-  state.team.mode = 'debate';
-  state.team.threshold = 71;
-  state.research.pool = 'watchlist';
-  state.research.minCoverage = 15;
-  state.watchlist = ['个股|601088'];
-  state.messages = [{ role: 'user', text: '保留这条本地对话', time: '09:00' }];
-  state.activity = [{ text: '保存本机配置', time: '2026/11/7 09:00' }];
-  const restored = loadWorkbench({ saved: state }).api;
-  assert.equal(restored.getStartupWarning(), '');
-  assert.deepEqual(plain(restored.getState()), state);
+test('配置往返保留插件顺序、启停与专家字段', () => {
+  const wb = load();
+  const s = plain(wb.defaultState());
+  s.revision = 7;
+  const reversed = s.plugins.slice().reverse();
+  s.plugins = reversed.map((p, i) => ({...p, order: i, enabled: i === 0}));
+  s.experts[0].name = '价值研究员';
+  s.experts[0].weight = 2.4;
+  const back = wb.validateState(plain(s));
+  assert.equal(back.revision, 7);
+  assert.equal(back.plugins.map(p => p.id).join(','), s.plugins.map(p => p.id).join(','));
+  assert.equal(back.plugins[0].enabled, true);
+  assert.equal(back.experts[0].name, '价值研究员');
+  assert.equal(back.experts[0].weight, 2.4);
 });
 
-const invalidParams = [
-  ['numeric string', 'maxPE', '25'],
-  ['non-numeric string', 'maxPE', 'not-a-number'],
-  ['below PE minimum', 'maxPE', 0],
-  ['above PE maximum', 'maxPE', 201],
-  ['invalid PB', 'maxPB', 0],
-  ['negative dividend', 'minDividend', -1],
-  ['excessive dividend', 'minDividend', 21],
-  ['out-of-range ROE', 'minROE', 101],
-  ['fractional breakout', 'breakout', 20.5],
-  ['excessive breakout', 'breakout', 121],
-  ['insufficient risk/reward', 'rr', 0.4],
-  ['insufficient accuracy', 'minAccuracy', 49],
-  ['unknown strictness', 'strictness', 'wild'],
-  ['NaN', 'rr', Number.NaN],
-  ['Infinity', 'maxPE', Number.POSITIVE_INFINITY],
-  ['null', 'breakout', null],
-  ['boolean', 'minAccuracy', true],
-];
-for (const [label, key, value] of invalidParams) {
-  test(`invalid expert parameter is rejected: ${label}`, () => {
-    const { api } = loadWorkbench();
-    const state = api.defaultState();
-    state.experts[0].params[key] = value;
-    assert.throws(() => api.validateState(state), /专家/);
-  });
-}
-
-test('all numeric parameter boundaries and allowed strictness values are valid', () => {
-  const { api } = loadWorkbench();
-  const bounds = {
-    minDividend: [0, 20], maxPE: [1, 200], maxPB: [0.1, 50],
-    minROE: [-100, 100], breakout: [5, 120], rr: [0.5, 10], minAccuracy: [50, 100],
-  };
-  for (const side of [0, 1]) {
-    for (const strictness of ['strict', 'balanced', 'loose']) {
-      const state = api.defaultState();
-      for (const [key, range] of Object.entries(bounds)) state.experts[0].params[key] = range[side];
-      state.experts[0].params.strictness = strictness;
-      const restored = api.validateState(state);
-      assert.deepEqual(plain(restored.experts[0].params), plain(state.experts[0].params));
-    }
-  }
+test('插件可以新增、拒绝重名、达到上限、删除内置被拒', () => {
+  const wb = load();
+  let s = wb.defaultState();
+  s = wb.pluginAdd(s, '龙虎榜');
+  assert.equal(s.plugins.length, 5);
+  assert.equal(s.plugins[4].kind, 'custom');
+  assert.throws(() => wb.pluginAdd(s, '龙虎榜'), /同名/);
+  assert.throws(() => wb.pluginAdd(s, '   '), /不能为空/);
+  assert.throws(() => wb.pluginRemove(s, 'quant'), /内置插件不能删除/);
+  const removed = wb.pluginRemove(s, s.plugins[4].id);
+  assert.equal(removed.plugins.length, 4);
+  let many = s;
+  for (let i = 0; i < 11; i++) many = wb.pluginAdd(many, '插件' + i);
+  assert.equal(many.plugins.length, 16);
+  assert.throws(() => wb.pluginAdd(many, '再多一个'), /最多/);
 });
 
-test('invalid saved JSON or invalid expert parameters fall back safely', () => {
-  const invalidJSON = loadWorkbench({ rawSaved: '{not valid JSON' }).api;
-  assert.match(invalidJSON.getStartupWarning(), /默认配置/);
-  assert.equal(invalidJSON.getState().experts.length, 7);
-  const { api } = loadWorkbench();
-  const bad = api.defaultState();
-  bad.experts[0].params.rr = 'NaN';
-  const invalidConfiguration = loadWorkbench({ saved: bad }).api;
-  assert.match(invalidConfiguration.getStartupWarning(), /默认配置/);
-  assert.equal(invalidConfiguration.getState().experts[0].params.rr, 2);
+test('最后一个插件不能被停用', () => {
+  const wb = load();
+  let s = wb.defaultState();
+  for (const id of ['experts', 'watchlist', 'journal']) s = wb.pluginToggle(s, id, false);
+  assert.equal(s.plugins.filter(p => p.enabled).length, 1);
+  assert.throws(() => wb.pluginToggle(s, 'quant', false), /至少保留一个/);
 });
 
-test('malformed lastResult is dropped without discarding valid configuration', () => {
-  const { api } = loadWorkbench();
-  const validTask = plain(completedTask(api));
-  const malformed = [
-    {},
-    { config: {}, result: {} },
-    { ...validTask, result: {} },
-    { ...validTask, result: { ...validTask.result, assessments: null } },
-    { ...validTask, result: { ...validTask.result, counts: [4, 3, 4, 2, 1] } },
-    { ...validTask, result: { ...validTask.result, codes: ['does-not-exist'] } },
-  ];
-  for (const lastResult of malformed) {
-    const state = api.defaultState();
-    state.experts[0].name = '有效配置不应丢失';
-    state.lastResult = lastResult;
-    const restored = loadWorkbench({ saved: state }).api;
-    assert.equal(restored.getStartupWarning(), '');
-    assert.equal(restored.getState().lastResult, null);
-    assert.equal(restored.getState().experts[0].name, '有效配置不应丢失');
-    assert.doesNotThrow(() => restored.currentAssessment(restored.fixtures[0]));
-  }
+test('插件排序按上下移动生效并保持连续序号', () => {
+  const wb = load();
+  let s = wb.pluginAdd(wb.defaultState(), '第三个');
+  s = wb.pluginMove(s, s.plugins[4].id, -4);
+  assert.equal(s.plugins.map(p => p.name).join(','), '第三个,量化概率,专家团队,自选股,操盘记录');
+  assert.equal(s.plugins.map(p => p.order).join(','), '0,1,2,3,4');
 });
 
-for (const kind of ['buffett', 'cigar', 'neutral', 'pa', 'growth', 'board', 'hotmoney']) {
-  test(`copied ${kind} strategy retains its vote after config validation`, () => {
-    const { api } = loadWorkbench();
-    const state = api.defaultState();
-    const original = plain(state.experts.find(expert => expert.id === kind));
-    const duplicate = { ...plain(original), id: `custom-copy-${kind}`, name: `${original.name}副本` };
-    state.experts = [original, duplicate];
-    state.lead = original.id;
-    const config = api.validateState(state);
-    assert.equal(config.experts[1].strategyKind, kind);
-    for (const fixture of api.fixtures) {
-      const { votes } = api.calcVotes(fixture, config);
-      assert.equal(votes.length, 2);
-      assert.notEqual(votes[0].id, votes[1].id);
-      assert.equal(votes[0].vote, votes[1].vote);
-      assert.equal(votes[0].why, votes[1].why);
-      assert.equal(votes[0].evaluable, votes[1].evaluable);
-    }
-  });
-}
-
-test('missing tools or decision basis cannot bypass disabled abstention', () => {
-  const { api } = loadWorkbench();
-  for (const missing of ['tools', 'basis', 'quant-tool']) {
-    const state = api.defaultState();
-    const expert = state.experts.find(e => e.id === (missing === 'quant-tool' ? 'neutral' : 'buffett'));
-    state.experts = [expert];
-    state.lead = expert.id;
-    state.team.abstain = false;
-    state.team.evidence = true;
-    if (missing === 'tools') expert.tools = [];
-    if (missing === 'basis') expert.basis = '   ';
-    if (missing === 'quant-tool') expert.tools = ['kline'];
-    const result = api.calcVotes(api.fixtures[0], state);
-    assert.equal(result.votes[0].evaluable, false, missing);
-    assert.equal(result.votes[0].vote, 0, missing);
-    assert.equal(result.share, 0, missing);
-    assert.equal(result.admitted, false, missing);
-  }
+test('概率查询返回方向、命中率、覆盖率与单边基准', () => {
+  const wb = load();
+  const s = wb.findSymbol('601088');
+  const p = wb.probabilityFor(s, 11);
+  assert.equal(p.horizon, 11);
+  assert.equal(p.direction, 1);
+  assert.equal(p.probability, (560 + 10) / 1000);
+  assert.equal(p.label, '上涨');
+  assert.equal(p.baseUp, 0.52);
+  assert.equal(p.coverage, 0.3);
+  assert.equal(wb.probabilityFor(s, 21), null);
+  const flat = wb.probabilityFor(s, 1);
+  assert.equal(flat.direction, 0);
+  assert.equal(flat.probability, null);
+  assert.equal(flat.label, '中性');
 });
 
-test('evidence gate blocks admission even when other support exceeds the threshold', () => {
-  const { api } = loadWorkbench();
-  const state = api.defaultState();
-  state.experts = state.experts.filter(e => ['buffett', 'growth'].includes(e.id));
-  state.experts.find(e => e.id === 'growth').tools = [];
-  state.team.threshold = 1;
-  state.team.abstain = false;
-  state.team.evidence = true;
-  const result = api.calcVotes(api.fixtures[0], state);
-  assert.ok(result.share > state.team.threshold / 100);
-  assert.equal(result.admitted, false);
-  assert.equal(result.votes.find(v => v.id === 'growth').vote, 0);
+test('代码相同但类别不同的标的不会混淆', () => {
+  const wb = load();
+  assert.equal(wb.findSymbol('000001', '指数').n, '上证指数');
+  assert.equal(wb.findSymbol('000001', '个股').n, '平安银行');
+  assert.equal(wb.searchSymbols('000001').length, 2);
+  assert.equal(wb.symbolKey(wb.findSymbol('000001', '个股')), '个股|000001');
 });
 
-test('running watchlist snapshot is detached from subsequent workspace changes', () => {
-  const { api } = loadWorkbench();
-  const state = api.defaultState();
-  state.research.pool = 'watchlist';
-  state.watchlist = ['个股|601088'];
-  api.setState(state);
-  const snapshot = api.cfgSnapshot();
-  const originalConfig = plain(snapshot);
-  const firstResult = plain(api.computeResearch(snapshot));
-  assert.equal(firstResult.counts[0], 1);
-  assert.deepEqual(plain(snapshot.watchlist), ['个股|601088']);
-  assert.notEqual(snapshot.watchlist, state.watchlist);
-  state.watchlist.splice(0, 1, '个股|600900');
-  state.research.minDividend = 20;
-  state.experts[0].enabled = false;
-  state.team.threshold = 100;
-  freezeDeep(snapshot);
-  assert.deepEqual(plain(api.computeResearch(snapshot)), firstResult);
-  assert.deepEqual(plain(snapshot), originalConfig);
+test('最佳周期沿着 1–20 根比较，跳过无信号周期', () => {
+  const wb = load();
+  const best = wb.bestHorizon(wb.findSymbol('601088'));
+  assert.equal(best.horizon, 20);
+  assert.equal(best.direction, 1);
 });
 
-test('minimum coverage clamps to 10% and the boundary is enforced in snapshot rows', () => {
-  const { api } = loadWorkbench();
-  for (const raw of [-10, 0, 9.9, 10]) {
-    const state = api.defaultState();
-    state.research.minCoverage = raw;
-    state.research.minAccuracy = 50;
-    state.research.pool = 'all';
-    const restored = api.validateState(state);
-    assert.equal(restored.research.minCoverage, 10);
-    api.setState(restored);
-    const codes = plain(api.effectiveQuantRows().map(row => row.code));
-    assert.ok(codes.includes('600900'), 'Exactly 10% coverage remains eligible.');
-    assert.ok(!codes.includes('000858'), '9.9% coverage must never pass the hard floor.');
-  }
-  const high = api.defaultState();
-  high.research.minCoverage = 1000;
-  assert.equal(api.validateState(high).research.minCoverage, 100);
+test('目标日期按工作日折算，越界返回超过 20', () => {
+  const wb = load();
+  assert.equal(wb.tradingDaysAhead('2026-11-06', '2026-11-05'), 1);
+  assert.equal(wb.tradingDaysAhead('2026-11-09', '2026-11-05'), 2);
+  assert.equal(wb.tradingDaysAhead('2026-11-05', '2026-11-05'), 0);
+  assert.ok(wb.tradingDaysAhead('2027-01-05', '2026-11-05') > 20);
+  assert.equal(wb.tradingDaysAhead('bad-date', '2026-11-05'), null);
 });
 
-test('completed task survives persisted roundtrip with config, votes and evidence metadata', () => {
-  const { api } = loadWorkbench();
-  const state = api.defaultState();
-  state.revision = 6;
-  state.research.pool = 'watchlist';
-  state.watchlist = ['个股|601088', '个股|600900'];
-  api.setState(state);
-  const task = plain(completedTask(api));
-  assert.deepEqual(task.result.counts, [2, 2, 2, 2, 1]);
-  assert.ok(task.result.assessments.length > 0);
-  state.tasks = [task];
-  state.lastResult = task;
-  const restored = loadWorkbench({ saved: state }).api;
-  assert.equal(restored.getStartupWarning(), '');
-  assert.equal(restored.getState().tasks.length, 1);
-  assert.deepEqual(plain(restored.getState().tasks[0]), task);
-  assert.deepEqual(plain(restored.getState().lastResult), task);
-  assert.equal(restored.isStale(), false);
-  assert.deepEqual(plain(restored.computeResearch(restored.getState().tasks[0].config)), task.result);
+test('内置样本用脚本化判断，非样本价值专家明确弃权', () => {
+  const wb = load();
+  const fixture = wb.findSymbol('601088');
+  const buffett = wb.defaultState().experts.find(e => e.id === 'buffett');
+  assert.equal(wb.verdictFor(buffett, fixture, wb.probabilityFor(fixture, 5)).vote, 1);
+  const other = wb.findSymbol('600900');
+  const duan = wb.defaultState().experts.find(e => e.id === 'duan');
+  assert.equal(wb.verdictFor(duan, other, null).vote, 1);
+  const unknown = {c: '999999', k: '个股', n: '测试'};
+  const abstain = wb.verdictFor(duan, unknown, wb.probabilityFor(fixture, 5));
+  assert.equal(abstain.vote, 0);
+  assert.match(abstain.why, /缺少|未接入/);
 });
 
-test('persisted task retains false evidence eligibility rather than inventing eligibility', () => {
-  const { api } = loadWorkbench();
-  const state = api.defaultState();
-  state.experts = state.experts.filter(expert => expert.id === 'buffett');
-  state.experts[0].tools = [];
-  state.team.abstain = false;
-  state.team.evidence = true;
-  api.setState(state);
-  const task = plain(completedTask(api, 'SIM-NO-EVIDENCE'));
-  assert.ok(task.result.assessments.length > 0);
-  for (const assessment of task.result.assessments) {
-    assert.equal(assessment.votes[0].evaluable, false);
-    assert.equal(assessment.votes[0].vote, 0);
-    assert.equal(assessment.admitted, false);
-  }
-  state.tasks = [task];
-  state.lastResult = task;
-  const restored = loadWorkbench({ saved: state }).api;
-  assert.equal(restored.getState().tasks.length, 1);
-  assert.deepEqual(plain(restored.getState().tasks[0]), task);
-  assert.deepEqual(plain(restored.getState().lastResult), task);
+test('量化专家读快照：无信号时弃权，不把基准当结论', () => {
+  const wb = load();
+  const neutral = wb.defaultState().experts.find(e => e.id === 'neutral');
+  const s = wb.findSymbol('000001', '指数');
+  const up = wb.verdictFor(neutral, s, wb.probabilityFor(s, 11));
+  assert.equal(up.vote, 1);
+  assert.match(up.why, /命中率/);
+  const flat = wb.verdictFor(neutral, s, wb.probabilityFor(s, 1));
+  assert.equal(flat.vote, 0);
+  assert.match(flat.why, /没有发出预测/);
 });
 
-test('bad task records are isolated while valid completed and cancelled records survive', () => {
-  const { api } = loadWorkbench();
-  const state = api.defaultState();
-  const valid = plain(completedTask(api));
-  const cancelled = {
-    id: 'SIM-CANCELLED', title: '已取消任务', status: 'cancelled',
-    created: '2026/11/7 09:00:00', finished: '', config: plain(api.cfgSnapshot()),
-    result: { counts: [], codes: [], admitted: [], assessments: [] },
-  };
-  const malformed = plain(valid);
-  malformed.id = 'SIM-BROKEN';
-  malformed.result.assessments[0].votes[1].id = malformed.result.assessments[0].votes[0].id;
-  state.tasks = [{ id: 'SIM-EMPTY', status: 'completed', config: {}, result: {} }, malformed, valid, cancelled];
-  const restored = api.validateState(state);
-  assert.deepEqual(plain(restored.tasks.map(task => task.id)), ['SIM-FIXTURE', 'SIM-CANCELLED']);
-  assert.equal(restored.tasks[1].status, 'cancelled');
-  assert.deepEqual(plain(restored.tasks[1].result), cancelled.result);
+test('共识比例按权重计算', () => {
+  const wb = load();
+  const s = wb.findSymbol('601088');
+  const v = wb.expertVerdicts(s, 5);
+  assert.equal(v.votes.length, 6);
+  assert.ok(v.share >= 0 && v.share <= 1);
+  const weights = v.votes.reduce((n, x) => n + wb.getState().experts.find(e => e.id === x.id).weight, 0);
+  const support = v.votes.filter(x => x.vote === 1).reduce((n, x) => n + wb.getState().experts.find(e => e.id === x.id).weight, 0);
+  assert.ok(Math.abs(v.share - support / weights) < 1e-9);
+});
+
+test('损坏配置回退而不清空合法部分', () => {
+  const wb = load();
+  const s = plain(wb.defaultState());
+  s.experts.push({id: 'bad<id>', name: 'x'});
+  s.experts.push({id: 'good', name: '  合法专家  ', weight: 99});
+  const back = wb.validateState(s);
+  assert.ok(!back.experts.some(e => e.id === 'bad<id>'));
+  const good = back.experts.find(e => e.id === 'good');
+  assert.equal(good.name, '合法专家');
+  assert.ok(good.weight <= 3);
+  assert.throws(() => wb.validateState({schemaVersion: 4, experts: []}), /至少需要一位专家/);
+});
+
+test('会话：旧版单聊天迁移、新建不清空、切换恢复', () => {
+  const wb = load();
+  const h = wb.helpers;
+  const legacy = {messages: [{role: 'user', text: '旧问题', time: '09:00'}], conversations: []};
+  const migrated = h.normalize(legacy);
+  assert.equal(migrated.conversations.length, 1);
+  assert.deepEqual(plain(h.normalize(plain(migrated))), plain(migrated));
+
+  const s = plain(wb.defaultState());
+  Object.assign(s, h.normalize(s));
+  s.messages = [{role: 'user', text: '第一条', time: '09:01'}];
+  h.create(s, 'chat-b', '10:00');
+  assert.equal(s.messages.length, 0);
+  s.messages = [{role: 'user', text: '第二条', time: '10:01'}];
+  h.switchTo(s, s.conversations[1].id);
+  assert.equal(s.messages[0].text, '第一条');
+});
+
+test('操盘记录：创建时冻结当时理由与信号，复盘收益按方向计算', () => {
+  const wb = load();
+  const symbol = wb.findSymbol('000001', '指数');
+  const created = wb.journalCreate(symbol, 'buy', {horizon: 11, price: 10, reason: '测试理由'});
+  assert.equal(created.action, 'buy');
+  assert.equal(created.direction, 1);
+  assert.ok(created.votes.length >= 1);
+  assert.equal(created.price, 10);
+  assert.match(created.reason, /测试理由/);
+
+  created.nowPrice = 11;
+  assert.ok(Math.abs(wb.journalReturn(created) - 0.1) < 1e-9);
+  created.action = 'sell';
+  assert.ok(Math.abs(wb.journalReturn(created) + 0.1) < 1e-9);
+  created.nowPrice = null;
+  assert.equal(wb.journalReturn(created), null);
+});
+
+test('操盘记录：损坏数据被丢弃，合法记录保留且理由不被截断丢失', () => {
+  const wb = load();
+  const good = wb.journalCreate(wb.findSymbol('601088'), 'watch', {horizon: 5, reason: '保留'});
+  const saved = plain(wb.defaultState());
+  saved.journal = [good, null, {id: 'x'}, {...good, id: 'bad', action: 'unknown'}];
+  const back = wb.validateState(saved);
+  assert.equal(back.journal.length, 1);
+  assert.equal(back.journal[0].reason, '保留');
+  assert.equal(back.journal[0].action, 'watch');
+});
+
+test('老配置缺少内置插件时自动补齐，但保留自定义插件', () => {
+  const wb = load();
+  const s = plain(wb.defaultState());
+  s.plugins = [s.plugins[0], {id: 'plg-x', kind: 'custom', name: '龙虎榜', icon: 'layers', enabled: true, order: 1, note: ''}];
+  const back = wb.validateState(s);
+  const ids = back.plugins.map(p => p.id);
+  for (const builtin of ['quant', 'experts', 'watchlist', 'journal']) assert.ok(ids.includes(builtin), builtin);
+  assert.ok(ids.includes('plg-x'));
 });

@@ -810,7 +810,7 @@
           <td><span class="pill ${drift.cls}">${drift.label}</span></td>
           <td class="num">${ret === null ? '<span class="muted">待填价格</span>' : `<b class="${ret >= 0 ? 'positive' : 'negative'}">${(ret * 100).toFixed(2)}%</b>`}</td>
           <td><button class="text-button" data-action="journal-detail" data-id="${esc(r.id)}">复盘 ${icon('chevron-right')}</button></td></tr>`; }).join('') || ''}
-      </tbody></table></div>${rows.length ? '' : empty('还没有操盘记录', '在「专家团队」或「自选股」里点「记录操盘」，当时的理由和信号会一起存下来。', btn('去专家团队', 'journal-to-experts', 'btn-sm'))}</div>`;
+      </tbody></table></div>${rows.length ? '' : empty(state.journal.length ? '该筛选下没有记录' : '还没有操盘记录', state.journal.length ? '换个状态或专家筛选试试。' : '在「专家团队」或「自选股」里点「记录操盘」，当时的理由和信号会一起存下来。')}</div>`;
   }
   function journalDrawer(id) {
     const r = state.journal.find(x => x.id === id);

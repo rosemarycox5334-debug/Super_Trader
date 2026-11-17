@@ -244,6 +244,93 @@ class MarketService:
         self._put(self._metadata, result["thscode"], (self._clock(), result), self.META_MAX)
         return result
 
+    def _resolve_fund(self, code: str, key: str, deadline: float) -> dict:
+        now = self._clock()
+        cache_key = ("fund", code)
+        cached = self._metadata.get(cache_key)
+        if cached and 0 <= now - cached[0] < self.META_TTL:
+            self._metadata.move_to_end(cache_key)
+            return cached[1]
+        self._metadata.pop(cache_key, None)
+        data = self._get("/api/meta/tickers/search",
+                         {"q": code, "asset_type": "fund-etf", "limit": 50}, key, deadline)
+        matches = {}
+        for row in data["item"]:
+            if not isinstance(row, dict):
+                raise MarketError("基金目录记录无效", code="market_protocol")
+            full = row.get("thscode")
+            if (isinstance(full, str) and _FULL.fullmatch(full)
+                    and row.get("asset_type") == "fund-etf"
+                    and (full == code if "." in code else full[:6] == code)):
+                matches[full] = row
+        if len(matches) != 1:
+            raise MarketError("代码无法唯一解析为 ETF", code="market_ambiguous" if matches else "market_unsupported", status=422)
+        result = next(iter(matches.values()))
+        self._put(self._metadata, cache_key, (self._clock(), result), self.META_MAX)
+        return result
+
+    def fund_symbol(self, code: str) -> dict:
+        parsed = self._parse(code)
+        if len(parsed) != 1 or "," in code:
+            raise MarketError("一次只解析一个 ETF", code="market_codes", status=400)
+        deadline = time.monotonic() + self.TOTAL_TIMEOUT
+        with self._lock:
+            if self._closed:
+                raise MarketError("行情服务已关闭", code="market_closed", status=503)
+            key = self._credentials()
+            meta = self._resolve_fund(parsed[0], key, deadline)
+        return {"code": meta["thscode"][:6], "thscode": meta["thscode"],
+                "name": meta.get("name"), "category": "ETF", "asset_type": "fund-etf"}
+
+    def fund_snapshot(self, code: str) -> dict:
+        parsed = self._parse(code)
+        if len(parsed) != 1 or "," in code:
+            raise MarketError("一次只查询一个 ETF 行情", code="market_codes", status=400)
+        def load(key, deadline):
+            meta = self._resolve_fund(parsed[0], key, deadline)
+            data = self._get("/api/fund/market/snapshot", {"thscode": meta["thscode"]}, key, deadline)
+            rows = []
+            for raw in data["item"]:
+                if not isinstance(raw, dict):
+                    raise MarketError("ETF 行情格式无效", code="market_protocol")
+                if raw.get("thscode") == meta["thscode"]:
+                    rows.append({**raw, "code": meta["thscode"][:6], "name": meta.get("name"),
+                                 "thscode": meta["thscode"],
+                                 "timestamp": _timestamp(raw.get("timestamp", data.get("timestamp")))})
+            return {"source": SOURCE, "provider": PROVIDER, "timestamp": _timestamp(data.get("timestamp")),
+                    "items": rows, "missing": [] if rows else [meta["thscode"]],
+                    "warnings": ["ETF 快照为场内基金行情，字段口径与 A 股略有差异。"]}
+        return self._domain_cached(("fund-snapshot", parsed[0]), 15, load)
+
+    def fund_history(self, code: str, limit: int = 120) -> dict:
+        parsed = self._parse(code)
+        if len(parsed) != 1 or "," in code:
+            raise MarketError("一次只查询一个 ETF 日线", code="market_codes", status=400)
+        if type(limit) is not int or not 5 <= limit <= 180:
+            raise MarketError("ETF K 线根数必须为5..180", code="market_limit", status=400)
+        def load(key, deadline):
+            meta = self._resolve_fund(parsed[0], key, deadline)
+            end = int(self._clock() * 1000)
+            start = max(0, end - 400 * 86400000)
+            data = self._get("/api/fund/market/historical", {
+                "thscode": meta["thscode"], "interval": "1d", "start": start, "end": end},
+                key, deadline)
+            bars = {}
+            for row in data["item"]:
+                if not isinstance(row, dict) or type(row.get("date_ms")) is not int:
+                    raise MarketError("ETF K 线日期格式无效", code="market_protocol")
+                for field in ("open_price", "high_price", "low_price", "close_price", "volume", "turnover"):
+                    value = row.get(field)
+                    if value is not None and (type(value) not in (int, float) or not math.isfinite(value)):
+                        raise MarketError("ETF K 线数值无效", code="market_protocol")
+                bars[row["date_ms"]] = deepcopy(row)
+            return {"kind": "etf", "code": meta["thscode"][:6], "thscode": meta["thscode"],
+                    "name": meta.get("name"), "interval": "1d", "adjust": "forward",
+                    "timestamp": _timestamp(data.get("timestamp")),
+                    "items": [bars[stamp] for stamp in sorted(bars)[-limit:]],
+                    "source": SOURCE, "warnings": ["ETF 历史为前复权口径；只描述已发生走势。"]}
+        return self._domain_cached(("fund-history", parsed[0], limit), 60, load)
+
     def quotes(self, codes: str) -> dict:
         requested = self._parse(codes)
         if self._closed:
@@ -514,6 +601,18 @@ class MarketService:
                 if row.get("asset_type") == "a-share" and isinstance(full, str) and _FULL.fullmatch(full):
                     rows.append({"code": full[:6], "thscode": full, "name": row.get("name"), "category": "个股"})
                     self._put(self._metadata, full, (self._clock(), row), self.META_MAX)
+            if len(rows) < limit:
+                try:
+                    fund = self._get("/api/meta/tickers/search",
+                                     {"q": query, "asset_type": "fund-etf", "limit": limit}, key, deadline)
+                    for row in fund["item"]:
+                        if not isinstance(row, dict):
+                            continue
+                        full = row.get("thscode")
+                        if row.get("asset_type") == "fund-etf" and isinstance(full, str) and _FULL.fullmatch(full):
+                            rows.append({"code": full[:6], "thscode": full, "name": row.get("name"), "category": "ETF"})
+                except MarketError:
+                    pass
             return {"items": rows[:limit], "timestamp": _timestamp(data.get("timestamp")), "query": query}
         return self._domain_cached(("symbol-search", query, limit), 300, load)
 

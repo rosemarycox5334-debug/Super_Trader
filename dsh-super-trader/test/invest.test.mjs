@@ -57,6 +57,16 @@ test('expert selection defaults to all A-shares without preset style or automati
 test('selection scope uses autonomous expert POST; stock open shares target to separate team',async()=>{
   const nav=[],h=setup({store:{onNavigate:t=>nav.push(t)}});h.store.screenOptions({scope:'watchlist',brief:'关注经营现金流'});await h.store.loadExperts();await h.store.screen(true);const post=h.requests.find(r=>r.url.endsWith('/research/select'));assert.deepEqual(JSON.parse(post.init.body),{scope:'watchlist',expert_ids:['E1'],brief:'关注经营现金流',limit_per_expert:5});await h.store.openStock('601088','中国神华');h.store.navigate('experts');assert.deepEqual(nav,['stock','experts']);assert.equal(h.store.getSnapshot().target.code,'601088');assert.equal(h.store.getSnapshot().report.data.kind,'stock');assert.equal(h.store.getSnapshot().job.data,null);assert.equal(h.requests.some(r=>r.url.includes('/research/team')),false);h.store.dispose();
 });
+test('ETF research report is accepted with fund quote, forward history and ETF quant category',async()=>{
+  const r=report('stock','513290');
+  r.target={...r.target,category:'ETF',thscode:'513290.SH',name:'纳指生物科技ETF'};
+  r.quote.data.items[0].code='513290';r.quote.data.items[0].thscode='513290.SH';
+  r.history.data.adjust=null;r.history.data.code='513290';r.history.data.thscode='513290.SH';
+  for(const item of r.quant.items){if(item.result){item.result.symbol.category='ETF';item.result.symbol.code='513290';}}
+  const h=setup({fetch:(url,init,base)=>url.includes('/research/stock')?Promise.resolve(reply(r)):base(url,init)});
+  await h.store.queryStock('513290');assert.equal(h.store.getSnapshot().report.phase,'ready');
+  assert.equal(h.store.getSnapshot().target.category,'ETF');assert.match(text(ui(h,'Stock')),/纳指生物科技ETF/);h.store.dispose();
+});
 test('one direct code request obtains independent quote, history, structure and 5/10/20 signals',async()=>{
   const h=setup();h.store.setCode('601088');await h.store.queryStock();assert.equal(h.requests.length,1);assert.match(h.requests[0].url,/research\/stock\?code=601088$/);const r=h.store.getSnapshot().report.data;assert.equal(r.quote.available,true);assert.deepEqual(clone(r.quant.items.map(i=>i.horizon)),[5,10,20]);assert.equal(r.quant.items[1].result.probability,null);const tree=ui(h,'Stock');assert.match(text(tree),/真实日K/);assert.match(text(tree),/信号一致性/);assert.equal(nodes(tree).filter(n=>n.type==='select').length,0);assert.doesNotMatch(text(tree),/持有交易日/);h.store.dispose();
 });

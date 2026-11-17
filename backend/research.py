@@ -271,7 +271,9 @@ class ResearchService:
         report = self._cached(("stock", code), lambda: self._stock_report(code))
         # Market observations may be cached, but newly persisted/invalidated
         # factor results must not inherit the market cache's availability.
-        report["factor"] = self.factor_evidence(code)
+        report["factor"] = (self.factor_evidence(code)
+                              if report["target"].get("category") != "ETF"
+                              else _unavailable("ETF不提供个股LLM因子"))
         return report
 
     def _stock_report(self, code):
@@ -279,6 +281,7 @@ class ResearchService:
         warnings = ["量化为内样本历史频率，不是校准的未来概率；行情与量化截至日可能不同。",
                     "趋势仅描述真实OHLC，不生成未来K线；MA60不足60根时为null。"]
         target = {"code": bare, "name": bare, "category": "个股", "thscode": code if "." in code else None}
+        category = "个股"
         try:
             identity = self.market.symbol(code)
             if identity.get("category") != "个股" or identity.get("code") != bare:
@@ -289,30 +292,57 @@ class ResearchService:
         except ResearchError:
             raise
         except Exception:
-            warnings.append("行情标的目录暂不可用；只按六位代码及个股分类检索本地网格，不替代为同号指数。")
+            # ETF is a distinct asset class. Resolve it from the fund directory
+            # rather than forcing it through the A-share identity checks.
             try:
-                grid, _ = self._grid()
-                entry = grid.get((bare, "个股")) or {}
-                target["name"] = entry.get("name") or bare
-            except ResearchError:
-                pass
-        quote = _capture(lambda: self.market.quotes(code), "最新行情")
-        history = _capture(lambda: self.market.history(code, limit=120, adjust="forward"), "真实日线")
-        if callable(getattr(self.market, "company_financials", None)):
-            fundamentals = _capture(lambda: self.market.company_financials(code, period="quarterly", limit=5), "已披露财务报表")
+                identity = self.market.fund_symbol(code)
+                category = "ETF"
+                target.update({"category": "ETF", **{k: identity.get(k, target[k]) for k in target}})
+                warnings.append("ETF 使用场内基金行情与前复权日线；与 A 股个股口径不同。")
+            except Exception:
+                warnings.append("行情标的目录暂不可用；只按六位代码及本地网格检索，不替代为同号指数。")
+                try:
+                    matches = [row for row in self.engine.search(bare) if row.get("code") == bare]
+                    if len(matches) == 1:
+                        category = matches[0].get("category") or "个股"
+                        target["name"] = matches[0].get("name") or bare
+                        target["category"] = category
+                except Exception:
+                    try:
+                        grid, _ = self._grid()
+                        for candidate in ("个股", "ETF"):
+                            entry = grid.get((bare, candidate)) or {}
+                            if entry:
+                                category = candidate
+                                target["name"] = entry.get("name") or bare
+                                target["category"] = candidate
+                                break
+                    except ResearchError:
+                        pass
+        if category == "ETF":
+            quote = _capture(lambda: self.market.fund_snapshot(code), "ETF最新行情") if callable(getattr(self.market, "fund_snapshot", None)) else _unavailable("未接入ETF行情")
+            history = _capture(lambda: self.market.fund_history(code, limit=120), "ETF真实日线") if callable(getattr(self.market, "fund_history", None)) else _unavailable("未接入ETF日线")
+            fundamentals = _unavailable("ETF不提供个股财报")
+            valuation = _unavailable("ETF不提供个股估值")
+            news = _unavailable("未接入基金新闻")
         else:
-            fundamentals = (_capture(lambda: self.market.fundamentals(code), "财务报表")
-                            if callable(getattr(self.market, "fundamentals", None)) else _unavailable("未接入财务报表"))
-        valuation = (_capture(lambda: self.market.valuation(code), "估值")
-                     if callable(getattr(self.market, "valuation", None)) else _unavailable("未接入估值"))
-        news = (_capture(lambda: self.market.news(code, limit=10), "个股新闻")
-                if callable(getattr(self.market, "news", None)) else _unavailable("未接入新闻数据源"))
-        if fundamentals.get("available"):
-            warnings.append("财报按其报告期/披露日解读；不等同于行情快照时间，不推断未提供的ROE或行业增长。")
-        if news.get("available"):
-            warnings.append("新闻为第三方内容，仅作证据；发布时间与行情时间不同步，不得据此编造事实。")
+            quote = _capture(lambda: self.market.quotes(code), "最新行情")
+            history = _capture(lambda: self.market.history(code, limit=120, adjust="forward"), "真实日线")
+            if callable(getattr(self.market, "company_financials", None)):
+                fundamentals = _capture(lambda: self.market.company_financials(code, period="quarterly", limit=5), "已披露财务报表")
+            else:
+                fundamentals = (_capture(lambda: self.market.fundamentals(code), "财务报表")
+                                if callable(getattr(self.market, "fundamentals", None)) else _unavailable("未接入财务报表"))
+            valuation = (_capture(lambda: self.market.valuation(code), "估值")
+                         if callable(getattr(self.market, "valuation", None)) else _unavailable("未接入估值"))
+            news = (_capture(lambda: self.market.news(code, limit=10), "个股新闻")
+                    if callable(getattr(self.market, "news", None)) else _unavailable("未接入新闻数据源"))
+            if fundamentals.get("available"):
+                warnings.append("财报按其报告期/披露日解读；不等同于行情快照时间，不推断未提供的ROE或行业增长。")
+            if news.get("available"):
+                warnings.append("新闻为第三方内容，仅作证据；发布时间与行情时间不同步，不得据此编造事实。")
         return {"kind": "stock", "target": target, "quote": quote, "history": history,
-                "trend": _trend(history), "quant": self._quant(bare, "个股", target["name"]),
+                "trend": _trend(history), "quant": self._quant(bare, category, target["name"]),
                 "fundamentals": fundamentals, "valuation": valuation,
                 "news": news, "warnings": warnings, "created_at": now_iso()}
 

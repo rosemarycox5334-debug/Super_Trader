@@ -1218,10 +1218,10 @@ function investFactorOutputGroups(items) {
 function investFactorAction(action) {return ({model_request:'请求模型',tool_error:'工具错误',tool_call:'调用工具',tool_result:'工具结果',shard_saved:'分片保存',started:'开始',start:'开始',rule_written:'量化因子写入',trial_started:'试验开始',trial_start:'试验开始',trial_completed:'试验完成',trial_complete:'试验完成',note_saved:'保存笔记',notes_saved:'保存笔记',stopped:'结束',completed:'完成',budget_exhausted:'预算停止',budget_stop:'预算停止'})[action]||investText(action);}
 function investOutputTime(value) {const date=new Date(value);return typeof value==='string'&&Number.isFinite(date.getTime())?date.toLocaleString(undefined,{timeZone:'Asia/Shanghai',hour12:false}):investText(value)||'—';}
 function investTargetKey(target) { return target ? target.kind+'|'+target.code : ''; }
-function investTarget(kind,code,name) {
+function investTarget(kind,code,name,category) {
   code=String(code || '').trim();
   if(kind==='sector' ? !/^\d{6}\.(?:TI|SH|SZ)$/i.test(code) : !/^\d{6}$/.test(code)) throw cockpitError(kind==='sector'?'invalidSector':'invalidCode');
-  return {kind:kind==='sector'?'sector':'stock',code:kind==='sector'?code.toUpperCase():code,name:name || '',category:kind==='sector'?'板块':'个股'};
+  return {kind:kind==='sector'?'sector':'stock',code:kind==='sector'?code.toUpperCase():code,name:name || '',category:kind==='sector'?'板块':(category || '个股')};
 }
 function investReport(raw,target) {
   if(!raw || raw.kind!==target.kind || !raw.target || (target.kind==='sector' ? (raw.target.thscode || raw.target.code).toUpperCase()!==target.code : raw.target.code!==target.code)) throw cockpitError('invalidResponse');
@@ -1230,18 +1230,19 @@ function investReport(raw,target) {
     const item=(raw.quant?.items || []).find(row=>row.horizon===horizon);
     if(!item?.available) {result.quant.items.push({horizon,available:false,error:item?.error || 'unavailable'});continue;}
     const q=item.result;
-    const valid=q && q.target?.horizon===horizon && (target.kind==='sector' ? raw.quant?.identity?.kind==='sector' && raw.quant.identity.thscode===target.code && q.symbol?.category==='指数' && [target.code,target.code.slice(0,6)].includes(q.symbol?.code) : q.symbol?.code===target.code && ['个股','A股','A股个股','stock','a-share'].includes(q.symbol?.category)) && [-1,0,1].includes(q.direction) && (q.direction===0 ? q.probability===null : cockpitNumber(q.probability)!==null && q.probability>=0 && q.probability<=1);
+    const valid=q && q.target?.horizon===horizon && (target.kind==='sector' ? raw.quant?.identity?.kind==='sector' && raw.quant.identity.thscode===target.code && q.symbol?.category==='指数' && [target.code,target.code.slice(0,6)].includes(q.symbol?.code) : q.symbol?.code===target.code && ['个股','A股','A股个股','stock','a-share','ETF','etf'].includes(q.symbol?.category)) && [-1,0,1].includes(q.direction) && (q.direction===0 ? q.probability===null : cockpitNumber(q.probability)!==null && q.probability>=0 && q.probability<=1);
     result.quant.items.push(valid ? item : {horizon,available:false,error:'invalidResponse'});
   }
   const dirs=result.quant.items.filter(i=>i.available).map(i=>i.result.direction);
   result.quant.available=dirs.length>0;
   result.quant.agreement=!dirs.length?'unavailable':dirs.includes(1)&&dirs.includes(-1)?'mixed':dirs.length<3?'mixed':dirs.every(d=>d===1)?'bullish':dirs.every(d=>d===-1)?'bearish':dirs.every(d=>d===0)?'neutral':'mixed';
-  if(raw.history?.available) {try {const data=raw.history.data;const identity=target.kind==='sector' ? (data?.thscode || data?.code)===target.code : data?.code===target.code;if(!identity)throw cockpitError('invalidResponse');investHistory(data,target.kind);}catch {result.history={available:false,error:'invalidResponse'};}}
+  if(raw.history?.available) {try {const data=raw.history.data;const identity=target.kind==='sector' ? (data?.thscode || data?.code)===target.code : data?.code===target.code;if(!identity)throw cockpitError('invalidResponse');investHistory(data,target.kind,raw.target?.category);}catch {result.history={available:false,error:'invalidResponse'};}}
   if(raw.quote?.available && (!Array.isArray(raw.quote.data?.items) || !raw.quote.data.items.some(row=>target.kind==='sector' ? (row.thscode || row.code)===target.code : row.code===target.code))) result.quote={available:false,error:'invalidResponse'};
   return result;
 }
-function investHistory(data,kind) {
-  if(!data || data.interval!=='1d' || (kind==='sector' ? data.adjust!==null : data.adjust!=='forward')) throw cockpitError('invalidResponse');
+function investHistory(data,kind,category) {
+  const adjustOk=kind==='sector' ? data.adjust===null : category==='ETF' ? (data.adjust==='forward'||data.adjust===null) : data.adjust==='forward';
+  if(!data || data.interval!=='1d' || !adjustOk) throw cockpitError('invalidResponse');
   return cockpitHistoryModel({...data,adjust:'forward'});
 }
 function investFactorCheck(valid,path,expected,value) {
@@ -1309,8 +1310,8 @@ function createInvestStore(options) {
   function navigate(tab) {if(tab!=='factors')stopFactors();if(tab!=='screen')stopSelectionPolling();if(tab!=='experts')stopPolling();publish({tab,notice:null});options.onNavigate?.(tab);}
   function setTarget(next) {if(investTargetKey(next)!==investTargetKey(state.target)){abort('report');abort('draft');abort('add');publish({target:next,report:investIdle(),draft:investIdle(),add:investIdle(),notice:null});}}
   function setCode(code) {publish({stockCode:String(code).trim()});abort('report');abort('draft');abort('add');publish({target:null,report:investIdle(),draft:investIdle(),add:investIdle(),notice:null});}
-  async function queryStock(code,name) {try {const target=investTarget('stock',code===undefined?state.stockCode:code,name);publish({stockCode:target.code});setTarget(target);const data=await resource('report','/research/stock?code='+target.code,raw=>investReport(raw,target));if(data&&investTargetKey(state.target)===investTargetKey(target))publish({target:{...target,name:data.target.name || target.name}});return data;}catch(error){publish({notice:cockpitFailure(error)});}}
-  async function openStock(code,name) {navigate('stock');return queryStock(code,name);}
+  async function queryStock(code,name,category) {try {const target=investTarget('stock',code===undefined?state.stockCode:code,name,category);publish({stockCode:target.code});setTarget(target);const data=await resource('report','/research/stock?code='+target.code,raw=>investReport(raw,target));if(data&&investTargetKey(state.target)===investTargetKey(target))publish({target:{...target,name:data.target.name || target.name,category:data.target.category || target.category}});return data;}catch(error){publish({notice:cockpitFailure(error)});}}
+  async function openStock(code,name,category) {navigate('stock');return queryStock(code,name,category);}
   function setSearch(q) {abort('stockSearch');publish({stockSearch:{...investIdle(),q:String(q)}});}
   function searchStocks() {if(!state.stockSearch.q.trim())return;return resource('stockSearch','/market/search?'+new URLSearchParams({q:state.stockSearch.q.trim(),limit:'20'}),data=>{if(!Array.isArray(data?.items))throw cockpitError('invalidResponse');return data;});}
   async function querySector(item) {try {const target=investTarget('sector',item.thscode,item.name);publish({selectedSector:{thscode:target.code,name:target.name}});setTarget(target);return await resource('report','/research/sector?thscode='+encodeURIComponent(target.code),raw=>investReport(raw,target));}catch(error){publish({notice:cockpitFailure(error)});}}
@@ -1874,7 +1875,7 @@ function createInvestComponents(React,store) {
         h(Button,{type:'submit',primary:true,disabled:!s.stockCode.trim()||s.report.phase==='loading'||s.stockSearch.phase==='loading'},t(isCode?'brief':'findStock'))),
       h('p',{className:'sti-muted'},t('lookupHint')),h(Status,{resource:s.stockSearch,t}),
       s.stockSearch.data?h('p',{className:'sti-muted'},t('source')+': '+investText(s.stockSearch.data.source)):null,
-      h('div',{className:'sti-constituents'},...(s.stockSearch.data?.items || []).map(item=>h(Button,{key:item.thscode,onClick:()=>store.queryStock(item.code,item.name)},(item.name || item.code)+' '+item.code))),
+      h('div',{className:'sti-constituents'},...(s.stockSearch.data?.items || []).map(item=>h(Button,{key:item.thscode,onClick:()=>store.queryStock(item.code,item.name,item.category)},(item.name || item.code)+' '+item.code))),
       s.stockSearch.phase==='ready'&&!s.stockSearch.data.items.length?h(Empty,null,t('stockSearchEmpty')):null),
       h(Status,{resource:s.report,t}),s.report.data?.kind==='stock'?h(Brief,{report:s.report.data,t,onAnalyze}):h(Empty,null,t('emptyBrief')));
   }

@@ -1,4 +1,14 @@
-# Super Trader 0.17.0 验收（2026-11-17）
+# Super Trader 0.18.0 验收（2026-11-17）
+
+## ETF 完整行情支持（0.18.0）
+
+- 新增同花顺基金目录解析、ETF 快照（`/api/fund/market/snapshot`）和前复权日线（`/api/fund/market/historical`）。
+- `stock_report` 自动识别 ETF：target.category=ETF、thscode=513290.SH，使用基金行情/日线和 ETF 量化分类；不再落入“个股”网格导致全不可用。
+- 市场搜索同时检索 A 股与 ETF，前端接受 ETF 的行情、前复权历史和 quant 分类。
+- 实测 513290：行情 1.83 元（-3.68%）、120 根日线、5/10/20 量化均可用；ETF 财报/估值/LLM 因子明确不可用。
+- 单专家 `_market_bundle` 仍只对个股附行情/财务；团队/个股报告走完整 ETF 数据。
+
+## 个股 AI 会话与逐专家展示（0.17.0）
 
 ## 个股 AI 会话与逐专家展示（0.17.0）
 

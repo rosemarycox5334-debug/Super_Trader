@@ -71,12 +71,12 @@ function failure(error) {
 /** Returns real ctx.tools.register definitions. No host-package imports or fabricated data.
  * Optional timing overrides are intended for deterministic/offline tests.
  */
-export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 400, expertCreation } = {}) {
+export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 400, teamPollMs = 3000, expertCreation } = {}) {
   const request = (method, path, body, exec, timeoutMs) => manager.request(method, path, body, { signal: exec?.signal, ...(timeoutMs === undefined ? {} : { timeoutMs }) });
-  const tool = (name, description, properties, required, run) => {
+  const tool = (name, description, properties, required, run, timeoutMs = 200000) => {
     const parameters = { type: 'object', properties, required, additionalProperties: false };
     return {
-      name, description, parameters, timeoutMs: 200000,
+      name, description, parameters, timeoutMs,
       output: { schema: {}, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
       async execute(args, exec = {}) {
         try {
@@ -239,12 +239,27 @@ export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 4
         if(args.limit!==undefined && (args.limit<1 || args.limit>50) || args.offset!==undefined && args.offset<0)throw Object.assign(new Error('目录分页参数无效'),{code:'invalid_arguments'});
         return request('GET',query('/api/market/sectors',{...args,limit:args.limit ?? 20}),undefined,exec,45000);
       }),
-    tool('st_team_research', '启动结合多周期量化与真实行情证据的专家趋势会诊，会调用已配置模型并可能计费；返回任务ID，用st_job查询或取消，不执行交易。',
-      {kind:{type:'string',enum:['stock','sector']},code:str('stock为六位股票代码；sector为目录给出的完整指数thscode。'),expert_ids:{type:'array',items:str('从专家目录取得的真实ID。'),description:'可选1–20位专家；省略使用已启用团队。'}},['kind','code'],
-      (args,exec)=>{
+    tool('st_team_research', '启动结合多周期量化与真实行情证据的专家趋势会诊，会调用已配置模型并可能计费；默认等待任务终态后返回完整结果，wait=false 才立即返回任务ID。不执行交易。',
+      {kind:{type:'string',enum:['stock','sector']},code:str('stock为六位股票代码；sector为目录给出的完整指数thscode。'),expert_ids:{type:'array',items:str('从专家目录取得的真实ID。'),description:'可选1–20位专家；省略使用已启用团队。'},wait:{type:'boolean',description:'默认true：轮询到任务完成/失败/取消后返回；false：只提交并返回job。'}},['kind','code'],
+      async(args,exec)=>{
         if(!(args.kind==='stock'?/^\d{6}$/:/^\d{6}\.(?:SH|SZ|TI)$/).test(args.code) || args.expert_ids!==undefined && (args.expert_ids.length<1 || args.expert_ids.length>20))throw Object.assign(new Error('研究对象或专家列表无效'),{code:'invalid_arguments'});
-        return request('POST','/api/research/team',args,exec,30000);
-      }),
+        const body={kind:args.kind,code:args.code,...(args.expert_ids===undefined?{}:{expert_ids:args.expert_ids})};
+        const initial=await request('POST','/api/research/team',body,exec,30000);
+        if(args.wait===false)return initial;
+        const job=initial?.job??initial, id=job?.id;
+        if(typeof id!=='string'||!id)return initial;
+        const path='/api/jobs/'+encodeURIComponent(id), deadline=Date.now()+1800000;
+        let current=job;
+        const terminal=['completed','succeeded','done','failed','error','cancelled','canceled','interrupted'];
+        while(!terminal.includes(current.status)){
+          const remaining=deadline-Date.now();
+          if(remaining<=0)return {...initial,job:current,polling_timed_out:true,query_path:path};
+          try{await sleep(Math.min(teamPollMs,remaining),exec.signal);}catch(error){return {...failure(error),job_id:id,job:current,query_path:path};}
+          try{current=await request('GET',path,undefined,exec,Math.max(1000,deadline-Date.now()));}
+          catch(error){return {...failure(error),job_id:id,job:current,query_path:path};}
+        }
+        return {...initial,job:current,job_id:id};
+      }, 1850000),
     tool('st_factor_predict', '用量化因子规则预测股票未来1–20根日K的方向，并给出全历史回测的最终准确率、覆盖率与逐窗口表现；同一时间框架共用一条规则，历史频率不是未来概率。',
       {code,category:{type:'string',enum:['个股','ETF','指数'],description:'默认个股；同号代码按类别区分。'},timeframe:{type:'string',enum:['1d'],description:'K线时间框架；当前仅支持日线1d。'},rule_id:str('可选；指定种子或已提交规则ID，缺省用当前最优规则。')},['code'],
       async(args,exec)=>{

@@ -37,7 +37,7 @@ test('sector catalog and report require real complete index identity',async()=>{
 });
 test('new team returns backend job once, no hidden polling or model retry',async()=>{
   const job={job:{id:'job1',status:'queued'}};const {calls,get}=setup(job);
-  assert.equal(await get('st_team_research').execute({kind:'stock',code:'601088',expert_ids:['quant_expert']}),job);
+  assert.equal(await get('st_team_research').execute({kind:'stock',code:'601088',expert_ids:['quant_expert'],wait:false}),job);
   assert.equal(calls.length,1);assert.deepEqual(calls[0].slice(0,3),['POST','/api/research/team',{kind:'stock',code:'601088',expert_ids:['quant_expert']}]);
   for(const input of [{kind:'stock',code:'881101.TI'},{kind:'sector',code:'881101'},{kind:'stock',code:'601088',expert_ids:[]}])assert.equal((await get('st_team_research').execute(input)).error.code,'invalid_arguments');
   assert.equal(calls.length,1);

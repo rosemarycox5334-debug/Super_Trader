@@ -60,6 +60,15 @@ for (const [name, args, method, path, body] of forwards) {
   });
 }
 
+test('team research waits for the terminal job instead of returning a running snapshot',async()=>{
+  const {get,calls}=setup((method,path)=>{
+    if(method==='POST')return {job:{id:'T1',status:'running',progress:0,total:2}};
+    return {id:'T1',status:'completed',progress:2,total:2,result:{consensus:{decision:'up'}}};
+  },{teamPollMs:1});
+  const value=await get('st_team_research').execute({kind:'sector',code:'881101.TI'});
+  assert.equal(value.job.status,'completed');assert.equal(value.job.result.consensus.decision,'up');
+  assert.equal(calls[0][0],'POST');assert.equal(calls[1][0],'GET');assert.match(calls[1][1],/\/api\/jobs\/T1$/);
+});
 test('doctor forwards signal and real diagnosis', async () => {
   const raw = { state: { phase: 'python_missing' }, guidance: 'Install Python' };
   const { get, calls } = setup(() => raw); const controller = new AbortController();

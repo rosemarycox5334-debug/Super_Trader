@@ -53,6 +53,6 @@ test('invalid code, name or duplicate workspace names fail without creating a se
 });
 test('prompt is a sector instruction rather than a stock or new-expert task',()=>{
   const prompt=buildSectorAnalysisPrompt('银行板块','881101.TI');
-  assert.match(prompt,/不要新建工作区或会话/);assert.match(prompt,/st_sector_research/);assert.match(prompt,/st_job/);assert.match(prompt,/不要传 expert_ids/);assert.match(prompt,/整节省略/);assert.match(prompt,/不是复述原始数据/);assert.match(prompt,/不编造/);
+  assert.match(prompt,/不要新建工作区或会话/);assert.match(prompt,/st_sector_research/);assert.match(prompt,/wait=true/);assert.match(prompt,/不要传 expert_ids/);assert.match(prompt,/wait=true/);assert.match(prompt,/整节省略/);assert.match(prompt,/不要把“任务仍在运行\/1\/N”写进最终报告/);assert.match(prompt,/不是复述原始数据/);assert.match(prompt,/不编造/);
   assert.doesNotMatch(prompt,/st_expert_config/);
 });

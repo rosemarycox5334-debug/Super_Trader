@@ -129,6 +129,14 @@ def _trend(history):
         return _unavailable("真实日线包含缺失或无效价量字段，无法计算趋势")
 
 
+def _median(values):
+    nums = sorted(v for v in values if v is not None)
+    if not nums:
+        return None
+    mid = len(nums) // 2
+    return nums[mid] if len(nums) % 2 else (nums[mid - 1] + nums[mid]) / 2
+
+
 class ResearchService:
     CACHE_TTL = 30
     CACHE_MAX = 128
@@ -339,6 +347,30 @@ class ResearchService:
         if matched is not None:
             quant["identity"] = {"kind": "sector", "thscode": thscode}
         breadth = self._breadth(constituents)
+        codes = []
+        if constituents.get("available"):
+            codes = [row.get("thscode") for row in constituents["data"].get("items", [])
+                     if isinstance(row, dict) and row.get("thscode")]
+        valuation = _unavailable("未接入板块估值")
+        if codes and callable(getattr(self.market, "call_api", None)):
+            try:
+                payload = self.market.call_api("/api/a-share/valuations/snapshot",
+                                               {"thscodes": ",".join(codes[:100])})
+                rows = [row for row in (payload.get("data", {}).get("item") or [])
+                        if isinstance(row, dict) and row.get("thscode") in codes]
+                if rows:
+                    fields = ("pe_ttm", "pe_mrq", "pb_mrq", "ps_ttm", "pcf_ttm")
+                    valuation = {"available": True, "data": {
+                        "sample_size": len(rows), "universe": len(codes),
+                        "medians": {field: _median([_number(row.get(field)) for row in rows]) for field in fields},
+                        "positive_counts": {field: sum(1 for row in rows if (_number(row.get(field)) or 0) > 0) for field in fields},
+                        "items": deepcopy(rows[:30]),
+                        "as_of": payload.get("data", {}).get("timestamp"),
+                        "description": "板块成分股估值快照聚合；只代表样本成分，不是板块整体估值。"}}
+                else:
+                    valuation = _unavailable("板块成分估值快照暂无数据")
+            except Exception:
+                valuation = _unavailable("板块成分估值暂不可用")
         warnings = [f"板块广度仅为首{SECTOR_SAMPLE_LIMIT}个成分的有限样本，不代表全板块；不逐股重算量化。",
                     "价量趋势是历史观测；量化频率为内样本，行情与量化可能有不同截至日。"]
         news = (_capture(lambda: self.market.news(thscode, limit=8), "板块新闻")
@@ -346,7 +378,7 @@ class ResearchService:
         return {"kind": "sector", "target": target, "quote": quote, "history": history,
                 "trend": _trend(history), "quant": quant, "constituents": constituents,
                 "breadth": breadth, "fundamentals": _unavailable("板块不提供个股财报"),
-                "valuation": _unavailable("未接入板块估值"), "news": news,
+                "valuation": valuation, "news": news,
                 "warnings": warnings, "created_at": now_iso()}
 
     def _breadth(self, constituents):

@@ -227,10 +227,10 @@ def _research_bundle(report: dict) -> dict:
             data = section.get("data", {})
             rows = data.get("items", [])
             data.setdefault("returned_count", len(rows))
-            keep = 120 if source == "history" else 5
+            keep = 120 if source == "history" else 30
             data["items"] = rows[-keep:] if source == "history" else rows[:keep]
             data.setdefault("omitted_items", max(0, len(rows) - keep))
-            data["items_note"] = "末120根真实日线" if source == "history" else "仅首5个样本成分，广度见breadth"
+            data["items_note"] = "末120根真实日线" if source == "history" else "前30个样本成分，广度见breadth"
         if source == "quant":
             section["legacy"] = True
             warning = "旧量化网格，不是新版LLM同规则h1–h20因子准确率；不得混称最新挖掘成果。"
@@ -576,7 +576,10 @@ class ExpertService:
             "只谈短期/中期趋势与带前提的情景，指出分歧与失效条件。"
             "量化数值是内样本历史频率，不是校准未来概率，也不是团队成功率。"
             "财报只能按报告期/披露日解释，不等于最新行情日；不能杜撰ROE、行业增长或财务数字。"
-            "保留你的判据；需要财报/估值/新闻而源不可用时必须弃权。"
+            "本条优先于你方法论里的“缺某类数据就弃权”：先尝试用 ths_api 补齐缺失的行情、成分估值、财务、新闻、涨停池等数据；"
+            "仍缺时改用量价、广度、相对强弱、成分估值分位、行业景气等可用维度推理，并降低置信度；"
+            "只有所有可用证据都不足以支持方向、或证据互相矛盾时才弃权。单一数据源缺失本身不是弃权理由。"
+            "不得把未取到的数据写成事实。"
             "只输出唯一JSON：vote(-1/0/1),confidence(low/medium/high),reason,"
             "evidence([{source,ref}]),abstained(bool),"
             "outlook:{short_term,medium_term,bull_case,bear_case,invalidation}(五项均字符串),risks(字符串数组)。"

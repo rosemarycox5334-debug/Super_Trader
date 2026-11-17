@@ -166,6 +166,14 @@ test('expert delete cancel sends nothing and a failure keeps the confirmation vi
 test('team requires a user click, keeps full stock target, prevents duplicate submissions; 200 is not completion',async()=>{
   const h=setup();await h.store.queryStock('601088');await h.store.loadExperts();await h.store.startTeam();assert.equal(h.store.getSnapshot().notice.key,'consentRequired');assert.equal(h.requests.some(r=>r.url.endsWith('/research/team')),false);await h.store.startTeam(true);const posted=h.requests.find(r=>r.url.endsWith('/research/team'));assert.deepEqual(JSON.parse(posted.init.body),{kind:'stock',code:'601088',expert_ids:['E1']});assert.equal(h.store.getSnapshot().job.data.status,'queued');assert.equal(h.store.getSnapshot().job.data.result,undefined);await h.store.startTeam(true);assert.equal(h.requests.filter(r=>r.url.endsWith('/research/team')).length,1);h.store.dispose();
 });
+test('sector page hides raw market evidence and offers AI team analysis instead',async()=>{
+  const h=setup();await h.store.loadExperts();await h.store.querySector({thscode:'881101.TI',name:'真实板块'});
+  const tree=ui(h,'Sectors');assert.match(text(tree),/AI 板块分析/);assert.match(text(tree),/开始 AI 板块分析/);
+  assert.equal(nodes(tree).filter(n=>n.props?.className==='sti-evidence-grid').length,0);
+  assert.equal(nodes(tree).filter(n=>n.props?.className==='sti-metrics').length,0);
+  assert.equal(nodes(tree).filter(n=>n.props?.className==='sti-constituents').length,0);
+  h.store.startTeam(true);const post=h.requests.find(r=>r.url.endsWith('/research/team'));assert.equal(JSON.parse(post.init.body).kind,'sector');h.store.dispose();
+});
 test('sector team submission keeps kind and full qualified code',async()=>{
   const h=setup();await h.store.querySector({thscode:'881101.TI',name:'真实板块'});await h.store.loadExperts();await h.store.startTeam(true);const body=JSON.parse(h.requests.at(-1).init.body);assert.equal(body.kind,'sector');assert.equal(body.code,'881101.TI');h.store.dispose();
 });

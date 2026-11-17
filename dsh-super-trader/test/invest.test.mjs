@@ -70,6 +70,15 @@ test('ETF research report is accepted with fund quote, forward history and ETF q
 test('one direct code request obtains independent quote, history, structure and 5/10/20 signals',async()=>{
   const h=setup();h.store.setCode('601088');await h.store.queryStock();assert.equal(h.requests.length,1);assert.match(h.requests[0].url,/research\/stock\?code=601088$/);const r=h.store.getSnapshot().report.data;assert.equal(r.quote.available,true);assert.deepEqual(clone(r.quant.items.map(i=>i.horizon)),[5,10,20]);assert.equal(r.quant.items[1].result.probability,null);const tree=ui(h,'Stock');assert.match(text(tree),/真实日K/);assert.doesNotMatch(text(tree),/信号一致性/);assert.equal(nodes(tree).filter(n=>n.type==='select').length,0);assert.doesNotMatch(text(tree),/持有交易日/);h.store.dispose();
 });
+test('stock page team button starts Ai个股分析 directly without navigating to experts',async()=>{
+  const h=setup(),opened=[];await h.store.queryStock('601088');const beforeTab=h.store.getSnapshot().tab;
+  const tree=ui(h,'Stock',{onOpenExpertSession:id=>opened.push(id)});
+  const button=nodes(tree).find(n=>n.type==='button'&&text(n).trim()==='请专家团队分析走势');assert.ok(button);
+  await button.props.onClick();
+  assert.ok(h.requests.some(r=>r.url.endsWith('/stock-analysis')));
+  assert.equal(h.store.getSnapshot().tab,beforeTab);assert.notEqual(h.store.getSnapshot().tab,'experts');assert.equal(opened[0],'S-stock');
+  assert.equal(h.requests.some(r=>r.url.includes('/experts')),false);h.store.dispose();
+});
 test('stock page hides raw legacy quant, evidence coverage and technical warnings',async()=>{
   const h=setup();await h.store.queryStock('601088');const body=text(ui(h,'Stock'));
   for(const hidden of ['legacy（旧网格','信号一致性','专家可用证据','历史数据截至'])assert.equal(body.includes(hidden),false,hidden);

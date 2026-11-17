@@ -1,4 +1,14 @@
-# Super Trader 0.16.4 验收（2026-11-17）
+# Super Trader 0.16.5 验收（2026-11-17）
+
+## 团队长周期 K 线、MACD 与证据重试（0.16.5）
+
+- 团队冻结 bundle 的 `history` 由末 5 根改为最多 120 根真实日 K；`items_note` 同步更新，证据索引仍对应当前 bundle。
+- `_trend` 新增 MACD：DIF/DEA/柱值及近 60 根 `series`（EMA12-EMA26、DEA=EMA9(DIF)、柱=2*(DIF-DEA)）；少于35根时明确不可用。
+- 团队契约明确 evidence 不得为空，并给出 trend/history/macd/constituents/quant/ths 的真实 JSONPointer 示例。
+- 专家输出 evidence 为空、指针无效或 JSON 不合规时，追加纠错消息并重试一次；第二次仍不合规则失败/弃权，不无限重试。
+- 测试：120 根 bundle、MACD 序列、纠错后成功、两次失败才报错；原有 5 根断言同步更新。
+
+## 专家任务等待终态（0.16.4）
 
 ## 专家任务等待终态（0.16.4）
 

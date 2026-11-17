@@ -227,9 +227,10 @@ def _research_bundle(report: dict) -> dict:
             data = section.get("data", {})
             rows = data.get("items", [])
             data.setdefault("returned_count", len(rows))
-            data["items"] = rows[-5:] if source == "history" else rows[:5]
-            data.setdefault("omitted_items", max(0, len(rows) - 5))
-            data["items_note"] = "仅末5根真实日线" if source == "history" else "仅首5个样本成分，广度见breadth"
+            keep = 120 if source == "history" else 5
+            data["items"] = rows[-keep:] if source == "history" else rows[:keep]
+            data.setdefault("omitted_items", max(0, len(rows) - keep))
+            data["items_note"] = "末120根真实日线" if source == "history" else "仅首5个样本成分，广度见breadth"
         if source == "quant":
             section["legacy"] = True
             warning = "旧量化网格，不是新版LLM同规则h1–h20因子准确率；不得混称最新挖掘成果。"
@@ -552,8 +553,8 @@ class ExpertService:
     def analyze_research(self, expert_id: str, report: dict, persist: bool = True) -> dict:
         """Analyze the same frozen report, optionally calling the read-only THS API.
 
-        Experts may enrich the frozen bundle through `ths_api`; invalid output is
-        a failed vote, not an unbounded decode retry. Legacy analyze/team_analyze
+        Experts may enrich the frozen bundle through `ths_api`; invalid output gets one
+        corrective retry, then fails rather than looping. Legacy analyze/team_analyze
         share the same generic tool.
         """
         expert = self.get(expert_id)
@@ -583,8 +584,9 @@ class ExpertService:
             "ref必须为bundle中实际存在且非null的数值/日期/事实叶节点的绝对RFC6901 JSONPointer，"
             "例如/trend/data/ma20、/factor/data/metrics/accuracy、/factor/data/direction；旧网格引用须说明legacy。"
             "其他源用/<source>/data/...；所有引用源及其嵌套数据available必须为true，"
-            "不得引用available/error字段作为事实。history只保留末5根真实日线；其数组索引对应当前bundle。"
+            "不得引用available/error字段作为事实。history最多保留末120根真实日线（索引0为其中最早一根）；其数组索引对应当前bundle。"
             "bundle 未覆盖的实时同花顺数据，可调用 ths_api（只读GET；action=catalog 查路径）查询涨停池、跌停池、炸板池、连板天梯、热榜、龙虎榜、板块、资金流等任意已开放接口；"
+            "evidence不得为空（除非主动弃权）；至少一条必须是真实叶节点，例如/trend/data/bias、/trend/data/ma20、/trend/data/macd/dif、/history/data/items/0/close_price、/constituents/data/total、/quant/items/0/result/direction。只写中文描述、指标名或不在bundle中的路径会被拒绝。"
             "调用后证据用 source=ths，ref 指向 /ths/data/calls/<本次调用序号>/result/data/...，只引用返回的真实字段。"
             "无可用证据就vote=0/abstained=true并明确缺什么；不允许凭空引用。"
         )
@@ -600,27 +602,54 @@ class ExpertService:
                               "result": result})
             return result
         tools = _tool_schemas(["ths_api"]) if self.market else []
-        try:
-            out = self.model.chat(messages, tools=tools or None,
-                                  tool_impls={"ths_api": ths_impl} if tools else {},
-                                  max_tool_rounds=12,
-                                  temperature=float(expert["temperature"]),
-                                  model=expert["model"] or None, response_format_json=True)
-        except ModelNotConfigured:
-            raise ExpertError("未配置模型密钥，无法调用研究专家", status=503) from None
-        except ModelError as exc:
-            # Never interpolate provider exception text, response body or headers.
-            status = exc.status if exc.status in (429, 502, 503, 504) else 502
-            raise ExpertError("研究模型调用失败，请检查模型连接或稍后重试", status=status) from None
-        except Exception:
-            raise ExpertError("研究模型调用失败", status=502) from None
-        if ths_calls:
-            bundle["ths"] = {"available": True, "data": {"calls": ths_calls},
-                             "warnings": ["同花顺原始接口只读数据；本次专家自行调用，引用须指向对应调用结果。"]}
-        try:
-            decoded = _validate_research(_extract_json(out.get("content", "")), bundle)
-        except (ValueError, TypeError, AttributeError):
-            raise ExpertError("研究专家输出不符合结构化契约；未自动重试", status=502) from None
+        decoded = None
+        last_error = None
+        for attempt in range(2):
+            try:
+                out = self.model.chat(messages, tools=tools or None,
+                                      tool_impls={"ths_api": ths_impl} if tools else {},
+                                      max_tool_rounds=12,
+                                      temperature=float(expert["temperature"]),
+                                      model=expert["model"] or None, response_format_json=True)
+            except ModelNotConfigured:
+                raise ExpertError("未配置模型密钥，无法调用研究专家", status=503) from None
+            except ModelError as exc:
+                # Never interpolate provider exception text, response body or headers.
+                status = exc.status if exc.status in (429, 502, 503, 504) else 502
+                raise ExpertError("研究模型调用失败，请检查模型连接或稍后重试", status=status) from None
+            except Exception:
+                raise ExpertError("研究模型调用失败", status=502) from None
+            if ths_calls:
+                bundle["ths"] = {"available": True, "data": {"calls": ths_calls},
+                                 "warnings": ["同花顺原始接口只读数据；本次专家自行调用，引用须指向对应调用结果。"]}
+            payload = _extract_json(out.get("content", ""))
+            if payload is None:
+                last_error = ValueError("模型未返回可解析JSON")
+                decoded = None
+            else:
+                try:
+                    decoded = _validate_research(payload, bundle)
+                except (ValueError, TypeError, AttributeError) as exc:
+                    last_error = exc
+                    decoded = None
+                else:
+                    forced = (decoded["abstained"] and payload.get("vote") in (1, -1)
+                              and payload.get("abstained") is not True)
+                    if forced and attempt == 0:
+                        last_error = ValueError("evidence为空或JSONPointer无效")
+                        decoded = None
+            if decoded is not None:
+                break
+            if attempt == 0:
+                messages.append({"role": "assistant", "content": out.get("content", "")})
+                messages.append({"role": "user", "content":
+                    "上一条输出不可用：JSON不合规、evidence为空或JSONPointer无效。请只重新输出一个JSON对象，不要改变已取到的事实。"
+                    "非弃权时evidence至少一条，source/ref必须指向bundle中真实存在的叶节点，"
+                    "例如/trend/data/bias、/trend/data/ma20、/trend/data/macd/dif、/history/data/items/0/close_price、/constituents/data/total、/quant/items/0/result/direction；"
+                    "调用ths_api后可用/ths/data/calls/0/result/data/...。不要输出解释或Markdown。"})
+                continue
+        if decoded is None:
+            raise ExpertError("研究专家输出不符合结构化契约；已纠错重试一次仍失败", status=502) from None
         actual_model = expert["model"] or getattr(self.model.settings, "model", None)
         result = {"expert": {"id": expert["id"], "name": expert["name"], "tag": expert["tag"]},
                   "kind": report["kind"], "target": deepcopy(report["target"]),

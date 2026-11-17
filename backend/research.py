@@ -91,6 +91,23 @@ def _trend(history):
         ma5 = sum(closes[-5:]) / 5
         ma20 = sum(closes[-20:]) / 20
         ma60 = sum(closes[-60:]) / 60 if len(closes) >= 60 else None
+        def ema(values, period):
+            alpha = 2.0 / (period + 1.0)
+            out = [float(values[0])]
+            for value in values[1:]:
+                out.append(alpha * float(value) + (1.0 - alpha) * out[-1])
+            return out
+        macd = {"available": False, "error": "真实日线少于35根，无法计算MACD"}
+        if len(closes) >= 35:
+            ema12, ema26 = ema(closes, 12), ema(closes, 26)
+            dif = [a - b for a, b in zip(ema12, ema26)]
+            dea = ema(dif, 9)
+            hist = [2.0 * (a - b) for a, b in zip(dif, dea)]
+            series = [{"date_ms": bars[i]["date_ms"], "dif": dif[i], "dea": dea[i], "hist": hist[i]}
+                      for i in range(max(0, len(bars) - 60), len(bars))]
+            macd = {"available": True, "dif": dif[-1], "dea": dea[-1],
+                    "hist": hist[-1], "series": series,
+                    "basis": "EMA12-EMA26=DIF；DIF的EMA9=DEA；柱=2*(DIF-DEA)"}
         last = closes[-1]
         bias = "up" if last > ma5 > ma20 else "down" if last < ma5 < ma20 else "range"
         volumes = [_number(b.get("volume")) for b in bars[-6:]]
@@ -106,7 +123,7 @@ def _trend(history):
             "support_20d": min(lows), "resistance_20d": max(highs),
             "volume_ratio": volume_ratio, "as_of": bars[-1]["date_ms"],
             "bars": len(bars), "description": "真实历史价量观测，不是未来价格轨迹",
-            "volume_ratio_basis": "最新一根成交量/前5根平均成交量",
+            "volume_ratio_basis": "最新一根成交量/前5根平均成交量", "macd": macd,
         }}
     except (KeyError, TypeError, ValueError, ArithmeticError):
         return _unavailable("真实日线包含缺失或无效价量字段，无法计算趋势")

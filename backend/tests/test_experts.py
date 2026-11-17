@@ -209,8 +209,8 @@ def test_research_expert_can_call_ths_api_and_cite_returned_fields(services, mon
 def test_research_expert_without_ths_call_cannot_fake_a_ths_pointer(services):
     svc = services
     svc.experts.market = _ToolMarket()
-    svc.experts.model = _StubModel([json.dumps(_research_opinion(
-        "ths", "/ths/data/calls/0/result/data/item/0/name"))])
+    invalid = json.dumps(_research_opinion("ths", "/ths/data/calls/0/result/data/item/0/name"))
+    svc.experts.model = _StubModel([invalid, invalid])
     result = svc.experts.analyze_research("price_action", _research_report())
     assert result["vote"] == 0 and result["abstained"] is True
 
@@ -286,8 +286,8 @@ def test_research_any_bad_evidence_rejects_vote_even_with_a_valid_reference():
 def test_research_bundle_is_small_and_idempotent():
     from backend.experts import _research_bundle
     bundle = _research_bundle(_research_report())
-    assert len(bundle["history"]["data"]["items"]) == 5
-    assert bundle["history"]["data"]["items"][0]["close_price"] == 5
+    assert len(bundle["history"]["data"]["items"]) == 10
+    assert bundle["history"]["data"]["items"][0]["close_price"] == 0
     assert _research_bundle(bundle) == bundle
 
 
@@ -301,9 +301,13 @@ def test_research_analyze_one_call_no_retry_and_safe_model_errors(services):
     assert services.experts.recent_analyses("000001")[0]["horizon"] == 0
     model = _StubModel(["not-json", json.dumps(_research_opinion())])
     services.experts.model = model
+    retried = services.experts.analyze_research("price_action", _research_report())
+    assert retried["vote"] == 1 and len(model._payloads) == 0
+    model = _StubModel(["not-json", "not-json"])
+    services.experts.model = model
     with pytest.raises(ExpertError) as invalid:
         services.experts.analyze_research("price_action", _research_report())
-    assert invalid.value.status == 502 and len(model._payloads) == 1
+    assert invalid.value.status == 502 and len(model._payloads) == 0
     def fail(*a, **kw):
         raise ModelError("Authorization: Bearer SECRET-KEY")
     model.chat = fail

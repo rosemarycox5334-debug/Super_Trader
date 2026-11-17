@@ -168,6 +168,16 @@ def test_screen_default_excludes_historically_risk_marked_names(service, risk_na
     assert any('不是实时风险名单' in warning for warning in result['warnings'])
 
 
+def test_trend_exposes_macd_series_for_chan_structure():
+    from backend.research import _trend
+    items = [{"date_ms": i * 86400000, "open_price": 10 + i, "high_price": 11 + i,
+              "low_price": 9 + i, "close_price": 10 + i, "volume": 1000 + i}
+             for i in range(60)]
+    trend = _trend({"available": True, "data": {"items": items}})
+    macd = trend["data"]["macd"]
+    assert macd["available"] is True
+    assert len(macd["series"]) == 60
+    assert {"dif", "dea", "hist"}.isdisjoint(macd["series"][0]) is False
 def test_stock_fixed_contract_observed_trend_and_lightweight_grid(service):
     report = service.stock_report("000001")
     assert report["target"] == {"code": "000001", "name": "平安银行", "thscode": "000001.SZ", "category": "个股"}
@@ -357,7 +367,7 @@ def test_submit_returns_queued_job_immediately_and_deduplicates(service):
 def test_team_bundle_frozen_small_and_pointer_matches_report(service):
     job = service.submit_team("stock", "000001", ["price_action", "quant_expert"])
     result = service.jobs.run(job["id"])["result"]
-    assert len(result["report"]["history"]["data"]["items"]) == 5
+    assert len(result["report"]["history"]["data"]["items"]) == 70
     assert result["report"]["history"]["data"]["returned_count"] == 70
     prompts = service.experts.model.messages
     assert prompts[0][1]["content"].split("\n冻结研究bundle", 1)[1] == prompts[1][1]["content"].split("\n冻结研究bundle", 1)[1]

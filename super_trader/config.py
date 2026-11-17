@@ -14,12 +14,27 @@ DEFAULT_DATA_ROOT = Path(r"D:\A股k线数据\多周期\日线")
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def runtime_state_root() -> Path:
+    """Writable user state; never fall back to the installed package directory."""
+    if os.environ.get("ST_STATE_DIR"):
+        return Path(os.environ["ST_STATE_DIR"]).expanduser().resolve()
+    if os.environ.get("DSH_PROFILE_DIR"):
+        return Path(os.environ["DSH_PROFILE_DIR"]) / "super-trader-data"
+    return Path.home() / ".super-trader"
+
+
+def _default_path(kind: str) -> str:
+    if os.environ.get("ST_PORTABLE_RUNTIME") == "1":
+        return str(runtime_state_root() / {"data": "research-data", "cache": "cache", "report": "reports"}[kind])
+    return str({"data": DEFAULT_DATA_ROOT, "cache": PROJECT_ROOT / "data" / "cache", "report": PROJECT_ROOT / "reports"}[kind])
+
+
 @dataclass
 class Config:
     # ---- 数据 ----
-    data_root: str = str(DEFAULT_DATA_ROOT)
-    cache_dir: str = str(PROJECT_ROOT / "data" / "cache")
-    report_dir: str = str(PROJECT_ROOT / "reports")
+    data_root: str = field(default_factory=lambda: _default_path("data"))
+    cache_dir: str = field(default_factory=lambda: _default_path("cache"))
+    report_dir: str = field(default_factory=lambda: _default_path("report"))
     timeframe: str = "日线"
 
     # ---- 评估 ----

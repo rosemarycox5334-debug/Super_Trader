@@ -1,0 +1,4 @@
+# Host-managed Python backend; Client registers a native right-sidebar page.
+- insert:
+    - id: super-trader
+      name: dsh-super-trader

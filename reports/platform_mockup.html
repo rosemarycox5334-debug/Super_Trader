@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Super Trader · A股 AI 多 Agent 交易平台（样榜）</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#141b2b; --panel2:#1a2234; --side:#0e1420;
+    --line:#26304a; --txt:#e3e9f5; --mut:#8a95ad; --dim:#5a6378;
+    --up:#ff5b5b; --down:#19c37d; --warn:#ffb020; --acc:#4a8cff; --acc2:#9a6bff;
+    --chip:#223049;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);
+    font:13px/1.55 "Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  a{color:var(--acc);text-decoration:none}
+
+  /* ===== app shell ===== */
+  .app{display:grid;grid-template-columns:230px 1fr;grid-template-rows:56px 1fr;
+    grid-template-areas:"brand top" "side main";height:100vh}
+
+  /* brand */
+  .brand{grid-area:brand;background:var(--side);border-right:1px solid var(--line);
+    border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 18px;gap:8px}
+  .brand .logo{font-weight:800;font-size:16px}
+  .brand .logo b{color:var(--acc)}
+  .brand .ver{font-size:10px;color:var(--dim)}
+
+  /* top bar */
+  .top{grid-area:top;border-bottom:1px solid var(--line);display:flex;align-items:center;
+    gap:18px;padding:0 20px;background:var(--panel)}
+  .vtitle{font-size:15px;font-weight:700}
+  .vtitle small{color:var(--mut);font-weight:400;font-size:11px;margin-left:8px}
+  .spacer{flex:1}
+  .stat{display:flex;flex-direction:column;line-height:1.15}
+  .stat .k{font-size:10px;color:var(--mut)}
+  .stat .v{font-size:14px;font-weight:700}
+  .sep{width:1px;height:26px;background:var(--line)}
+  .pill{background:var(--chip);border:1px solid var(--line);border-radius:20px;
+    padding:4px 11px;font-size:11px;color:var(--mut)}
+  .pill b{color:var(--txt)}
+  .kill{background:linear-gradient(180deg,#ff5b5b,#c22);color:#fff;border:none;
+    padding:7px 13px;border-radius:8px;font-weight:700;cursor:pointer;letter-spacing:.5px}
+  .kill:hover{filter:brightness(1.1)}
+
+  /* sidebar */
+  .side{grid-area:side;background:var(--side);border-right:1px solid var(--line);
+    overflow-y:auto;padding:12px 0}
+  .navgrp{padding:14px 18px 4px;font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase}
+  .nav{display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;
+    color:var(--mut);border-left:3px solid transparent;font-size:13px}
+  .nav:hover{background:#121a28;color:var(--txt)}
+  .nav.active{background:#121a28;color:var(--txt);border-left-color:var(--acc)}
+  .nav .ic{width:18px;text-align:center}
+  .nav .badge{margin-left:auto;font-size:9px;background:var(--chip);color:var(--mut);
+    padding:1px 6px;border-radius:10px}
+  .nav.active .badge{background:var(--acc);color:#fff}
+
+  /* main */
+  .main{grid-area:main;overflow-y:auto;padding:20px 24px 40px}
+  .view{display:none;animation:fade .2s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* cards & layout */
+  .row{display:grid;gap:14px}
+  .c2{grid-template-columns:1fr 1fr}
+  .c3{grid-template-columns:repeat(3,1fr)}
+  .c4{grid-template-columns:repeat(4,1fr)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px}
+  .card>h3{font-size:13px;padding:11px 14px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:8px;background:var(--panel2)}
+  .card>h3 .tag{margin-left:auto;font-size:10px;color:var(--mut);font-weight:400}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--down);box-shadow:0 0 8px var(--down)}
+  .dot.w{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+  .dot.i{background:#3a465f;box-shadow:none}
+  .card .body{padding:14px}
+  .muted{color:var(--mut)} .small{font-size:11px}
+  .lead{color:var(--mut);margin-bottom:14px;max-width:760px}
+
+  /* KPI */
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .kpi .v{font-size:24px;font-weight:800}
+  .kpi .k{font-size:11px;color:var(--mut);margin-top:4px}
+
+  /* generic rows */
+  .lrow{display:flex;gap:10px;padding:10px 0;border-bottom:1px dashed var(--line);align-items:center}
+  .lrow:last-child{border:none}
+  .code{font-weight:700;min-width:100px}
+  .code em{display:block;font-size:10px;color:var(--mut);font-style:normal}
+  .grow{flex:1;color:var(--mut);font-size:12px}
+  .side-t{display:inline-block;padding:1px 8px;border-radius:5px;font-size:10px;font-weight:700}
+  .buy{background:rgba(255,91,91,.15);color:var(--up)}
+  .sell{background:rgba(25,195,125,.15);color:var(--down)}
+  .watch{background:rgba(74,140,255,.15);color:var(--acc)}
+  .lab{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--chip);color:var(--mut)}
+  .labs{display:flex;gap:4px;flex-wrap:wrap}
+
+  /* status chips */
+  .st{font-size:10px;padding:2px 9px;border-radius:20px}
+  .s-run{background:rgba(255,176,32,.15);color:var(--warn)}
+  .s-ok{background:rgba(25,195,125,.15);color:var(--down)}
+  .s-idle{background:#2a3450;color:var(--mut)}
+
+  /* highlight box */
+  .summary{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:11px;margin-bottom:12px;font-size:12px}
+  .summary b{color:var(--warn)}
+
+  /* risk bars */
+  .rk{margin:12px 0}
+  .rk .t{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px}
+  .rk .track{height:9px;border-radius:6px;background:#222c42;overflow:hidden}
+  .rk .track i{display:block;height:100%}
+  .rk .lim{font-size:10px;color:var(--mut);margin-top:3px}
+
+  /* pipeline mini */
+  .pipe{display:flex;gap:6px;flex-wrap:wrap}
+  .pnode{flex:1;min-width:110px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:10px 12px;position:relative;overflow:hidden}
+  .pnode .l{font-size:10px;color:var(--acc);font-weight:700}
+  .pnode .tt{font-size:12px;font-weight:600;margin:2px 0}
+  .pnode .d{font-size:10px;color:var(--mut)}
+  .pnode .bar{position:absolute;left:0;bottom:0;height:3px}
+
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:600;font-size:11px}
+  .grave-cause b{color:var(--up)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- brand -->
+  <div class="brand">
+    <div class="logo"><b>Super</b>Trader</div>
+    <div class="ver">v0.1 · DeepSeek Harness</div>
+  </div>
+
+  <!-- top bar -->
+  <div class="top">
+    <div class="vtitle" id="vtitle">概览 <small id="vsub">今日一屏速览</small></div>
+    <div class="spacer"></div>
+    <div class="stat"><span class="k">情绪温度</span><span class="v" style="color:var(--warn)">58°</span></div>
+    <div class="sep"></div>
+    <div class="stat"><span class="k">涨停</span><span class="v" style="color:var(--up)">47</span></div>
+    <div class="stat"><span class="k">跌停</span><span class="v" style="color:var(--down)">12</span></div>
+    <div class="sep"></div>
+    <span class="pill">数据 <b>v2026.11.06</b></span>
+    <span class="pill">放行档位 <b style="color:var(--warn)">小资金</b></span>
+    <button class="kill">KILL SWITCH</button>
+  </div>
+
+  <!-- sidebar -->
+  <nav class="side">
+    <div class="navgrp">总览</div>
+    <div class="nav active" data-v="dash" data-t="概览" data-s="今日一屏速览"><span class="ic">▦</span>概览</div>
+
+    <div class="navgrp">研究产出 · DSH Super Agent</div>
+    <div class="nav" data-v="plan" data-t="盘前预案" data-s="开盘前 · 候选与仓位"><span class="ic">📋</span>盘前预案</div>
+    <div class="nav" data-v="watch" data-t="盘中盯盘" data-s="实时 · 规则 + 人格触发"><span class="ic">📡</span>盘中盯盘<span class="badge">4</span></div>
+    <div class="nav" data-v="review" data-t="收盘复盘" data-s="收盘后 · 对错归因"><span class="ic">📝</span>收盘复盘</div>
+
+    <div class="navgrp">策略</div>
+    <div class="nav" data-v="persona" data-t="策略人格" data-s="可插拔 · 共享 L0–L6 底座"><span class="ic">🎭</span>策略人格</div>
+    <div class="nav" data-v="life" data-t="策略迭代 / 墓园" data-s="L6 · 记死因防重做"><span class="ic">⚰️</span>策略迭代</div>
+
+    <div class="navgrp">风控与放行</div>
+    <div class="nav" data-v="risk" data-t="持仓风险画像" data-s="L4 · 硬约束 Agent 无权覆盖"><span class="ic">⚖️</span>持仓风险</div>
+    <div class="nav" data-v="gate" data-t="分级放行门" data-s="L3 · 纯代码判据"><span class="ic">🚦</span>分级放行门</div>
+
+    <div class="navgrp">监控 & 数据</div>
+    <div class="nav" data-v="monitor" data-t="监控归因" data-s="L5 · 回测-实盘偏差"><span class="ic">📊</span>监控归因</div>
+    <div class="nav" data-v="data" data-t="数据底座" data-s="L0 · 256 维 PIT 对齐"><span class="ic">🗄️</span>数据底座</div>
+  </nav>
+
+  <!-- main -->
+  <main class="main">
+
+    <!-- ===== DASHBOARD ===== -->
+    <section class="view active" id="v-dash">
+      <div class="row c4" style="margin-bottom:14px">
+        <div class="kpi"><div class="v" style="color:var(--down)">+0.42%</div><div class="k">今日盈亏（模拟）</div></div>
+        <div class="kpi"><div class="v">31%</div><div class="k">当前仓位</div></div>
+        <div class="kpi"><div class="v" style="color:var(--warn)">-4.1%</div><div class="k">组合回撤</div></div>
+        <div class="kpi"><div class="v">3 / 1</div><div class="k">今日信号 对/错</div></div>
+      </div>
+      <div class="card">
+        <h3><span class="dot"></span>七层流水线状态 <span class="tag">L0 → L6</span></h3>
+        <div class="body">
+          <div class="pipe">
+            <div class="pnode"><div class="l">L0</div><div class="tt">数据基座</div><div class="d">256维 · PIT</div><i class="bar" style="width:100%;background:var(--down)"></i></div>
+            <div class="pnode"><div class="l">L1</div><div class="tt">多Agent研究</div><div class="d">会议室进行中</div><i class="bar" style="width:72%;background:var(--warn)"></i></div>
+            <div class="pnode"><div class="l">L2</div><div class="tt">独立验证</div><div class="d">DSR/PBO</div><i class="bar" style="width:100%;background:var(--down)"></i></div>
+            <div class="pnode"><div class="l">L3</div><div class="tt">放行门</div><div class="d">Gate3复核</div><i class="bar" style="width:66%;background:var(--warn)"></i></div>
+            <div class="pnode"><div class="l">L4</div><div class="tt">执行风控</div><div class="d">模拟盘</div><i class="bar" style="width:60%;background:var(--warn)"></i></div>
+            <div class="pnode"><div class="l">L5</div><div class="tt">监控归因</div><div class="d">衰减稳定</div><i class="bar" style="width:45%;background:var(--acc)"></i></div>
+            <div class="pnode"><div class="l">L6</div><div class="tt">策略迭代</div><div class="d">墓园4条</div><i class="bar" style="width:30%;background:#3a465f"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="row c2">
+        <div class="card" style="margin:0">
+          <h3><span class="dot w"></span>今日关键信号 <span class="tag">摘要</span></h3>
+          <div class="body">
+            <div class="lrow"><span class="code">601088<em>中国神华</em></span><span class="grow">股息率第一 · 低位承接</span><span class="side-t buy">烟蒂股 ▲</span></div>
+            <div class="lrow"><span class="code">002415<em>海康威视</em></span><span class="grow">连跌5日 · RSI极端反转</span><span class="side-t buy">反转 ▲</span></div>
+            <div class="lrow"><span class="code">300750<em>宁德时代</em></span><span class="grow">回撤10% · L4 降仓</span><span class="side-t sell">风控 ▼</span></div>
+          </div>
+        </div>
+        <div class="card" style="margin:0">
+          <h3><span class="dot"></span>今日主线 <span class="tag">市场研究 Agent</span></h3>
+          <div class="body small muted" style="line-height:1.9">
+            红利低波防御占优；科技泡沫杀估值延续，<b style="color:var(--txt)">不追热点</b>。
+            建议维持低仓，烟蒂股人格按股息率轮动，打板人格今日空仓观望（情绪退潮）。
+            <br>点击左侧「盘前预案」查看完整候选与仓位建议。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== PRE-MARKET PLAN ===== -->
+    <section class="view" id="v-plan">
+      <p class="lead">开盘前由 DSH Super Agent 产出候选并给出仓位，核验财报/公告原文，经风控约束后输出。</p>
+      <div class="summary"><b>今日主线：</b>红利低波防御占优；科技泡沫杀估值延续，<b>不追热点</b>。维持低仓，按股息率轮动。</div>
+      <div class="card">
+        <h3><span class="dot"></span>候选与仓位建议</h3>
+        <div class="body">
+          <div class="lrow"><span class="code">601088<em>中国神华</em></span><span class="grow">股息率 7.2% 居首，估值回到「普通便宜」；分红已到账原文已核。</span><span class="side-t buy">买入 4.8%</span></div>
+          <div class="lrow"><span class="code">600900<em>长江电力</em></span><span class="grow">现金流稳定，防御仓；红队提示拥挤度偏高，分批建仓。</span><span class="side-t buy">买入 3.5%</span></div>
+          <div class="lrow"><span class="code">000858<em>五粮液</em></span><span class="grow">估值回归候选，等待回踩确认，今日仅观察。</span><span class="side-t watch">观察</span></div>
+          <div class="lrow"><span class="code">300750<em>宁德时代</em></span><span class="grow">科技杀估值，持仓浮亏触发风控降权。</span><span class="side-t sell">减仓 2.0%</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== INTRADAY WATCH ===== -->
+    <section class="view" id="v-watch">
+      <p class="lead">盘中实时触发的规则与人格信号，带位置 / 板块 / 分时标签；不符合条件的会被明确拦截并记录原因。</p>
+      <div class="card">
+        <h3><span class="dot w"></span>实时触发</h3>
+        <div class="body">
+          <div class="lrow"><span class="muted" style="min-width:48px">09:41</span><span class="code" style="min-width:72px">601088</span><span class="labs grow"><span class="lab">股息率第一</span><span class="lab">低位</span><span class="lab">分时承接</span></span><span class="side-t buy">烟蒂股 ▲</span></div>
+          <div class="lrow"><span class="muted" style="min-width:48px">10:15</span><span class="code" style="min-width:72px">002415</span><span class="labs grow"><span class="lab">连跌5日</span><span class="lab">RSI(2)极端</span><span class="lab">均值回归</span></span><span class="side-t buy">反转 ▲</span></div>
+          <div class="lrow"><span class="muted" style="min-width:48px">13:02</span><span class="code" style="min-width:72px">300XXX</span><span class="labs grow"><span class="lab">首板</span><span class="lab" style="color:var(--up)">位置过高·否</span><span class="lab">大盘弱</span></span><span class="side-t sell">打板 ✕ 拦截</span></div>
+          <div class="lrow"><span class="muted" style="min-width:48px">14:33</span><span class="code" style="min-width:72px">300750</span><span class="labs grow"><span class="lab">回撤10%</span><span class="lab" style="color:var(--warn)">L4 降仓</span></span><span class="side-t sell">风控 ▼</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== POST-MARKET REVIEW ===== -->
+    <section class="view" id="v-review">
+      <p class="lead">收盘后由 DSH Super Agent 生成，对错归因沉淀为记忆，明日假设须经 L2 验证方可执行。</p>
+      <div class="row c4" style="margin-bottom:14px">
+        <div class="kpi"><div class="v" style="color:var(--down)">+0.42%</div><div class="k">当日盈亏(模拟)</div></div>
+        <div class="kpi"><div class="v">3 / 1</div><div class="k">对 / 错</div></div>
+        <div class="kpi"><div class="v">31%</div><div class="k">仓位</div></div>
+        <div class="kpi"><div class="v" style="color:var(--warn)">-4.1%</div><div class="k">最大回撤</div></div>
+      </div>
+      <div class="card">
+        <h3><span class="dot"></span>对错归因与明日假设</h3>
+        <div class="body small muted" style="line-height:2">
+          <b style="color:var(--txt)">对错归因：</b>神华、长电防御仓贡献正收益（选股），宁德减仓避免扩大亏损（择时）。
+          打板信号被位置条件正确拦截——<b style="color:var(--down)">这是对的</b>，退潮期不参与。<br>
+          <b style="color:var(--txt)">明日假设：</b>若情绪温度跌破 50°，烟蒂股加仓一档；科技股继续规避。
+          <span style="color:var(--warn)">该假设已写入记忆库，待 L2 验证后方可执行。</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== PERSONA ===== -->
+    <section class="view" id="v-persona">
+      <p class="lead">可插拔策略人格，共享同一套 L0–L6 底座。核心是蒸馏其「决策函数」而非角色扮演。每个人格都标注已知缺陷。</p>
+      <div class="card"><div class="body">
+        <div class="lrow"><span class="code">烟蒂股</span><span class="grow">只买便宜+分红+没人爱，按股息率轮动。<span style="color:var(--up)">缺陷：牛市必然跑输。</span></span><span class="side-t buy">在用</span></div>
+        <div class="lrow"><span class="code">巴菲特</span><span class="grow">用自身经验与核心理念判断，低换手。<span style="color:var(--up)">缺陷：错过题材。</span></span><span class="side-t watch">待命</span></div>
+        <div class="lrow"><span class="code">低位首板</span><span class="grow">位置+板块+大盘+形态+分时，三档严苛度。<span style="color:var(--up)">缺陷：退潮期回撤大。</span>今日最严档空仓。</span><span class="side-t sell">空仓</span></div>
+        <div class="lrow"><span class="code">淘股吧复盘</span><span class="grow">抓游资发言/战绩/交割单做预案+复盘。<span style="color:var(--up)">缺陷：依赖爬虫稳定性。</span></span><span class="side-t buy">在用</span></div>
+      </div></div>
+    </section>
+
+    <!-- ===== LIFECYCLE ===== -->
+    <section class="view" id="v-life">
+      <p class="lead">L6 闭环：保留加权 / 降权淘汰 / 变异新生。每个被淘汰的策略写清死因，防止换个名字重做一遍。</p>
+      <div class="card">
+        <h3><span class="dot i"></span>策略墓园 Graveyard</h3>
+        <div class="body"><table>
+          <tr><th>策略</th><th>死因</th></tr>
+          <tr><td>不看位置打板 v1</td><td class="grave-cause muted"><b>逻辑错</b> · 高位接力 10 年回测必破产</td></tr>
+          <tr><td>高频横截面轮动</td><td class="grave-cause muted"><b>成本吃光</b> · 换手率过高，费后转负</td></tr>
+          <tr><td>日线趋势突破</td><td class="grave-cause muted"><b>数据证伪</b> · 日线A股均值回归 &gt; 动量</td></tr>
+          <tr><td>某个股专属规则</td><td class="grave-cause muted"><b>只是运气</b> · 安慰剂检验 1.46× 未过</td></tr>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- ===== RISK ===== -->
+    <section class="view" id="v-risk">
+      <p class="lead">L4 硬约束由代码拦截，Agent 无权覆盖。单票 ≤5% · 单行业 ≤15% · 日亏 2–3% 熔断 · 回撤 10% 降仓 / 20% 清仓。</p>
+      <div class="card"><div class="body">
+        <div class="rk"><div class="t"><span>单票上限 · 601088</span><span>4.8%</span></div><div class="track"><i style="width:96%;background:var(--warn)"></i></div><div class="lim">限 5% NAV · 接近上限</div></div>
+        <div class="rk"><div class="t"><span>科技行业集中度</span><span>14%</span></div><div class="track"><i style="width:93%;background:var(--warn)"></i></div><div class="lim">限 15% NAV · 组合风险已否决新增</div></div>
+        <div class="rk"><div class="t"><span>当日亏损熔断</span><span>-0.0%</span></div><div class="track"><i style="width:5%;background:var(--down)"></i></div><div class="lim">日亏 2–3% 停止开仓</div></div>
+        <div class="rk"><div class="t"><span>组合回撤</span><span>-4.1%</span></div><div class="track"><i style="width:41%;background:var(--acc)"></i></div><div class="lim">回撤 10% 降仓 / 20% 清仓</div></div>
+      </div></div>
+    </section>
+
+    <!-- ===== GATES ===== -->
+    <section class="view" id="v-gate">
+      <p class="lead">L3 三道放行门写成代码而非提示词。全部通过才逐级解锁额度：纸面 → 小资金 → 更高额度。</p>
+      <div class="card"><div class="body">
+        <div class="lrow"><span class="code" style="min-width:70px">Gate1</span><span class="grow">扣印花税+佣金+滑点后仍显著？</span><span class="st s-ok">通过</span></div>
+        <div class="lrow"><span class="code" style="min-width:70px">Gate2</span><span class="grow">剔除次日一字涨停不可买入后优势保留？</span><span class="st s-ok">通过</span></div>
+        <div class="lrow"><span class="code" style="min-width:70px">Gate3</span><span class="grow">小资金真实亏得起？回撤可承受 · 容量够？</span><span class="st s-run">复核中</span></div>
+      </div></div>
+      <p class="small muted">当前仅解锁 <b style="color:var(--warn)">小资金</b> 档位，Gate3 复核通过后方可提额。</p>
+    </section>
+
+    <!-- ===== MONITOR ===== -->
+    <section class="view" id="v-monitor">
+      <p class="lead">L5：Alpha 衰减监控 · 回测-实盘偏差归因 · 暴露漂移 + Brinson 归因。偏误结论回流 L6 迭代。</p>
+      <div class="card"><div class="body">
+        <div class="rk"><div class="t"><span>Alpha 衰减（烟蒂股）</span><span style="color:var(--down)">稳定</span></div><div class="track"><i style="width:80%;background:var(--down)"></i></div></div>
+        <div class="rk"><div class="t"><span>模拟-纸面滑点偏差</span><span style="color:var(--warn)">+0.3bp</span></div><div class="track"><i style="width:20%;background:var(--warn)"></i></div></div>
+        <div class="rk"><div class="t"><span>暴露漂移</span><span>轻微</span></div><div class="track"><i style="width:30%;background:var(--acc)"></i></div></div>
+      </div></div>
+    </section>
+
+    <!-- ===== DATA ===== -->
+    <section class="view" id="v-data">
+      <p class="lead">L0 数据与特征基座。纪律：先修数据，别先写 Agent。PIT 对齐 + 退市/换月补齐 + 因子版本化。对标「256 维」多模态数据库。</p>
+      <div class="card">
+        <h3><span class="dot"></span>数据维度接入进度</h3>
+        <div class="body"><table>
+          <tr><th>维度组</th><th>示例</th><th>优先级</th><th>状态</th></tr>
+          <tr><td>基础行情</td><td>OHLCV · 复权 · 换手</td><td>P0</td><td><span class="st s-ok">已有</span></td></tr>
+          <tr><td>财务估值</td><td>PE/PB/股息率/ROE</td><td>P1</td><td><span class="st s-run">接入中</span></td></tr>
+          <tr><td>市场环境</td><td>涨停家数 · 情绪温度</td><td>P1</td><td><span class="st s-run">接入中</span></td></tr>
+          <tr><td>游资资金</td><td>龙虎榜 · 营业部画像</td><td>P1</td><td><span class="st s-idle">规划</span></td></tr>
+          <tr><td>公司事件</td><td>公告 · 分红 · 解禁</td><td>P1</td><td><span class="st s-idle">规划</span></td></tr>
+          <tr><td>情绪 / 消息</td><td>淘股吧 · 新闻 · 研报</td><td>P2</td><td><span class="st s-idle">规划</span></td></tr>
+          <tr><td>板块题材</td><td>概念强度 · 权重加速度</td><td>P2</td><td><span class="st s-idle">规划</span></td></tr>
+          <tr><td>宏观另类</td><td>利率 · 汇率 · 外围指数</td><td>P3</td><td><span class="st s-idle">规划</span></td></tr>
+        </table></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  var navs = document.querySelectorAll('.nav');
+  var views = document.querySelectorAll('.view');
+  var vtitle = document.getElementById('vtitle');
+  var vsub = document.getElementById('vsub');
+  navs.forEach(function(n){
+    n.addEventListener('click', function(){
+      navs.forEach(function(x){x.classList.remove('active')});
+      views.forEach(function(x){x.classList.remove('active')});
+      n.classList.add('active');
+      var v = document.getElementById('v-' + n.dataset.v);
+      if(v) v.classList.add('active');
+      vtitle.firstChild.textContent = n.dataset.t + ' ';
+      vsub.textContent = n.dataset.s;
+      document.querySelector('.main').scrollTop = 0;
+    });
+  });
+</script>
+</body>
+</html>

@@ -27,6 +27,33 @@ reports/**/*.parquet
 # ---------------- 本地配置（含本机数据路径） ----------------
 config.json
 
+# ---------------- 工作台后端状态库（含用户自选/记录，不入库；可由 init_db 重建） ----------------
+backend/state.db
+backend/*.db
+backend/*.db-wal
+backend/*.db-shm
+backend/_*.db*
+backend/_*.json
+
+# ---------------- 模型密钥文件（绝不入库） ----------------
+commandcode_key.txt
+*_key.txt
+*.key
+# 同花顺 API Key（本机文件名为 ths_apikey.txt）
+*apikey*
+ths_apikey.txt
+.env
+.env.*
+
+# ---------------- Super Trader 插件构建产物（由 npm pack / build 重建） ----------------
+dsh-super-trader/.out/
+dsh-super-trader/runtime/
+dsh-super-trader/node_modules/
+**/node_modules/
+
+# ---------------- 参考资料与大型生成物（只保留源码/文档） ----------------
+功能参考/
+
 # ---------------- 临时文件 ----------------
 *.tmp
 *.bak

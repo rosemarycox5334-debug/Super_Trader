@@ -243,3 +243,67 @@ edge(t) = acc(t) − base(t)
 ## 许可
 
 MIT
+
+---
+
+## Super Agent 投研工作台（backend/ + web/app/）
+
+在上述量化引擎之上，提供一个**真实可跑**的插件化投研工作台：Super Agent 对话（流式输出）、
+量化概率页、蒸馏专家团队、自选股批量研判、操盘记录与复盘、跨会话记忆。后端是 FastAPI + SQLite，
+前端是无依赖的单页应用；所有业务状态落盘在服务端，密钥只从环境变量读。
+
+5 个内置插件：量化概率 / 专家团队 / 自选股 / 操盘记录 / 记忆。其中「记忆」让 Super Agent
+跨轮记住你的约束、决策与进度（规则抽取，不改模型权重），下次对话自动带回上下文；新偏好会
+取代旧偏好（可召回、可清理）。
+
+### 安装
+
+```powershell
+pip install -r requirements.txt     # 含 fastapi / uvicorn / httpx
+```
+
+### 启动（一条命令）
+
+```powershell
+python -m backend.serve
+# 等价：uvicorn backend.app:app --host 127.0.0.1 --port 8000
+```
+打开 http://127.0.0.1:8000 即为首页（Super Agent 对话）。首次启动会自动建库、
+播种 4 个内置插件与 6 位专家，无需手动初始化。
+
+### 环境变量
+
+| 变量 | 说明 | 默认 |
+|---|---|---|
+| `ST_MODEL_API_KEY` | 模型密钥（缺失时专家接口返回明确错误，不伪造） | 空（回退读 `DEEPSEEK_API_KEY`/`OPENAI_API_KEY`） |
+| `ST_MODEL_BASE_URL` | OpenAI 兼容网关 | `https://api.deepseek.com/v1` |
+| `ST_MODEL_NAME` | 模型名 | `deepseek-chat` |
+| `ST_MODEL_TIMEOUT` | 单次请求超时(s) | `60` |
+| `ST_STATE_DB` | 状态库路径 | `backend/state.db` |
+| `ST_HOST` / `ST_PORT` | 监听地址 | `127.0.0.1` / `8000` |
+
+密钥只在服务端内存；`/api/status` 只返回 `configured` 布尔与模型名，绝不回传密钥。
+
+### 数据依赖
+
+- 日线数据：`D:\A股k线数据\多周期\日线\{个股|ETF|指数}`（见 `super_trader/config.py`）。
+- 预算概率网格：`reports/fullfit/probability_grid.json`（已随仓库产出）。
+  缺失或要求重算时，后端用 `super_trader.fullfit` 现算并带口径标注。
+- 重跑网格（可选，约 2 小时）：`python scripts/build_probability_grid.py --workers 3`。
+
+### 诚实性约定
+
+所有量化概率都是**内样本历史频率**（`evaluation.type=in_sample`），不是校准的未来概率；
+`direction=0` 时概率为 `null`；专家无证据必须弃权；不接实盘、不下单、不存密钥到前端。
+
+### 文档
+
+- 接口：`docs/API.md`
+- 插件契约：`docs/PLUGIN.md`
+- 逐条验收：`docs/VERIFY.md`
+
+### 测试
+
+```powershell
+python -m pytest        # 150 passed（量化引擎 113 + 工作台后端 37）
+```

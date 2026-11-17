@@ -17,14 +17,19 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+backend = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "httpx>=0.27",
+]
 
 [project.scripts]
 super-trader = "super_trader.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["super_trader*"]
+include = ["super_trader*", "backend*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "backend/tests"]
 pythonpath = ["."]
 addopts = "-q"

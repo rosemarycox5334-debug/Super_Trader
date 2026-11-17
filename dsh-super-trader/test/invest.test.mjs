@@ -167,6 +167,12 @@ test('expert delete cancel sends nothing and a failure keeps the confirmation vi
 test('team requires a user click, keeps full stock target, prevents duplicate submissions; 200 is not completion',async()=>{
   const h=setup();await h.store.queryStock('601088');await h.store.loadExperts();await h.store.startTeam();assert.equal(h.store.getSnapshot().notice.key,'consentRequired');assert.equal(h.requests.some(r=>r.url.endsWith('/research/team')),false);await h.store.startTeam(true);const posted=h.requests.find(r=>r.url.endsWith('/research/team'));assert.deepEqual(JSON.parse(posted.init.body),{kind:'stock',code:'601088',expert_ids:['E1']});assert.equal(h.store.getSnapshot().job.data.status,'queued');assert.equal(h.store.getSnapshot().job.data.result,undefined);await h.store.startTeam(true);assert.equal(h.requests.filter(r=>r.url.endsWith('/research/team')).length,1);h.store.dispose();
 });
+test('selecting a sector does not fetch or display a raw report',async()=>{
+  const h=setup();await h.store.loadSectors();const before=h.requests.length;
+  h.store.selectSector({thscode:'881101.TI',name:'真实板块'});await tick();
+  assert.equal(h.requests.length,before);assert.equal(h.store.getSnapshot().target.code,'881101.TI');assert.equal(h.store.getSnapshot().report.phase,'idle');
+  const tree=ui(h,'Sectors');assert.match(text(tree),/真实板块/);assert.doesNotMatch(text(tree),/正在取得真实数据/);h.store.dispose();
+});
 test('sector AI button creates the Ai板块分析 session and opens it',async()=>{
   const h=setup(),opened=[];await h.store.querySector({thscode:'881101.TI',name:'真实板块'});
   const tree=ui(h,'Sectors',{onOpenExpertSession:id=>opened.push(id)});

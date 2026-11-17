@@ -1314,6 +1314,7 @@ function createInvestStore(options) {
   function setSearch(q) {abort('stockSearch');publish({stockSearch:{...investIdle(),q:String(q)}});}
   function searchStocks() {if(!state.stockSearch.q.trim())return;return resource('stockSearch','/market/search?'+new URLSearchParams({q:state.stockSearch.q.trim(),limit:'20'}),data=>{if(!Array.isArray(data?.items))throw cockpitError('invalidResponse');return data;});}
   async function querySector(item) {try {const target=investTarget('sector',item.thscode,item.name);publish({selectedSector:{thscode:target.code,name:target.name}});setTarget(target);return await resource('report','/research/sector?thscode='+encodeURIComponent(target.code),raw=>investReport(raw,target));}catch(error){publish({notice:cockpitFailure(error)});}}
+  function selectSector(item) {try {const target=investTarget('sector',item.thscode,item.name);publish({selectedSector:{thscode:target.code,name:target.name}});setTarget(target);}catch(error){publish({notice:cockpitFailure(error)});}}
   function factorPublish(patch) {publish({factors:{...state.factors,...patch}});}
   function stopFactors() {factorVisible=false;stopFactorTranscript();stopFactorResearchPolling();for(const key of ['factorReport','factorBacktest','factorRules','factorUniverse','factorResults','factorHistory'])abort(key);for(const key of ['factorUniverse','factorResults','factorHistory'])if(state[key].phase==='loading')publish({[key]:{...state[key],phase:'idle',...(key==='factorHistory'?{initialized:false}:{})}});factorPublish({report:state.factors.report.phase==='loading'?investIdle():state.factors.report,backtest:state.factors.backtest.phase==='loading'?investIdle():state.factors.backtest,rules:state.factors.rules.phase==='loading'?investIdle():state.factors.rules});}
   function factorInput(patch) {
@@ -1682,7 +1683,7 @@ function createInvestStore(options) {
   async function retryConnection() {try {const res=await fetcher('/dsh-super-trader/retry',{method:'POST',signal:AbortSignal.timeout(30000)});if(!res.ok)throw Error('HTTP '+res.status);if(connectionTimer!==undefined)unschedule(connectionTimer);await checkConnection();}catch(error){publish({connection:{...state.connection,error:cockpitFailure(error)}});}}
   function subscribe(fn) {listeners.add(fn);if(listeners.size===1&&options.autoConnect!==false)void checkConnection();return()=>{listeners.delete(fn);if(!listeners.size){if(connectionTimer!==undefined)unschedule(connectionTimer);abort('connection');stopPolling();stopSelectionPolling();stopFactors();}};}
   function dispose() {stopFactorTranscript();stopFactorResearchPolling();factorVisible=false;disposed=true;if(connectionTimer!==undefined)unschedule(connectionTimer);stopPolling();stopSelectionPolling();for(const c of requests.values())c.abort();requests.clear();listeners.clear();}
-  return {subscribe,getSnapshot:()=>state,navigate,setCode,setSearch,searchStocks,queryStock,openStock,querySector,screenOptions,screen,screenSector,sectorOptions,loadSectors,loadExperts,toggleExpert,toggleSelectionExpert,editExpert,cancelExpertEdit,newExpert,cancelNewExpert,expertRequirement,startExpertCreation,openExpertCreationSession,startSectorAnalysis,openSectorAnalysisSession,updateExpertDraft,saveExpert,requestExpertDelete,cancelExpertDelete,confirmExpertDelete,startSelection,cancelSelection,resumeSelectionPolling,stopSelectionPolling,loadWatch,addWatch,startTeam,cancelJob,resumePolling,stopPolling,checkConnection,retryConnection,draft,factorInput,queryFactor,ensureFactors,loadFactorRules,selectFactorRule,factorTab,stopFactors,factorResearchOptions,activeFactorResearch,loadFactorUniverse,startFactorResearch,cancelFactorResearch,resumeFactorResearchPolling,stopFactorResearchPolling,restoreFactorResearch,loadFactorResults,factorResultsQuery,openFactorResult,factorTranscriptFollowing,retryFactorTranscript,dispose};
+  return {subscribe,getSnapshot:()=>state,navigate,setCode,setSearch,searchStocks,queryStock,openStock,querySector,selectSector,screenOptions,screen,screenSector,sectorOptions,loadSectors,loadExperts,toggleExpert,toggleSelectionExpert,editExpert,cancelExpertEdit,newExpert,cancelNewExpert,expertRequirement,startExpertCreation,openExpertCreationSession,startSectorAnalysis,openSectorAnalysisSession,updateExpertDraft,saveExpert,requestExpertDelete,cancelExpertDelete,confirmExpertDelete,startSelection,cancelSelection,resumeSelectionPolling,stopSelectionPolling,loadWatch,addWatch,startTeam,cancelJob,resumePolling,stopPolling,checkConnection,retryConnection,draft,factorInput,queryFactor,ensureFactors,loadFactorRules,selectFactorRule,factorTab,stopFactors,factorResearchOptions,activeFactorResearch,loadFactorUniverse,startFactorResearch,cancelFactorResearch,resumeFactorResearchPolling,stopFactorResearchPolling,restoreFactorResearch,loadFactorResults,factorResultsQuery,openFactorResult,factorTranscriptFollowing,retryFactorTranscript,dispose};
 }
 // Resolve only factual leaves in the exact saved source, never executable paths.
 function investEvidenceReference(source,pointer) {
@@ -1859,18 +1860,17 @@ function createInvestComponents(React,store) {
   function Sectors({t,onAnalyze,onOpenExpertSession}) {
     const s=useStore(),r=s.sectors,a=s.sectorAi;
     React.useEffect(()=>{if(s.connection.ready&&r.phase==='idle')void store.loadSectors();},[s.connection.ready,r.tag]);
-    const sector=s.report.data?.kind==='sector'?s.report.data:null;
+    const sector=s.target?.kind==='sector'?s.target:null;
     return h('div',null,
       h(Card,{title:t('sectors')},
         h('div',{className:'sti-style-options'},...['industry','cn_concept'].map(tag=>h(Button,{key:tag,'aria-pressed':r.tag===tag,onClick:()=>store.sectorOptions({tag})},t(tag==='industry'?'industry':'concept')))),
         h('form',{className:'sti-controls',onSubmit:e=>{e.preventDefault();void store.loadSectors(0);}},h('label',null,t('sectorSearch'),h('input',{value:r.q,onChange:e=>store.sectorOptions({q:e.target.value})})),h(Button,{type:'submit',primary:true,disabled:r.phase==='loading'},t('findSector'))),
         h(Status,{resource:r,t}),h('p',{className:'sti-muted'},t('chooseSector')),
-        h('div',{className:'sti-sector-list'},...(r.data?.items || []).map(item=>h(Button,{key:item.thscode,'aria-pressed':s.selectedSector?.thscode===item.thscode,onClick:()=>store.querySector(item)},h('strong',null,item.name),h('small',null,item.thscode)))),
+        h('div',{className:'sti-sector-list'},...(r.data?.items || []).map(item=>h(Button,{key:item.thscode,'aria-pressed':s.selectedSector?.thscode===item.thscode,onClick:()=>store.selectSector(item)},h('strong',null,item.name),h('small',null,item.thscode)))),
         r.data&&!r.data.items.length?h(Empty,null,t('noSectors')):null,
         r.data?h('div',{className:'sti-actions'},h(Button,{disabled:r.offset===0,onClick:()=>store.loadSectors(Math.max(0,r.offset-30))},t('previous')),h('span',null,(r.offset+1)+' — '+Math.min(r.offset+30,r.data.total)+' / '+r.data.total),h(Button,{disabled:r.offset+30>=r.data.total,onClick:()=>store.loadSectors(r.offset+30)},t('next'))):null),
-      h(Status,{resource:s.report,t}),
       sector?h(Card,{title:t('sectorAi')},
-        h('div',{className:'sti-target'},h('strong',null,sector.target.name+' '+sector.target.thscode)),
+        h('div',{className:'sti-target'},h('strong',null,(sector.name||'')+' '+sector.code)),
         h('p',{className:'sti-muted'},t('sectorAiHelp')),
         h('p',{className:'sti-warning'},t('cost')),
         a.error?h('p',{className:'sti-error',role:'alert'},a.error):null,

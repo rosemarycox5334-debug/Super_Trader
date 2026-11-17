@@ -104,7 +104,7 @@ def _trend(history):
             dea = ema(dif, 9)
             hist = [2.0 * (a - b) for a, b in zip(dif, dea)]
             series = [{"date_ms": bars[i]["date_ms"], "dif": dif[i], "dea": dea[i], "hist": hist[i]}
-                      for i in range(max(0, len(bars) - 60), len(bars))]
+                      for i in range(len(bars))]
             macd = {"available": True, "dif": dif[-1], "dea": dea[-1],
                     "hist": hist[-1], "series": series,
                     "basis": "EMA12-EMA26=DIF；DIF的EMA9=DEA；柱=2*(DIF-DEA)"}

@@ -68,13 +68,18 @@ test('ETF research report is accepted with fund quote, forward history and ETF q
   assert.equal(h.store.getSnapshot().target.category,'ETF');assert.match(text(ui(h,'Stock')),/纳指生物科技ETF/);h.store.dispose();
 });
 test('one direct code request obtains independent quote, history, structure and 5/10/20 signals',async()=>{
-  const h=setup();h.store.setCode('601088');await h.store.queryStock();assert.equal(h.requests.length,1);assert.match(h.requests[0].url,/research\/stock\?code=601088$/);const r=h.store.getSnapshot().report.data;assert.equal(r.quote.available,true);assert.deepEqual(clone(r.quant.items.map(i=>i.horizon)),[5,10,20]);assert.equal(r.quant.items[1].result.probability,null);const tree=ui(h,'Stock');assert.match(text(tree),/真实日K/);assert.match(text(tree),/信号一致性/);assert.equal(nodes(tree).filter(n=>n.type==='select').length,0);assert.doesNotMatch(text(tree),/持有交易日/);h.store.dispose();
+  const h=setup();h.store.setCode('601088');await h.store.queryStock();assert.equal(h.requests.length,1);assert.match(h.requests[0].url,/research\/stock\?code=601088$/);const r=h.store.getSnapshot().report.data;assert.equal(r.quote.available,true);assert.deepEqual(clone(r.quant.items.map(i=>i.horizon)),[5,10,20]);assert.equal(r.quant.items[1].result.probability,null);const tree=ui(h,'Stock');assert.match(text(tree),/真实日K/);assert.doesNotMatch(text(tree),/信号一致性/);assert.equal(nodes(tree).filter(n=>n.type==='select').length,0);assert.doesNotMatch(text(tree),/持有交易日/);h.store.dispose();
+});
+test('stock page hides raw legacy quant, evidence coverage and technical warnings',async()=>{
+  const h=setup();await h.store.queryStock('601088');const body=text(ui(h,'Stock'));
+  for(const hidden of ['legacy（旧网格','信号一致性','专家可用证据','历史数据截至'])assert.equal(body.includes(hidden),false,hidden);
+  assert.match(body,/真实股票/);h.store.dispose();
 });
 test('invalid code makes no request and old code races cannot overwrite new brief',async()=>{
   const pending=[],h=setup({fetch:(url,init)=>new Promise(resolve=>pending.push({url,init,resolve}))});h.store.setCode('12');await h.store.queryStock();assert.equal(pending.length,0);assert.equal(h.store.getSnapshot().notice.key,'invalidCode');h.store.setCode('601088');const first=h.store.queryStock();h.store.setCode('000001');const second=h.store.queryStock();assert.equal(pending[0].init.signal.aborted,true);pending[1].resolve(reply(report('stock','000001')));await second;pending[0].resolve(reply(report()));await first;assert.equal(h.store.getSnapshot().report.data.target.code,'000001');h.store.dispose();
 });
 test('partial source failures leave the rest of the brief visible',async()=>{
-  const r=report();r.quant={available:false,items:[],agreement:'unavailable'};r.quote={available:false,error:'provider offline'};const h=setup({fetch:async()=>reply(r)});await h.store.queryStock('601088');assert.equal(h.store.getSnapshot().report.phase,'ready');const tree=ui(h,'Stock');assert.match(text(tree),/provider offline/);assert.match(text(tree),/本地量化未覆盖/);assert.equal(nodes(tree).filter(n=>n.type==='svg').length,1);h.store.dispose();
+  const r=report();r.quant={available:false,items:[],agreement:'unavailable'};r.quote={available:false,error:'provider offline'};const h=setup({fetch:async()=>reply(r)});await h.store.queryStock('601088');assert.equal(h.store.getSnapshot().report.phase,'ready');const tree=ui(h,'Stock');assert.match(text(tree),/provider offline/);assert.doesNotMatch(text(tree),/本地量化未覆盖/);assert.equal(nodes(tree).filter(n=>n.type==='svg').length,1);h.store.dispose();
 });
 test('mismatched full report is rejected; invalid neutral percentages disable only that period',async()=>{
   const r=report();r.quant.items[1].result.probability=.9;const h=setup({fetch:async()=>reply(r)});await h.store.queryStock('601088');assert.equal(h.store.getSnapshot().report.data.quant.items[1].available,false);assert.equal(h.store.getSnapshot().report.data.quant.items[0].available,true);await h.store.queryStock('000001');assert.equal(h.store.getSnapshot().report.phase,'error');assert.equal(h.store.getSnapshot().report.data,null);h.store.dispose();

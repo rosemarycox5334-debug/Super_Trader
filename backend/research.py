@@ -450,8 +450,8 @@ class ResearchService:
                        else self.experts.list(enabled_only=True))
         except ExpertError as exc:
             raise ResearchError("指定专家不存在", status=exc.status) from None
-        if not experts or len(experts) > 6:
-            raise ResearchError("研究团队必须包含1..6位专家")
+        if not experts or len(experts) > 20:
+            raise ResearchError("研究团队必须包含1..20位专家")
         if any(not e.get("enabled") for e in experts):
             raise ResearchError("团队包含已停用专家")
         if not getattr(getattr(self.experts.model, "settings", None), "configured", False):
@@ -475,7 +475,7 @@ class ResearchService:
                     if handle.cancelled:
                         break
                     try:
-                        if time.monotonic() - started >= 300:
+                        if time.monotonic() - started >= 1800:
                             raise ExpertError("研究团队总预算已耗尽，未调用该专家", status=504)
                         vote = self.experts.analyze_research(e["id"], deepcopy(report), persist=True)
                     except Exception as exc:

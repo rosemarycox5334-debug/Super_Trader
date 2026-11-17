@@ -425,22 +425,22 @@ def test_invalid_team_controlled(service, kwargs):
         service.submit_team(**kwargs)
 
 
-def test_team_bound_to_max_six_and_disabled_rejected(service):
+def test_team_allows_all_enabled_experts_and_rejects_disabled(service):
     service.experts.upsert({"id": "seventh", "name": "7", "system_prompt": "test"})
-    with pytest.raises(ResearchError):
-        service.submit_team("stock", "000001")
+    job = service.submit_team("stock", "000001")
+    assert job["total"] == 7 and len(job["payload"]["expert_ids"]) == 7
     service.experts.upsert({"id": "price_action", "enabled": False})
     with pytest.raises(ResearchError):
         service.submit_team("stock", "000001", ["price_action"])
 
 
-def test_300_second_budget_stops_additional_model_calls(service, monkeypatch):
+def test_long_team_budget_stops_additional_model_calls(service, monkeypatch):
     clock = [0]
     monkeypatch.setattr("backend.research.time.monotonic", lambda: clock[0])
     original = service.experts.model.chat
     def slow(*args, **kwargs):
         out = original(*args, **kwargs)
-        clock[0] = 301
+        clock[0] = 1801
         return out
     service.experts.model.chat = slow
     job = service.submit_team("stock", "000001", ["price_action", "quant_expert"])

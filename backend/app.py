@@ -92,7 +92,7 @@ class SelectionBody(BaseModel):
     model_config = {"extra": "forbid"}
     scope: Literal["market", "watchlist", "sector"] = "market"
     sector: str | None = None
-    expert_ids: list[str] | None = Field(None, min_length=1, max_length=6)
+    expert_ids: list[str] | None = Field(None, min_length=1, max_length=20)
     brief: str = Field("", max_length=1000)
     limit_per_expert: int = Field(5, ge=1, le=10)
 

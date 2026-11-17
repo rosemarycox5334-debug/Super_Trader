@@ -701,15 +701,15 @@ class SelectionService:
         brief = brief.strip()
         if type(limit_per_expert) is not int or not 1 <= limit_per_expert <= 10:
             raise SelectionError("limit_per_expert须为1..10整数")
-        if expert_ids is not None and (not isinstance(expert_ids, list) or not 1 <= len(expert_ids) <= 6
+        if expert_ids is not None and (not isinstance(expert_ids, list) or not 1 <= len(expert_ids) <= 20
                 or any(not isinstance(eid, str) or not eid for eid in expert_ids) or len(set(expert_ids)) != len(expert_ids)):
-            raise SelectionError("expert_ids须为1..6位不重复专家ID数组")
+            raise SelectionError("expert_ids须为1..20位不重复专家ID数组")
         try:
             experts = ([self.experts.get(eid) for eid in expert_ids] if expert_ids is not None else self.experts.list(enabled_only=True))
         except Exception:
             raise SelectionError("指定专家不存在或专家目录不可用", 404) from None
-        if not 1 <= len(experts) <= 6 or any(not expert.get("enabled") for expert in experts):
-            raise SelectionError("必须选择1..6位已启用的真实配置AI专家")
+        if not 1 <= len(experts) <= 20 or any(not expert.get("enabled") for expert in experts):
+            raise SelectionError("必须选择1..20位已启用的真实配置AI专家")
         if not getattr(getattr(self.experts.model, "settings", None), "configured", False):
             raise SelectionError("未配置模型密钥，无法提交真实专家自主选股", 503)
         ids = [expert["id"] for expert in experts]

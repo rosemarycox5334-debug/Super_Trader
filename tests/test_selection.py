@@ -751,12 +751,13 @@ def test_submission_input_validation_before_work(svc, kwargs):
     assert not svc.jobs.rows and not svc.market.calls
 
 
-def test_enabled_configuration_required_and_team_max_six(svc):
+def test_enabled_configuration_required_and_team_over_limit_rejected(svc):
     svc.experts.upsert({"id": "price_action", "enabled": False})
     with pytest.raises(SelectionError):
         svc.submit(expert_ids=["price_action"])
     svc.experts.upsert({"id": "price_action", "enabled": True})
-    svc.experts.upsert({"id": "new-seven", "name": "七", "system_prompt": "独立AI理念"})
+    for n in range(7, 23):
+        svc.experts.upsert({"id": f"new-{n}", "name": f"专家{n}", "system_prompt": "独立AI理念"})
     with pytest.raises(SelectionError):
         svc.submit()
 

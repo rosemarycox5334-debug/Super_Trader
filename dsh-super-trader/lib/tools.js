@@ -219,9 +219,9 @@ export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 4
       {q:str('股票代码或中文名关键词，1–60字。'),limit:{type:'integer',description:'最多1–50项，默认20。'}},['q'],
       (args,exec)=>{if(args.q.trim().length>60 || args.limit!==undefined && (args.limit<1 || args.limit>50))throw Object.assign(new Error('搜索参数无效'),{code:'invalid_arguments'});return request('GET',query('/api/market/search',args),undefined,exec,45000);}),
     tool('st_screen_stocks', '启动AI风格专家各自检索、取证和选股，会调用模型并可能计费；基本面与量化仅辅助，不按模型覆盖预筛。返回任务ID供st_job查询/取消，报告实际探索范围，不执行交易。',
-      {scope:{type:'string',enum:['market','watchlist','sector'],description:'允许探索全A股/自选/指定板块，默认market；不等于承诺逐股完整分析。'},sector:str('scope=sector时必填目录给出的完整指数代码。'),expert_ids:{type:'array',items:str('已启用的专家ID。'),description:'可选1–6位独立选股专家；省略用已启用团队。'},brief:{type:'string',description:'可选投资偏好或关注线索，最多1000字。'},limit_per_expert:{type:'integer',description:'每位最多1–10只研究候选，默认5；证据不足可少于上限或为空。'}},[],
+      {scope:{type:'string',enum:['market','watchlist','sector'],description:'允许探索全A股/自选/指定板块，默认market；不等于承诺逐股完整分析。'},sector:str('scope=sector时必填目录给出的完整指数代码。'),expert_ids:{type:'array',items:str('已启用的专家ID。'),description:'可选1–20位独立选股专家；省略用已启用团队。'},brief:{type:'string',description:'可选投资偏好或关注线索，最多1000字。'},limit_per_expert:{type:'integer',description:'每位最多1–10只研究候选，默认5；证据不足可少于上限或为空。'}},[],
       (args,exec)=>{
-        if(args.limit_per_expert!==undefined && (args.limit_per_expert<1 || args.limit_per_expert>10) || args.scope==='sector' && !/^\d{6}\.(?:SH|SZ|TI)$/.test(args.sector || '') || args.expert_ids!==undefined && (args.expert_ids.length<1 || args.expert_ids.length>6) || args.brief!==undefined && Array.from(args.brief).length>1000)throw Object.assign(new Error('专家选股范围、人数或偏好参数无效'),{code:'invalid_arguments'});
+        if(args.limit_per_expert!==undefined && (args.limit_per_expert<1 || args.limit_per_expert>10) || args.scope==='sector' && !/^\d{6}\.(?:SH|SZ|TI)$/.test(args.sector || '') || args.expert_ids!==undefined && (args.expert_ids.length<1 || args.expert_ids.length>20) || args.brief!==undefined && Array.from(args.brief).length>1000)throw Object.assign(new Error('专家选股范围、人数或偏好参数无效'),{code:'invalid_arguments'});
         return request('POST','/api/research/select',{...args,scope:args.scope ?? 'market',limit_per_expert:args.limit_per_expert ?? 5},exec,30000);
       }),
     tool('st_stock_research', '读取个股行情、价量趋势、5/10/20多周期量化及财务证据简报；K线仅返回末5根，历史命中率不是未来概率。',
@@ -240,9 +240,9 @@ export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 4
         return request('GET',query('/api/market/sectors',{...args,limit:args.limit ?? 20}),undefined,exec,45000);
       }),
     tool('st_team_research', '启动结合多周期量化与真实行情证据的专家趋势会诊，会调用已配置模型并可能计费；返回任务ID，用st_job查询或取消，不执行交易。',
-      {kind:{type:'string',enum:['stock','sector']},code:str('stock为六位股票代码；sector为目录给出的完整指数thscode。'),expert_ids:{type:'array',items:str('从专家目录取得的真实ID。'),description:'可选1–6位专家；省略使用已启用团队。'}},['kind','code'],
+      {kind:{type:'string',enum:['stock','sector']},code:str('stock为六位股票代码；sector为目录给出的完整指数thscode。'),expert_ids:{type:'array',items:str('从专家目录取得的真实ID。'),description:'可选1–20位专家；省略使用已启用团队。'}},['kind','code'],
       (args,exec)=>{
-        if(!(args.kind==='stock'?/^\d{6}$/:/^\d{6}\.(?:SH|SZ|TI)$/).test(args.code) || args.expert_ids!==undefined && (args.expert_ids.length<1 || args.expert_ids.length>6))throw Object.assign(new Error('研究对象或专家列表无效'),{code:'invalid_arguments'});
+        if(!(args.kind==='stock'?/^\d{6}$/:/^\d{6}\.(?:SH|SZ|TI)$/).test(args.code) || args.expert_ids!==undefined && (args.expert_ids.length<1 || args.expert_ids.length>20))throw Object.assign(new Error('研究对象或专家列表无效'),{code:'invalid_arguments'});
         return request('POST','/api/research/team',args,exec,30000);
       }),
     tool('st_factor_predict', '用量化因子规则预测股票未来1–20根日K的方向，并给出全历史回测的最终准确率、覆盖率与逐窗口表现；同一时间框架共用一条规则，历史频率不是未来概率。',

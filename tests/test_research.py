@@ -457,3 +457,12 @@ def test_long_team_budget_stops_additional_model_calls(service, monkeypatch):
     result = service.jobs.run(job["id"])
     assert len(service.experts.model.messages) == 1
     assert result["result"]["errors"][0]["status"] == 504
+
+
+def test_team_consensus_requires_half_the_participants():
+    from backend.experts import ExpertService
+    votes = [{"vote": 0, "abstained": True} for _ in range(5)] + [
+        {"vote": -1, "abstained": False}, {"vote": -1, "abstained": False}]
+    result = ExpertService._consensus(votes, 0.6, False)
+    assert result["decision"] == "no_consensus"
+    assert result["quorum"] == 4 and result["valid_ratio"] == round(2 / 7, 3)

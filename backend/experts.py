@@ -610,7 +610,8 @@ class ExpertService:
                                       tool_impls={"ths_api": ths_impl} if tools else {},
                                       max_tool_rounds=12,
                                       temperature=float(expert["temperature"]),
-                                      model=expert["model"] or None, response_format_json=True)
+                                      model=expert["model"] or None, response_format_json=True,
+                                      timeout=240)
             except ModelNotConfigured:
                 raise ExpertError("未配置模型密钥，无法调用研究专家", status=503) from None
             except ModelError as exc:
@@ -644,7 +645,7 @@ class ExpertService:
                 messages.append({"role": "assistant", "content": out.get("content", "")})
                 messages.append({"role": "user", "content":
                     "上一条输出不可用：JSON不合规、evidence为空或JSONPointer无效。请只重新输出一个JSON对象，不要改变已取到的事实。"
-                    "非弃权时evidence至少一条，source/ref必须指向bundle中真实存在的叶节点，"
+                    "如果确实因关键数据不足而弃权，必须明确vote=0、abstained=true；即使弃权也尽量引用一条支持该判断的真实字段。非弃权时evidence至少一条，source/ref必须指向bundle中真实存在的叶节点，"
                     "例如/trend/data/bias、/trend/data/ma20、/trend/data/macd/dif、/history/data/items/0/close_price、/constituents/data/total、/quant/items/0/result/direction；"
                     "调用ths_api后可用/ths/data/calls/0/result/data/...。不要输出解释或Markdown。"})
                 continue
@@ -700,7 +701,8 @@ class ExpertService:
         abstained = sum(1 for v in votes if v.get("abstained"))
         decision = "no_consensus"
         support = 0.0
-        if total > 0:
+        quorum = 1 if len(votes) == 1 else max(2, math.ceil(len(votes) / 2))
+        if total >= quorum:
             if require_unanimous:
                 if up == total:
                     decision, support = "up", 1.0
@@ -712,7 +714,7 @@ class ExpertService:
                 elif down / total >= threshold:
                     decision, support = "down", down / total
         return {
-            "decision": decision, "support": round(support, 3), "threshold": threshold,
+            "decision": decision, "support": round(support, 3), "threshold": threshold, "quorum": quorum, "valid_ratio": round(total / len(votes), 3) if votes else 0.0,
             "require_unanimous": require_unanimous,
             "up": up, "down": down, "abstained": abstained, "voted": total,
             "participants": len(votes),

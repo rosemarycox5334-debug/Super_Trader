@@ -2,6 +2,7 @@ import { BackendManager } from './backend-manager.js';
 import { createTools } from './tools.js';
 import { createHandlers, ROOT } from './routes.js';
 import { ExpertCreationService } from './expert-creation.js';
+import { SectorAnalysisService } from './sector-analysis.js';
 
 export const name = 'super-trader';
 export const inject = ['tools', 'webServer'];
@@ -25,14 +26,16 @@ export function mount(ctx, createManager = () => new BackendManager()) {
         }
         const optional = name => { try { return typeof ctx.get==='function'?ctx.get(name):ctx[name]; } catch {} };
         const expertCreation = new ExpertCreationService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory')});
+        const sectorAnalysis = new SectorAnalysisService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory')});
         for (const definition of createTools(manager,{expertCreation})) {
           try { disposers.push(tools.register(definition)); }
           catch (error) { console.warn('[super-trader] tool registration failed:',definition.name,error.message); }
         }
-        const handlers = createHandlers(manager,() => web.getOrigin(),undefined,expertCreation);
+        const handlers = createHandlers(manager,() => web.getOrigin(),undefined,expertCreation,sectorAnalysis);
         disposers.push(web.register({kind:'exact',path:ROOT+'/base',handler:handlers.base}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/retry',handler:handlers.retry}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/expert-creation',handler:handlers.createExpert}));
+        disposers.push(web.register({kind:'exact',path:ROOT+'/sector-analysis',handler:handlers.createSector}));
         disposers.push(web.register({kind:'prefix',path:ROOT+'/backend',handler:handlers.proxy}));
         // Crucially not awaited by Cordis apply/effect: slow Python/data load cannot block DSH boot.
         void Promise.resolve().then(() => manager.ensureBackend()).catch(() => {});

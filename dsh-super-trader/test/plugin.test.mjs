@@ -18,13 +18,13 @@ test('patch parses to package insert and distribution exports metadata',async()=
 test('apply tolerates missing/throwing host context',()=>{
   for(const ctx of [undefined,null,{}, {effect(){throw new Error('host unavailable');}},new Proxy({},{get(){throw Error('hostile');}})])assert.doesNotThrow(()=>apply(ctx));
 });
-test('mount registers exactly twenty-six tools and four routes without awaiting backend',async()=>{
+test('mount registers exactly twenty-six tools and five routes without awaiting backend',async()=>{
   const registered=[],routes=[],cleanup=[];
   let starts=0,disposed=0;
   const manager={getState:()=>({phase:'idle'}),ensureBackend(){starts++;return new Promise(()=>{});},dispose:async()=>{disposed++;}};
   const services={tools:{register(t){registered.push(t);return ()=>{};}},webServer:{register(r){routes.push(r);return ()=>{};},getOrigin:()=> 'http://127.0.0.1:57621'}};
   mount({get:k=>services[k],effect(fn){const d=fn();if(d)cleanup.push(d);}},()=>manager);
-  assert.equal(registered.length,26);assert.equal(routes.length,4);
+  assert.equal(registered.length,26);assert.equal(routes.length,5);
   // Host WebServer.match appends '/' itself; a trailing slash never matches descendants.
   const proxy=routes.find(r=>r.kind==='prefix');
   assert.equal(proxy.path,'/dsh-super-trader/backend');
@@ -69,6 +69,15 @@ test('expert deletion is a same-origin DELETE of exactly one identity',async()=>
   const res=response();await h.proxy(req,res);
   assert.equal(res.status,200);assert.deepEqual(JSON.parse(res.text),{deleted:'buffett'});
   assert.deepEqual(calls[0].slice(0,3),['DELETE','/api/experts/buffett',undefined]);
+});
+test('sector analysis route starts the Host workspace/session service',async()=>{
+  const calls=[],sectorAnalysis={async start(body,signal){calls.push([body,signal]);return {status:'accepted',submitted:true,workspaceId:'W-sector',sessionId:'S-sector',thscode:body.thscode};}};
+  const h=createHandlers({},()=> 'http://127.0.0.1:57621',undefined,undefined,sectorAnalysis),body={thscode:'881101.TI',name:'银行板块'};
+  const req={headers:{host:'127.0.0.1:57621'},method:'POST',url:'/dsh-super-trader/sector-analysis',async *[Symbol.asyncIterator](){yield Buffer.from(JSON.stringify(body));}};
+  const res=response();await h.createSector(req,res);
+  assert.equal(res.status,200);assert.equal(JSON.parse(res.text).sessionId,'S-sector');assert.deepEqual(calls[0][0],body);assert.ok(calls[0][1] instanceof AbortSignal);
+  const bad=response();await h.createSector({...req,method:'GET'},bad);assert.equal(bad.status,405);
+  const unknown=response();await h.createSector({...req,async *[Symbol.asyncIterator](){yield Buffer.from(JSON.stringify({...body,workspaceId:'x'}));}},unknown);assert.equal(unknown.status,400);
 });
 function response(){const res=new EventEmitter();res.writeHead=(status,headers)=>{res.status=status;res.headers=headers;res.headersSent=true;};res.end=t=>{res.text=t;res.writableEnded=true;};return res;}
 test('base state includes same-origin API base; proxy preserves backend errors',async()=>{

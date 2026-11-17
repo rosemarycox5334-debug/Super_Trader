@@ -24,6 +24,7 @@ function setup(options={}) {
     if(url.endsWith('/retry'))return reply({phase:'running'});
     if(url.endsWith('/status'))return reply({ok:true,grid:{snapshot:'2026-11-05'}});
     if(u.pathname.endsWith('/expert-creation'))return reply({status:'accepted',submitted:true,sessionId:'C1',workspaceId:'W1',request_id:JSON.parse(init.body).request_id,expertSaved:false});
+    if(u.pathname.endsWith('/sector-analysis'))return reply({status:'accepted',submitted:true,sessionId:'S-sector',workspaceId:'W-sector',thscode:JSON.parse(init.body).thscode,request_id:JSON.parse(init.body).request_id});
     if(u.pathname.endsWith('/research/stock'))return reply(report('stock',u.searchParams.get('code')));
     if(u.pathname.endsWith('/research/sector'))return reply(report('sector',u.searchParams.get('thscode')));
     if(u.pathname.endsWith('/research/select'))return reply({job:{id:'S1',status:'queued',progress:0,total:1}});
@@ -165,6 +166,16 @@ test('expert delete cancel sends nothing and a failure keeps the confirmation vi
 });
 test('team requires a user click, keeps full stock target, prevents duplicate submissions; 200 is not completion',async()=>{
   const h=setup();await h.store.queryStock('601088');await h.store.loadExperts();await h.store.startTeam();assert.equal(h.store.getSnapshot().notice.key,'consentRequired');assert.equal(h.requests.some(r=>r.url.endsWith('/research/team')),false);await h.store.startTeam(true);const posted=h.requests.find(r=>r.url.endsWith('/research/team'));assert.deepEqual(JSON.parse(posted.init.body),{kind:'stock',code:'601088',expert_ids:['E1']});assert.equal(h.store.getSnapshot().job.data.status,'queued');assert.equal(h.store.getSnapshot().job.data.result,undefined);await h.store.startTeam(true);assert.equal(h.requests.filter(r=>r.url.endsWith('/research/team')).length,1);h.store.dispose();
+});
+test('sector AI button creates the Ai板块分析 session and opens it',async()=>{
+  const h=setup(),opened=[];await h.store.querySector({thscode:'881101.TI',name:'真实板块'});
+  const tree=ui(h,'Sectors',{onOpenExpertSession:id=>opened.push(id)});
+  const button=nodes(tree).find(n=>n.type==='button'&&text(n).trim()==='开始 AI 板块分析');assert.ok(button);
+  await button.props.onClick();
+  const post=h.requests.find(r=>r.url.endsWith('/sector-analysis'));assert.ok(post);
+  assert.deepEqual(JSON.parse(post.init.body).thscode,'881101.TI');assert.equal(JSON.parse(post.init.body).name,'真实板块');
+  assert.deepEqual(opened,['S-sector']);assert.equal(h.store.getSnapshot().sectorAi.phase,'ready');assert.equal(h.store.getSnapshot().sectorAi.sessionId,'S-sector');
+  assert.match(text(ui(h,'Sectors',{onOpenExpertSession:()=>{}})),/打开分析会话/);h.store.dispose();
 });
 test('sector page hides raw market evidence and offers AI team analysis instead',async()=>{
   const h=setup();await h.store.loadExperts();await h.store.querySector({thscode:'881101.TI',name:'真实板块'});

@@ -266,9 +266,12 @@ class ResearchService:
         except Exception:
             return _unavailable("当前LLM因子成果暂不可用；未回退旧网格、未发起模型调用")
 
-    def stock_report(self, code):
+    def stock_report(self, code, category: str | None = None):
         code = self._stock_code(code)
-        report = self._cached(("stock", code), lambda: self._stock_report(code))
+        if category not in (None, "个股", "ETF"):
+            raise ResearchError("category只支持个股或ETF", status=400)
+        report = self._cached(("stock", code, category or "auto"),
+                              lambda: self._stock_report(code, category))
         # Market observations may be cached, but newly persisted/invalidated
         # factor results must not inherit the market cache's availability.
         report["factor"] = (self.factor_evidence(code)
@@ -276,49 +279,72 @@ class ResearchService:
                               else _unavailable("ETF不提供个股LLM因子"))
         return report
 
-    def _stock_report(self, code):
+    def _stock_report(self, code, requested_category: str | None = None):
         bare = code[:6]
         warnings = ["量化为内样本历史频率，不是校准的未来概率；行情与量化截至日可能不同。",
                     "趋势仅描述真实OHLC，不生成未来K线；MA60不足60根时为null。"]
-        target = {"code": bare, "name": bare, "category": "个股", "thscode": code if "." in code else None}
-        category = "个股"
-        try:
-            identity = self.market.symbol(code)
-            if identity.get("category") != "个股" or identity.get("code") != bare:
-                raise ResearchError("标的不是已核实的A股个股", status=404)
-            if "." in code and identity.get("thscode") != code:
-                raise ResearchError("标的交易所与请求不一致", status=404)
-            target.update({k: identity.get(k, target[k]) for k in target})
-        except ResearchError:
-            raise
-        except Exception:
-            # ETF is a distinct asset class. Resolve it from the fund directory
-            # rather than forcing it through the A-share identity checks.
+        target = {"code": bare, "name": bare, "category": requested_category or "个股",
+                  "thscode": code if "." in code else None}
+        category = requested_category or "个股"
+        stock_identity = fund_identity = None
+        stock_error = fund_error = None
+
+        if requested_category != "ETF":
             try:
-                identity = self.market.fund_symbol(code)
-                category = "ETF"
-                target.update({"category": "ETF", **{k: identity.get(k, target[k]) for k in target}})
-                warnings.append("ETF 使用场内基金行情与前复权日线；与 A 股个股口径不同。")
+                stock_identity = self.market.symbol(code)
+                if stock_identity.get("category") != "个股" or stock_identity.get("code") != bare:
+                    raise ResearchError("标的不是已核实的A股个股", status=404)
+                if "." in code and stock_identity.get("thscode") != code:
+                    raise ResearchError("标的交易所与请求不一致", status=404)
+            except ResearchError:
+                raise
+            except Exception as exc:
+                stock_error = exc
+
+        if requested_category != "个股":
+            try:
+                fund_identity = self.market.fund_symbol(code)
+                if fund_identity.get("category") != "ETF" or fund_identity.get("code") != bare:
+                    fund_identity = None
+                elif "." in code and fund_identity.get("thscode") != code:
+                    fund_identity = None
+            except Exception as exc:
+                fund_error = exc
+
+        if stock_identity and fund_identity:
+            raise ResearchError("该代码同时匹配A股个股和ETF，请从搜索结果选择资产类别", status=409)
+        if stock_identity:
+            category = "个股"
+            target.update({k: stock_identity.get(k, target[k]) for k in target})
+        elif fund_identity:
+            category = "ETF"
+            target.update({"category": "ETF", **{k: fund_identity.get(k, target[k]) for k in target}})
+            warnings.append("ETF 使用场内基金行情与前复权日线；与 A 股个股口径不同。")
+        else:
+            warnings.append("行情标的目录暂不可用；只按六位代码及本地网格检索，不替代为同号指数。")
+            try:
+                matches = [row for row in self.engine.search(bare) if row.get("code") == bare]
+                if len(matches) == 1:
+                    category = matches[0].get("category") or category
+                    target["name"] = matches[0].get("name") or bare
+                    target["category"] = category
             except Exception:
-                warnings.append("行情标的目录暂不可用；只按六位代码及本地网格检索，不替代为同号指数。")
                 try:
-                    matches = [row for row in self.engine.search(bare) if row.get("code") == bare]
-                    if len(matches) == 1:
-                        category = matches[0].get("category") or "个股"
-                        target["name"] = matches[0].get("name") or bare
-                        target["category"] = category
-                except Exception:
-                    try:
-                        grid, _ = self._grid()
-                        for candidate in ("个股", "ETF"):
-                            entry = grid.get((bare, candidate)) or {}
-                            if entry:
-                                category = candidate
-                                target["name"] = entry.get("name") or bare
-                                target["category"] = candidate
-                                break
-                    except ResearchError:
-                        pass
+                    grid, _ = self._grid()
+                    candidates = (("ETF",) if requested_category == "ETF"
+                                  else ("个股",) if requested_category == "个股"
+                                  else ("个股", "ETF"))
+                    for candidate in candidates:
+                        entry = grid.get((bare, candidate)) or {}
+                        if entry:
+                            category = candidate
+                            target["name"] = entry.get("name") or bare
+                            target["category"] = candidate
+                            break
+                except ResearchError:
+                    pass
+        if requested_category and category != requested_category:
+            raise ResearchError(f"该代码不是{requested_category}，请检查资产类别", status=404)
         if category == "ETF":
             quote = _capture(lambda: self.market.fund_snapshot(code), "ETF最新行情") if callable(getattr(self.market, "fund_snapshot", None)) else _unavailable("未接入ETF行情")
             history = _capture(lambda: self.market.fund_history(code, limit=120), "ETF真实日线") if callable(getattr(self.market, "fund_history", None)) else _unavailable("未接入ETF日线")

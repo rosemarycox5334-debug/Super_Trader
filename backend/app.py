@@ -317,8 +317,8 @@ def create_app(services: Services | None = None) -> FastAPI:
         return {"job": svc.selection.submit(**body.model_dump())}
 
     @app.get("/api/research/stock")
-    def research_stock(code: str):
-        return svc.research.stock_report(code)
+    def research_stock(code: str, category: str | None = None):
+        return svc.research.stock_report(code, category) if category else svc.research.stock_report(code)
 
     @app.get("/api/research/sector")
     def research_sector(thscode: str):

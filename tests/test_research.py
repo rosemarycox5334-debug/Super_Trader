@@ -242,6 +242,12 @@ def test_stock_rejects_nonstock_identity_and_suffix_conflict(service):
         service.stock_report("000001.SH")
 
 
+def test_stock_etf_ambiguous_code_is_rejected_instead_of_silently_choosing(service):
+    service.market.symbol = lambda code: {"code": "000001", "category": "个股", "thscode": "000001.SZ"}
+    service.market.fund_symbol = lambda code: {"code": "000001", "category": "ETF", "thscode": "000001.SZ"}
+    with pytest.raises(ResearchError) as error:
+        service.stock_report("000001")
+    assert error.value.status == 409
 def test_history_short_or_missing_close_does_not_fill(service):
     original = service.market.history
     service.market.history = lambda *a, **kw: {"items": original(*a, **kw)["items"][:19]}

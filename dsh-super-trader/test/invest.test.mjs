@@ -109,7 +109,7 @@ test('expert methodology is visible and editable through the real experts endpoi
 test('expert navigation and new-expert buttons share one action row',async()=>{
   const h=setup(),tree=ui(h,'Experts');
   const row=nodes(tree).find(n=>n.props?.className==='sti-actions'&&(n.props.children||[]).some(c=>c?.type==='button'&&text(c).trim()==='新建专家'));
-  assert.ok(row);assert.deepEqual(row.props.children.filter(c=>c?.type==='button').map(c=>text(c).trim()),['个股分析','板块分析','新建专家']);
+  assert.ok(row);assert.deepEqual(row.props.children.filter(c=>c?.type==='button').map(c=>text(c).trim()),['个股/ETF分析','板块分析','新建专家']);
   await h.store.queryStock('601088');const selected=ui(h,'Experts');assert.match(text(selected),/新建专家/);h.store.dispose();
 });
 test('new expert asks for natural-language requirements and starts only on explicit submit',async()=>{

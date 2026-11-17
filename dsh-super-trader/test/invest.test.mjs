@@ -25,6 +25,7 @@ function setup(options={}) {
     if(url.endsWith('/status'))return reply({ok:true,grid:{snapshot:'2026-11-05'}});
     if(u.pathname.endsWith('/expert-creation'))return reply({status:'accepted',submitted:true,sessionId:'C1',workspaceId:'W1',request_id:JSON.parse(init.body).request_id,expertSaved:false});
     if(u.pathname.endsWith('/sector-analysis'))return reply({status:'accepted',submitted:true,sessionId:'S-sector',workspaceId:'W-sector',thscode:JSON.parse(init.body).thscode,request_id:JSON.parse(init.body).request_id});
+    if(u.pathname.endsWith('/stock-analysis'))return reply({status:'accepted',submitted:true,sessionId:'S-stock',workspaceId:'W-stock',code:JSON.parse(init.body).code,request_id:JSON.parse(init.body).request_id});
     if(u.pathname.endsWith('/research/stock'))return reply(report('stock',u.searchParams.get('code')));
     if(u.pathname.endsWith('/research/sector'))return reply(report('sector',u.searchParams.get('thscode')));
     if(u.pathname.endsWith('/research/select'))return reply({job:{id:'S1',status:'queued',progress:0,total:1}});
@@ -172,6 +173,16 @@ test('selecting a sector does not fetch or display a raw report',async()=>{
   h.store.selectSector({thscode:'881101.TI',name:'真实板块'});await tick();
   assert.equal(h.requests.length,before);assert.equal(h.store.getSnapshot().target.code,'881101.TI');assert.equal(h.store.getSnapshot().report.phase,'idle');
   const tree=ui(h,'Sectors');assert.match(text(tree),/真实板块/);assert.doesNotMatch(text(tree),/正在取得真实数据/);h.store.dispose();
+});
+test('stock team button creates the Ai个股分析 session instead of a backend team job',async()=>{
+  const h=setup(),opened=[];await h.store.queryStock('601088','中国神华');await h.store.loadExperts();
+  const tree=ui(h,'Experts',{onOpenExpertSession:id=>opened.push(id)});
+  const button=nodes(tree).find(n=>n.type==='button'&&text(n).trim()==='开始 AI 个股分析');assert.ok(button);
+  await button.props.onClick();
+  const post=h.requests.find(r=>r.url.endsWith('/stock-analysis'));assert.ok(post);
+  assert.equal(JSON.parse(post.init.body).code,'601088');assert.equal(opened.length,1);assert.equal(opened[0],'S-stock');
+  assert.equal(h.store.getSnapshot().stockAi.phase,'ready');assert.equal(h.store.getSnapshot().stockAi.sessionId,'S-stock');
+  assert.equal(h.requests.some(r=>r.url.endsWith('/research/team')),false);h.store.dispose();
 });
 test('sector AI button creates the Ai板块分析 session and opens it',async()=>{
   const h=setup(),opened=[];await h.store.querySector({thscode:'881101.TI',name:'真实板块'});

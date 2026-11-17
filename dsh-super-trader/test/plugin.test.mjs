@@ -18,13 +18,13 @@ test('patch parses to package insert and distribution exports metadata',async()=
 test('apply tolerates missing/throwing host context',()=>{
   for(const ctx of [undefined,null,{}, {effect(){throw new Error('host unavailable');}},new Proxy({},{get(){throw Error('hostile');}})])assert.doesNotThrow(()=>apply(ctx));
 });
-test('mount registers exactly twenty-six tools and five routes without awaiting backend',async()=>{
+test('mount registers exactly twenty-six tools and six routes without awaiting backend',async()=>{
   const registered=[],routes=[],cleanup=[];
   let starts=0,disposed=0;
   const manager={getState:()=>({phase:'idle'}),ensureBackend(){starts++;return new Promise(()=>{});},dispose:async()=>{disposed++;}};
   const services={tools:{register(t){registered.push(t);return ()=>{};}},webServer:{register(r){routes.push(r);return ()=>{};},getOrigin:()=> 'http://127.0.0.1:57621'}};
   mount({get:k=>services[k],effect(fn){const d=fn();if(d)cleanup.push(d);}},()=>manager);
-  assert.equal(registered.length,26);assert.equal(routes.length,5);
+  assert.equal(registered.length,26);assert.equal(routes.length,6);
   // Host WebServer.match appends '/' itself; a trailing slash never matches descendants.
   const proxy=routes.find(r=>r.kind==='prefix');
   assert.equal(proxy.path,'/dsh-super-trader/backend');
@@ -78,6 +78,14 @@ test('sector analysis route starts the Host workspace/session service',async()=>
   assert.equal(res.status,200);assert.equal(JSON.parse(res.text).sessionId,'S-sector');assert.deepEqual(calls[0][0],body);assert.ok(calls[0][1] instanceof AbortSignal);
   const bad=response();await h.createSector({...req,method:'GET'},bad);assert.equal(bad.status,405);
   const unknown=response();await h.createSector({...req,async *[Symbol.asyncIterator](){yield Buffer.from(JSON.stringify({...body,workspaceId:'x'}));}},unknown);assert.equal(unknown.status,400);
+});
+test('stock analysis route starts the Host stock-session service',async()=>{
+  const calls=[],stockAnalysis={async start(body,signal){calls.push([body,signal]);return {status:'accepted',submitted:true,workspaceId:'W-stock',sessionId:'S-stock',code:body.code};}};
+  const h=createHandlers({},()=> 'http://127.0.0.1:57621',undefined,undefined,undefined,stockAnalysis),body={code:'601088',name:'中国神华'};
+  const req={headers:{host:'127.0.0.1:57621'},method:'POST',url:'/dsh-super-trader/stock-analysis',async *[Symbol.asyncIterator](){yield Buffer.from(JSON.stringify(body));}};
+  const res=response();await h.createStock(req,res);
+  assert.equal(res.status,200);assert.equal(JSON.parse(res.text).sessionId,'S-stock');assert.deepEqual(calls[0][0],body);assert.ok(calls[0][1] instanceof AbortSignal);
+  const bad=response();await h.createStock({...req,method:'GET'},bad);assert.equal(bad.status,405);
 });
 function response(){const res=new EventEmitter();res.writeHead=(status,headers)=>{res.status=status;res.headers=headers;res.headersSent=true;};res.end=t=>{res.text=t;res.writableEnded=true;};return res;}
 test('base state includes same-origin API base; proxy preserves backend errors',async()=>{

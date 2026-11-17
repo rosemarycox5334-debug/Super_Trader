@@ -36,7 +36,7 @@ async function bodyJson(req) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw Object.assign(new Error('请求体必须是JSON'), {status:400}); }
 }
-export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, expertCreation, sectorAnalysis) {
+export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, expertCreation, sectorAnalysis, stockAnalysis) {
   const base = async (req,res) => {
     if (!trusted(req,origin())) return sendJson(res,403,{error:'仅允许宿主同源请求'});
     if (req.method !== 'GET') return sendJson(res,405,{error:'GET required'});
@@ -111,5 +111,19 @@ export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, ex
     }catch(error){sendJson(res,error.status||503,error.body??{error:error.message||'AI 板块分析未启动'});}
     finally{res.off('close',close);}
   };
-  return {base,proxy,retry,createExpert,createSector};
+  const createStock = async (req,res) => {
+    if(!trusted(req,origin()))return sendJson(res,403,{error:'仅允许宿主同源请求'});
+    if(req.method!=='POST')return sendJson(res,405,{error:'POST required'});
+    const cancel=new AbortController(),close=()=>{if(!res.writableEnded)cancel.abort();};
+    res.once('close',close);
+    try{
+      const body=await bodyJson(req);
+      if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(k=>!['code','name','request_id'].includes(k)))
+        return sendJson(res,400,{error:'只接受个股代码、名称与请求标识'});
+      if(!stockAnalysis?.start)return sendJson(res,503,{error:'当前 DSH 未提供个股分析会话服务'});
+      return sendJson(res,200,await stockAnalysis.start(body,cancel.signal));
+    }catch(error){sendJson(res,error.status||503,error.body??{error:error.message||'AI 个股分析未启动'});}
+    finally{res.off('close',close);}
+  };
+  return {base,proxy,retry,createExpert,createSector,createStock};
 }

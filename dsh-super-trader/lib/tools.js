@@ -1,3 +1,5 @@
+import {listSessions, readSession, toMessages, SESSION_ID} from './session-log.js';
+
 const str = description => ({ type: 'string', description });
 const horizon = { type: 'integer', description: '持有交易日数，整数 1–20；省略由后端使用默认值。' };
 const category = str('标的类别；省略由后端解析。');
@@ -288,5 +290,32 @@ export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 4
       }),
     tool('st_doctor', '诊断本地后端状态、模型配置与修复指引；日志脱敏，不返回密钥。',
       {}, [], (_args, exec) => manager.doctor({ signal: exec.signal })),
+    tool('st_session_list', '列出本机所有 DSH 会话（id、工作目录、更新时间）；只读，用于找到要读取的会话 id，不受当前工作区限制。',
+      { q: str('可选：按 session id 片段过滤。'), limit: { type: 'integer', description: '返回条数 1–200，默认 30。' } }, [],
+      async (args) => {
+        const limit = args.limit === undefined ? 30 : args.limit;
+        if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw Object.assign(new Error('limit 须为 1–200'), {code:'invalid_arguments'});
+        return listSessions({ limit, q: args.q || '' });
+      }, 60000),
+    tool('st_session_read', '按 session id 读取任意 DSH 会话的完整消息（只读，直接解压本机会话日志）；返回用户、助手、工具调用的消息列表，可用于复盘其他会话。',
+      { session_id: str('完整会话 id，例如 session-0958abb2-6fcb-428f-afac-005b68d17226。'),
+        offset: { type: 'integer', description: '消息起始下标，默认 0。' },
+        limit: { type: 'integer', description: '返回条数 1–200，默认 40。' },
+        include_tools: { type: 'boolean', description: '是否包含工具调用与结果，默认 true。' },
+        max_chars: { type: 'integer', description: '每条消息最大字符数 200–20000，默认 4000。' } }, ['session_id'],
+      async (args) => {
+        if (!SESSION_ID.test(String(args.session_id || ''))) throw Object.assign(new Error('session_id 无效'), {code:'invalid_arguments'});
+        const offset = args.offset === undefined ? 0 : args.offset;
+        const limit = args.limit === undefined ? 40 : args.limit;
+        const maxChars = args.max_chars === undefined ? 4000 : args.max_chars;
+        if (!Number.isInteger(offset) || offset < 0) throw Object.assign(new Error('offset 须为非负整数'), {code:'invalid_arguments'});
+        if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw Object.assign(new Error('limit 须为 1–200'), {code:'invalid_arguments'});
+        if (!Number.isInteger(maxChars) || maxChars < 200 || maxChars > 20000) throw Object.assign(new Error('max_chars 须为 200–20000'), {code:'invalid_arguments'});
+        const session = await readSession(String(args.session_id));
+        const page = toMessages(session.events, { offset, limit, includeTools: args.include_tools !== false, maxChars });
+        return { session_id: args.session_id, cwd: session.header.cwd || null, created_at: session.header.createdAt || null,
+                 updated_at: session.updatedAt, bytes: session.size, total_messages: page.total,
+                 offset: page.offset, limit: page.limit, messages: page.messages };
+      }, 120000),
   ];
 }

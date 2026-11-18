@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTools } from '../lib/tools.js';
 
-const names = ['st_market_quotes', 'st_quant_probability', 'st_expert_analyze', 'st_expert_config', 'st_expert_creation', 'st_expert_team', 'st_watchlist_add', 'st_watchlist_analyze', 'st_journal_create', 'st_journal_review', 'st_memory_recall', 'st_market_history', 'st_watchlist', 'st_journal', 'st_research_catalog', 'st_job', 'st_backend_retry', 'st_symbol_search', 'st_screen_stocks', 'st_stock_research', 'st_sector_research', 'st_team_research', 'st_factor_predict', 'st_factor_code', 'st_factor_research', 'st_doctor'];
+const names = ['st_market_quotes', 'st_quant_probability', 'st_expert_analyze', 'st_expert_config', 'st_expert_creation', 'st_expert_team', 'st_watchlist_add', 'st_watchlist_analyze', 'st_journal_create', 'st_journal_review', 'st_memory_recall', 'st_market_history', 'st_watchlist', 'st_journal', 'st_research_catalog', 'st_job', 'st_backend_retry', 'st_symbol_search', 'st_screen_stocks', 'st_stock_research', 'st_sector_research', 'st_team_research', 'st_factor_predict', 'st_factor_code', 'st_factor_research', 'st_doctor', 'st_session_list', 'st_session_read'];
 function setup(handler = () => ({ actual: true }), options = {}) {
   const calls = [];
   const manager = {

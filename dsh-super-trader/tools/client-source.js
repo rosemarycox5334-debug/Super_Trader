@@ -31,7 +31,7 @@ window.__ModuleLoader__.load({
     const oldMessages=cockpitMessages(),messages=investMessages();
     const dicts=Object.fromEntries(Object.keys(messages).map(lang=>[lang,{...oldMessages[lang],...messages[lang]}]));
     function apply(ctx) {
-      const panelIds={screen:'dsh-super-trader',stock:'dsh-super-trader-stock',sectors:'dsh-super-trader-sectors',factors:'dsh-super-trader-factors',experts:'dsh-super-trader-experts',watchlist:'dsh-super-trader-watchlist',journal:'dsh-super-trader-journal',settings:'dsh-super-trader-settings'};
+      const panelIds={screen:'dsh-super-trader',stock:'dsh-super-trader-stock',sectors:'dsh-super-trader-sectors',factors:'dsh-super-trader-factors',experts:'dsh-super-trader-experts',watchlist:'dsh-super-trader-watchlist',review:'dsh-super-trader-review',journal:'dsh-super-trader-journal',settings:'dsh-super-trader-settings'};
       const store=createInvestStore({onNavigate:tab=>ctx.layout.selectPanel(panelIds[tab])});
       // The preserved store is explicitly initialized, and subscribed only in legacy tabs.
       const oldStore=createCockpitStore();
@@ -72,7 +72,8 @@ window.__ModuleLoader__.load({
         {tab:'sectors',order:32,Icon:icon('M3 3h7v7H3ZM14 3h7v7h-7ZM3 14h7v7H3ZM14 14h7v7h-7Z')},
         {tab:'factors',order:33,Icon:icon('M4 20V5M4 20h16M8 16v-4M12 16V8M16 16V5M7 7l5-3 5 2')},
         {tab:'experts',order:34,Icon:icon('M8 21v-4a4 4 0 0 1 8 0v4M9 6a3 3 0 1 0 6 0 3 3 0 0 0-6 0ZM3 19v-4a3 3 0 0 1 4-3M21 19v-4a3 3 0 0 0-4-3M4 5a2 2 0 1 0 0 4M20 5a2 2 0 1 1 0 4')},
-        {tab:'watchlist',order:35,Icon:icon('m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.8-5.4 2.8 1-6L3.2 9.4l6.1-.9Z')}
+        {tab:'watchlist',order:35,Icon:icon('m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.8-5.4 2.8 1-6L3.2 9.4l6.1-.9Z')},
+        {tab:'review',order:36,Icon:icon('M4 4h16v13H8l-4 4ZM8 9h8M8 13h5')}
       ];
       for(const entry of entries) {
         const id=panelIds[entry.tab];

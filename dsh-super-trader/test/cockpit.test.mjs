@@ -206,7 +206,7 @@ test('client registers seven workflow entries, bare SVG icons, no right sidebar 
   const registrations=[],cleanup=[];
   plugin.apply({locale:{register(){return ()=>{};},bind:()=>key=>key,subscribe:()=>()=>{},getSnapshot:()=>0},layout:{selectPanel(){}},effect(fn){const value=fn();if(typeof value==='function')cleanup.push(value);},slots:{inject(_owner,fn){return fn();},register(options,component){registrations.push({options,component});return ()=>{};}}});
   const left=registrations.filter(r=>r.options.name==='sidebar.panellist'),main=registrations.filter(r=>r.options.name==='main');
-  assert.equal(left.length,6);assert.equal(main.length,6);assert.deepEqual(left.map(r=>r.options.order),[30,31,32,33,34,35]);assert.equal(registrations.some(r=>r.options.name.includes('right')),false);assert.equal(main.some(r=>r.options.key==='conversation'),false);
+  assert.equal(left.length,7);assert.equal(main.length,7);assert.deepEqual(left.map(r=>r.options.order),[30,31,32,33,34,35,36]);assert.equal(registrations.some(r=>r.options.name.includes('right')),false);assert.equal(main.some(r=>r.options.key==='conversation'),false);
   for(const entry of left)assert.equal(entry.component({size:20,active:true}).type,'svg');
   for(const entry of main){const wrapped=entry.component({});assert.equal(wrapped.type(wrapped.props).type,'section');}
   assert.doesNotMatch(clientSource,/sidebarRightTabs|sidebar\.right\.pane|ui-primitives/);

@@ -24,6 +24,7 @@ from .quant import QuantError
 from .research import ResearchError
 from .selection import SelectionError
 from .services import Services
+from .review import ReviewError
 from .watchlist import WatchlistError
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -525,6 +526,22 @@ def create_app(services: Services | None = None) -> FastAPI:
         return {"items": svc.experts.recent_analyses(code, limit)}
 
     # -------------------------------------------------------------- 自选
+    @app.get("/api/reviews")
+    def list_reviews():
+        svc.review.sync(limit=8)
+        return {"items": svc.review.list()}
+
+    @app.post("/api/reviews/sync")
+    def sync_reviews():
+        return svc.review.sync()
+
+    @app.get("/api/reviews/{review_id}")
+    def get_review(review_id: str):
+        try:
+            return svc.review.get(review_id)
+        except ReviewError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc)) from None
+
     @app.get("/api/watchlist")
     def list_watchlist():
         return {"items": svc.watchlist.list(), "max": 200}

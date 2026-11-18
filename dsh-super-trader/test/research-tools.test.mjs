@@ -61,7 +61,9 @@ test('name search forwards to authenticated backend directory only',async()=>{
   assert.equal((await get('st_symbol_search').execute({q:'a'.repeat(61)})).error.code,'invalid_arguments');
 });
 test('research proxy is explicit read/write allowlist, not a generic API tunnel',()=>{
-  for(const path of ['/api/research/stock','/api/research/sector','/api/research/screen','/api/market/sectors','/api/market/search'])assert.equal(allowedEndpoint('GET',path),true);
+  for(const path of ['/api/research/stock','/api/research/sector','/api/research/screen','/api/market/sectors','/api/market/search','/api/reviews','/api/reviews/R-1'])assert.equal(allowedEndpoint('GET',path),true);
+  assert.equal(allowedEndpoint('POST','/api/reviews/sync'),true);
+  assert.equal(allowedEndpoint('GET','/api/reviews/sync'),false);
   assert.equal(allowedEndpoint('POST','/api/research/team'),true);
   assert.equal(allowedEndpoint('POST','/api/research/select'),true);
   assert.equal(allowedEndpoint('POST','/api/factors/code'),true);

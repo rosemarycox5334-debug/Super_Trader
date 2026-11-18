@@ -92,7 +92,7 @@ function createInvestStore(options) {
   let selectionTimer,selectionStarted=0,selectionCount=0,selectionPolling=false,expertsInitialized=false;
   let factorTimer,factorStarted=0,factorCount=0,factorPolling=false,factorVisible=false,transcriptTimer;
   const selectionActiveStatuses=['queued','pending','running','cancelling'];
-  let state={tab:'screen',target:null,stockCode:'',stockAsset:'个股',stockSearch:{...investIdle(),q:''},connection:{phase:'idle',ready:false,apiBase:'/dsh-super-trader/backend',error:null},status:null,factors:{code:'601088',category:'个股',timeframe:'1d',tab:'batch',ruleId:'',initialized:false,report:investIdle(),backtest:investIdle(),rules:investIdle()},factorResearch:{scope:'all',timeframe:'1d',workers:4,max_trials:5,brief:''},factorUniverse:investIdle(),factorResearchJob:{...investIdle(),submitting:false,cancelling:false,paused:false},factorResults:{...investIdle(),offset:0,limit:50,q:'',jobId:''},factorHistory:{...investIdle(),initialized:false},factorTranscript:{jobId:'',items:[],seq:0,phase:'idle',error:null,following:true,finalRead:false},report:investIdle(),screen:{scope:'market',sector:'',brief:''},selectionExpertIds:[],selectionAi:{phase:'idle',sessionId:null,requestId:null,error:null},selectionJob:{...investIdle(),params:null,paused:false,submitting:false,cancelling:false},sectors:{...investIdle(),tag:'industry',q:'',offset:0},selectedSector:null,experts:investIdle(),expertIds:[],expertEdit:null,expertCreating:false,expertSaving:false,expertDraft:null,expertError:null,expertDelete:{id:null,name:'',submitting:false,error:null},expertResearch:{phase:'idle',requirement:'',requestId:null,data:null,error:null},sectorAi:{phase:'idle',sessionId:null,requestId:null,error:null},stockAi:{phase:'idle',sessionId:null,requestId:null,error:null},watch:investIdle(),watchSearch:{...investIdle(),q:'',asset:'个股'},watchAi:{phase:'idle',sessionId:null,requestId:null,error:null},watchDeselected:[],add:investIdle(),draft:investIdle(),job:{...investIdle(),target:null,paused:false,submitting:false,cancelling:false},notice:null};
+  let state={tab:'screen',target:null,stockCode:'',stockAsset:'个股',stockSearch:{...investIdle(),q:''},connection:{phase:'idle',ready:false,apiBase:'/dsh-super-trader/backend',error:null},status:null,factors:{code:'601088',category:'个股',timeframe:'1d',tab:'batch',ruleId:'',initialized:false,report:investIdle(),backtest:investIdle(),rules:investIdle()},factorResearch:{scope:'all',timeframe:'1d',workers:4,max_trials:5,brief:''},factorUniverse:investIdle(),factorResearchJob:{...investIdle(),submitting:false,cancelling:false,paused:false},factorResults:{...investIdle(),offset:0,limit:50,q:'',jobId:''},factorHistory:{...investIdle(),initialized:false},factorTranscript:{jobId:'',items:[],seq:0,phase:'idle',error:null,following:true,finalRead:false},report:investIdle(),screen:{scope:'market',sector:'',brief:''},selectionExpertIds:[],selectionAi:{phase:'idle',sessionId:null,requestId:null,error:null},selectionJob:{...investIdle(),params:null,paused:false,submitting:false,cancelling:false},sectors:{...investIdle(),tag:'industry',q:'',offset:0},selectedSector:null,experts:investIdle(),expertIds:[],expertEdit:null,expertCreating:false,expertSaving:false,expertDraft:null,expertError:null,expertDelete:{id:null,name:'',submitting:false,error:null},expertResearch:{phase:'idle',requirement:'',requestId:null,data:null,error:null},sectorAi:{phase:'idle',sessionId:null,requestId:null,error:null},stockAi:{phase:'idle',sessionId:null,requestId:null,error:null},watch:investIdle(),watchSearch:{...investIdle(),q:'',asset:'个股'},watchAi:{phase:'idle',sessionId:null,requestId:null,error:null},reviews:investIdle(),reviewDetail:investIdle(),reviewId:'',watchDeselected:[],add:investIdle(),draft:investIdle(),job:{...investIdle(),target:null,paused:false,submitting:false,cancelling:false},notice:null};
   function publish(patch) {if(disposed)return;state={...state,...patch};for(const fn of listeners)fn();}
   function abort(key) {requests.get(key)?.abort();requests.delete(key);versions.set(key,(versions.get(key)||0)+1);}
   function token(key) {abort(key);const c=new AbortController();requests.set(key,c);return {c,v:versions.get(key)};}
@@ -390,6 +390,19 @@ function createInvestStore(options) {
     }
   }
   function openWatchlistAnalysisSession(onOpenSession) {const id=state.watchAi.sessionId;if(id&&typeof onOpenSession==='function')onOpenSession(id);}
+  function loadReviews() {return resource('reviews','/reviews',data=>{if(!Array.isArray(data?.items))throw cockpitError('invalidResponse');return data;});}
+  async function syncReviews() {
+    try{await request('/reviews/sync',{method:'POST'});}catch(error){publish({notice:cockpitFailure(error)});}
+    return loadReviews();
+  }
+  async function openReview(id) {
+    if(typeof id!=='string'||!id){return;}
+    publish({reviewId:id,reviewDetail:investIdle()});
+    return resource('reviewDetail','/reviews/'+encodeURIComponent(id),data=>{
+      if(!data||typeof data!=='object'||!Array.isArray(data.targets))throw cockpitError('invalidResponse');
+      return data;
+    });
+  }
   function updateExpertDraft(patch) {if(!state.expertSaving)publish({expertDraft:{...state.expertDraft,...patch},expertError:null});}
   async function saveExpert() {
     const d=state.expertDraft;if(!d||!state.expertEdit||state.expertSaving||state.expertDelete.submitting)return;
@@ -591,7 +604,7 @@ function createInvestStore(options) {
   async function retryConnection() {try {const res=await fetcher('/dsh-super-trader/retry',{method:'POST',signal:AbortSignal.timeout(30000)});if(!res.ok)throw Error('HTTP '+res.status);if(connectionTimer!==undefined)unschedule(connectionTimer);await checkConnection();}catch(error){publish({connection:{...state.connection,error:cockpitFailure(error)}});}}
   function subscribe(fn) {listeners.add(fn);if(listeners.size===1&&options.autoConnect!==false)void checkConnection();return()=>{listeners.delete(fn);if(!listeners.size){if(connectionTimer!==undefined)unschedule(connectionTimer);abort('connection');stopPolling();stopSelectionPolling();stopFactors();}};}
   function dispose() {stopFactorTranscript();stopFactorResearchPolling();factorVisible=false;disposed=true;if(connectionTimer!==undefined)unschedule(connectionTimer);stopPolling();stopSelectionPolling();for(const c of requests.values())c.abort();requests.clear();listeners.clear();}
-  return {subscribe,getSnapshot:()=>state,navigate,setCode,setSearch,searchStocks,queryStock,openStock,querySector,selectSector,screenOptions,screen,screenSector,sectorOptions,loadSectors,loadExperts,toggleExpert,toggleSelectionExpert,startSelectionAnalysis,openSelectionAnalysisSession,editExpert,cancelExpertEdit,newExpert,cancelNewExpert,expertRequirement,startExpertCreation,openExpertCreationSession,startSectorAnalysis,openSectorAnalysisSession,startStockAnalysis,openStockAnalysisSession,updateExpertDraft,saveExpert,requestExpertDelete,cancelExpertDelete,confirmExpertDelete,startSelection,cancelSelection,resumeSelectionPolling,stopSelectionPolling,loadWatch,addWatch,removeWatch,searchWatch,setWatchQuery,toggleWatchSelected,selectAllWatch,startWatchlistAnalysis,openWatchlistAnalysisSession,startTeam,cancelJob,resumePolling,stopPolling,checkConnection,retryConnection,draft,factorInput,queryFactor,ensureFactors,loadFactorRules,selectFactorRule,factorTab,stopFactors,factorResearchOptions,activeFactorResearch,loadFactorUniverse,startFactorResearch,cancelFactorResearch,resumeFactorResearchPolling,stopFactorResearchPolling,restoreFactorResearch,loadFactorResults,factorResultsQuery,openFactorResult,factorTranscriptFollowing,retryFactorTranscript,dispose};
+  return {subscribe,getSnapshot:()=>state,navigate,setCode,setSearch,searchStocks,queryStock,openStock,querySector,selectSector,screenOptions,screen,screenSector,sectorOptions,loadSectors,loadExperts,toggleExpert,toggleSelectionExpert,loadReviews,syncReviews,openReview,startSelectionAnalysis,openSelectionAnalysisSession,editExpert,cancelExpertEdit,newExpert,cancelNewExpert,expertRequirement,startExpertCreation,openExpertCreationSession,startSectorAnalysis,openSectorAnalysisSession,startStockAnalysis,openStockAnalysisSession,updateExpertDraft,saveExpert,requestExpertDelete,cancelExpertDelete,confirmExpertDelete,startSelection,cancelSelection,resumeSelectionPolling,stopSelectionPolling,loadWatch,addWatch,removeWatch,searchWatch,setWatchQuery,toggleWatchSelected,selectAllWatch,startWatchlistAnalysis,openWatchlistAnalysisSession,startTeam,cancelJob,resumePolling,stopPolling,checkConnection,retryConnection,draft,factorInput,queryFactor,ensureFactors,loadFactorRules,selectFactorRule,factorTab,stopFactors,factorResearchOptions,activeFactorResearch,loadFactorUniverse,startFactorResearch,cancelFactorResearch,resumeFactorResearchPolling,stopFactorResearchPolling,restoreFactorResearch,loadFactorResults,factorResultsQuery,openFactorResult,factorTranscriptFollowing,retryFactorTranscript,dispose};
 }
 // Resolve only factual leaves in the exact saved source, never executable paths.
 function investEvidenceReference(source,pointer) {
@@ -957,6 +970,78 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
           h(Button,{onClick:()=>store.openStock(item.code,item.name,item.category)},t('research')),
           h(Button,{onClick:()=>store.removeWatch(item.code,item.category)},t('removeWatch'))));})}):h(Empty,null,t('watchEmpty'))));
   }
-  function Invest({tab,t,onAnalyze,onOpenExpertSession}) {const s=useStore();return h('div',{className:'sti-invest','data-view':tab},h('header',{className:'sti-heading'},h('p',{className:'sti-eyebrow'},'SUPER TRADER'),h('h1',null,t(tab)),h('p',null,t('workflow'))),h('p',{className:'sti-disclaimer'},t('disclaimer')),h(ErrorView,{error:s.notice,t}),tab==='screen'?h(Screen,{t,onOpenExpertSession}):tab==='stock'?h(Stock,{t,onAnalyze,onOpenExpertSession}):tab==='sectors'?h(Sectors,{t,onAnalyze,onOpenExpertSession}):tab==='experts'?h(Experts,{t,onOpenExpertSession}):tab==='factors'?h(Factors,{t}):h(Watchlist,{t,onOpenExpertSession}));}
-  return {Invest,Screen,Stock,Sectors,Experts,Watchlist,Candles,Quant,Brief,Vote,TeamResult,SelectionResult,SelectionEvidence,Factors,FactorTranscript,FactorCurve,FactorMetrics,FactorSamples};
+  function Review({t}) {
+    const s=useStore(),list=s.reviews.data?.items||[],detail=s.reviewDetail.data;
+    React.useEffect(()=>{if(s.connection.ready&&s.reviews.phase==='idle')void store.loadReviews();},[s.connection.ready,s.reviews.phase]);
+    const labels={triggered:t('reviewTriggered'),reference:t('reviewReference'),not_triggered:t('reviewNotTriggered'),
+      invalidated:t('reviewInvalidated'),pending:t('reviewPending'),unavailable:t('reviewUnavailable')};
+    const statusLabel=status=>labels[status]||status||'—';
+    function targetTable(items){
+      const rows=items.map((item,index)=>{
+        const m=item.metrics||{},win=m.windows||{};
+        return h('tr',{key:item.code+'|'+index},
+          h('td',null,item.name||'',h('small',null,item.code)),
+          h('td',null,(item.experts||[]).join(' / ')),
+          h('td',null,investText(item.confidence||'')),
+          h('td',null,statusLabel(m.status)),
+          h('td',null,m.trigger?.date||m.base_date||'—'),
+          h('td',null,m.base_price!=null?num(m.base_price):'—'),
+          h('td',null,typeof win['5d']==='number'?pct(win['5d']):'—'),
+          h('td',null,typeof win['20d']==='number'?pct(win['20d']):'—'),
+          h('td',null,m.current!=null?pct(m.current):'—'),
+          h('td',null,m.max_drawdown!=null?pct(m.max_drawdown):'—'));
+      });
+      return h(Table,{heads:[t('reviewName'),t('reviewExperts'),t('reviewConfidence'),t('reviewStatus'),
+        t('reviewBaseDate'),t('reviewBasePrice'),'5d','20d',t('reviewNow'),t('reviewDrawdown')],rows});
+    }
+    function expertTable(rows){
+      return h(Table,{heads:[t('reviewExpert'),t('reviewPicks'),t('reviewTriggeredCount'),t('reviewNotTriggeredCount'),
+        t('reviewTriggerRate'),'5d',t('reviewWinRate'),t('reviewRank')],
+        rows:rows.map((row,index)=>h('tr',{key:row.expert+'|'+index},
+          h('td',null,investText(row.expert)),
+          h('td',null,num(row.picks)),
+          h('td',null,num(row.triggered)),
+          h('td',null,num(row.not_triggered)),
+          h('td',null,row.trigger_rate!=null?pct(row.trigger_rate):'—'),
+          h('td',null,row.avg_return_5d!=null?pct(row.avg_return_5d):'—'),
+          h('td',null,row.win_rate_5d!=null?pct(row.win_rate_5d):'—'),
+          h('td',null,row.ranked?num(row.rank):t('reviewNotRanked'))))});
+    }
+    function confidenceTable(rows){
+      return h(Table,{heads:[t('reviewConfidence'),t('reviewPicks'),t('reviewTriggerRate'),'5d',t('reviewWinRate')],
+        rows:rows.map((row,index)=>h('tr',{key:row.confidence+'|'+index},
+          h('td',null,investText(row.confidence)),
+          h('td',null,num(row.picks)),
+          h('td',null,row.trigger_rate!=null?pct(row.trigger_rate):'—'),
+          h('td',null,row.avg_return_5d!=null?pct(row.avg_return_5d):'—'),
+          h('td',null,row.win_rate_5d!=null?pct(row.win_rate_5d):'—')))});
+    }
+    const benchmark=detail?.benchmark;
+    return h('div',null,
+      h(Card,{title:t('reviews')},
+        h('p',{className:'sti-muted'},t('reviewHelp')),
+        h('div',{className:'sti-actions'},
+          h(Button,{onClick:()=>store.syncReviews(),disabled:s.reviews.phase==='loading'},t('reviewSync')),
+          h(Button,{onClick:()=>store.loadReviews(),disabled:s.reviews.phase==='loading'},t('refresh'))),
+        h(Status,{resource:s.reviews,t}),
+        list.length?h(Table,{heads:[t('reviewTime'),t('reviewScope'),t('reviewTargets'),''],
+          rows:list.map(row=>h('tr',{key:row.id},
+            h('td',null,investText(row.archived_at)),
+            h('td',null,(row.scope||'')+(row.sector?' · '+row.sector:'')+(row.brief?' · '+investText(row.brief,40):'')),
+            h('td',null,num(row.target_count)),
+            h('td',null,h(Button,{onClick:()=>store.openReview(row.id)},t('reviewOpen')))))}):h(Empty,null,t('reviewEmpty'))),
+      s.reviewId?h(Card,{title:t('reviewDetail')},
+        h(Status,{resource:s.reviewDetail,t}),
+        detail?h(React.Fragment,null,
+          h(Warnings,{items:detail.warnings}),
+          benchmark?h('dl',{className:'sti-metrics'},
+            h(Metric,{label:t('reviewEntered'),value:num(benchmark.entered)+' / '+num(benchmark.total)}),
+            h(Metric,{label:t('reviewBench5'),value:benchmark.windows?.['5d']?.equal_weight!=null?pct(benchmark.windows['5d'].equal_weight):'—'}),
+            h(Metric,{label:t('reviewBench20'),value:benchmark.windows?.['20d']?.equal_weight!=null?pct(benchmark.windows['20d'].equal_weight):'—'})):null,
+          targetTable(detail.targets||[]),
+          detail.experts?.length?h(React.Fragment,null,h('h3',null,t('reviewByExpert')),expertTable(detail.experts)):null,
+          detail.confidence?.length?h(React.Fragment,null,h('h3',null,t('reviewByConfidence')),confidenceTable(detail.confidence)):null):null):null);
+  }
+  function Invest({tab,t,onAnalyze,onOpenExpertSession}) {const s=useStore();return h('div',{className:'sti-invest','data-view':tab},h('header',{className:'sti-heading'},h('p',{className:'sti-eyebrow'},'SUPER TRADER'),h('h1',null,t(tab)),h('p',null,t('workflow'))),h('p',{className:'sti-disclaimer'},t('disclaimer')),h(ErrorView,{error:s.notice,t}),tab==='screen'?h(Screen,{t,onOpenExpertSession}):tab==='stock'?h(Stock,{t,onAnalyze,onOpenExpertSession}):tab==='sectors'?h(Sectors,{t,onAnalyze,onOpenExpertSession}):tab==='experts'?h(Experts,{t,onOpenExpertSession}):tab==='factors'?h(Factors,{t}):tab==='review'?h(Review,{t}):h(Watchlist,{t,onOpenExpertSession}));}
+  return {Invest,Screen,Stock,Sectors,Experts,Watchlist,Review,Candles,Quant,Brief,Vote,TeamResult,SelectionResult,SelectionEvidence,Factors,FactorTranscript,FactorCurve,FactorMetrics,FactorSamples};
 }

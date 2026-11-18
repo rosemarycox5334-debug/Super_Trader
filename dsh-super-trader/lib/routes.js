@@ -1,8 +1,8 @@
 // Same-origin transport only. Business rules remain in the existing backend.
 export const ROOT = '/dsh-super-trader';
 export const READY = new Set(['running', 'external']);
-const READ = /^\/api\/(?:status|market\/(?:status|quotes|history|search|sectors)|research\/(?:screen|quant-screen|stock|sector)|factors\/(?:stock|rules|library|backtest|universe|results|research\/[^/]+\/transcript)|symbols\/search|quant\/probability|experts|watchlist|journal(?:\/export|\/[^/]+(?:\/review)?)?|jobs(?:\/[^/]+(?:\/stream)?)?|memory(?:\/recall|\/stats)?)$/;
-const WRITE = /^\/api\/(?:factors\/(?:code|research)|research\/(?:team|select)|watchlist(?:\/analyze)?|experts(?:\/(?:[^/]+|team)\/analyze)?|journal(?:\/[^/]+)?|jobs\/[^/]+\/cancel)$/;
+const READ = /^\/api\/(?:status|reviews(?:\/(?!sync$)[^/]+)?|market\/(?:status|quotes|history|search|sectors)|research\/(?:screen|quant-screen|stock|sector)|factors\/(?:stock|rules|library|backtest|universe|results|research\/[^/]+\/transcript)|symbols\/search|quant\/probability|experts|watchlist|journal(?:\/export|\/[^/]+(?:\/review)?)?|jobs(?:\/[^/]+(?:\/stream)?)?|memory(?:\/recall|\/stats)?)$/;
+const WRITE = /^\/api\/(?:reviews\/sync|factors\/(?:code|research)|research\/(?:team|select)|watchlist(?:\/analyze)?|experts(?:\/(?:[^/]+|team)\/analyze)?|journal(?:\/[^/]+)?|jobs\/[^/]+\/cancel)$/;
 export function allowedEndpoint(method, pathname) {
   if (method === 'GET') return READ.test(pathname);
   if (method === 'POST') return WRITE.test(pathname);

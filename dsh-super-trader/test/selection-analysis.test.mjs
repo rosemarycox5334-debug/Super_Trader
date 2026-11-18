@@ -26,7 +26,7 @@ test('selection creates Ai专家选股 and a session that runs the real screenin
   assert.deepEqual(h.calls.session,[{workspaceId:'W-selection'}]);
   assert.match(h.calls.rename[0].title,/Ai专家选股：全A股/);
   const prompt=h.calls.prompt[0].content[0].text;
-  for(const phrase of ['st_screen_stocks','st_job','scope: "market"','limit_per_expert','重视现金流','逐位专家展示','排除','不得编造','不是买入建议'])assert.ok(prompt.includes(phrase),phrase);
+  for(const phrase of ['st_screen_stocks','st_job','scope: "market"','limit_per_expert','重视现金流','逐位专家展示','排除','不得编造','不是买入建议','universe.total = 0','st_watchlist','值得观察','不要向用户提问'])assert.ok(prompt.includes(phrase),phrase);
 });
 
 test('sector scope passes the complete thscode and the same id reuses one session',async t=>{

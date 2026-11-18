@@ -208,3 +208,18 @@ def test_deleted_review_is_not_recreated_by_sync(build):
     service.delete(review["id"])
     service.sync()
     assert service.count() == 0
+
+def test_low_confidence_picks_never_enter_the_review(build):
+    service = build({"000001": bars([10, 11, 12]), "000002": bars([10, 11, 12])},
+                    [pick("000001", confidence="low"), pick("000002", confidence="medium")])
+    review = service.archive("job-1")
+    detail = service.get(review["id"])
+    assert [item["code"] for item in detail["targets"]] == ["000002"]
+    assert any("低信心度" in warning for warning in detail["warnings"])
+
+
+def test_only_low_confidence_picks_are_not_archived(build):
+    service = build({"000001": bars([10, 11, 12])}, [pick("000001", confidence="low")])
+    with pytest.raises(ReviewError):
+        service.archive("job-1")
+    assert service.count() == 0

@@ -16,6 +16,8 @@ from .db import now_iso
 
 SHANGHAI = None  # set lazily to avoid importing zoneinfo at module import cost
 WINDOWS = (1, 3, 5, 10, 20)
+# Low-confidence picks are deliberately kept out of the review ledger.
+REVIEW_CONFIDENCE = ("high", "medium")
 RANK_MIN_SAMPLES = 10
 CONFIDENCE_ORDER = ("high", "medium", "low")
 
@@ -90,7 +92,7 @@ class ReviewService:
         result = job.get("result") or {}
         targets = self._merge_targets(result.get("expert_results") or [])
         if not targets:
-            raise ReviewError("该次选股没有可归档的候选", status=409)
+            raise ReviewError("该次选股没有中/高信心度的候选，未归档", status=409)
         entry_date = self._entry_date(job)
         for target in targets:
             target["entry"] = self._entry_price(target, entry_date)
@@ -106,6 +108,7 @@ class ReviewService:
              "tracking", self._dump([
                  "只统计真实行情；未到观察期的窗口显示跟踪中，不提前下结论。",
                  "收益是价格变化，不含手续费/滑点，不是可实现收益。",
+                 "只归档中/高信心度的候选；低信心度不进入复盘。",
                  "对比基准为本次候选等权（仅统计两端都有真实价格的标的）。"])))
         return self.get(review_id, with_metrics=False)
 
@@ -184,6 +187,8 @@ class ReviewService:
                     continue
                 code = str(pick.get("code") or "")
                 if len(code) != 6 or not code.isdigit():
+                    continue
+                if (pick.get("confidence") or "low") not in REVIEW_CONFIDENCE:
                     continue
                 item = merged.setdefault(code, {"code": code, "name": pick.get("name") or code,
                                                 "category": "个股", "experts": [], "confidence": "low",

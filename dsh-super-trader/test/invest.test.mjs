@@ -293,6 +293,25 @@ test('team views present outlook, disagreement, evidence, risks and abstention r
 test('DSH secondary action only calls draft bridge and rejects stale draft completion',async()=>{
   const h=setup();await h.store.queryStock('601088');let resolve,received;const drafting=h.store.draft(prompt=>{received=prompt;return new Promise(r=>{resolve=r;});},k=>h.api.investMessages().zh[k] || k);assert.match(received,/DATA_EVIDENCE_JSON/);assert.match(received,/历史内样本命中率/);h.store.setCode('000001');resolve({accepted:true,submitted:false});await drafting;assert.equal(h.store.getSnapshot().draft.phase,'idle');assert.equal(h.requests.some(r=>/agent\/chat|research\/team/.test(r.url)),false);h.store.dispose();
 });
+test('empty search copy follows the chosen category on both pages',async()=>{
+  const h=setup({fetch:(url,init,base)=>{
+    const u=new URL('http://local'+url);
+    if(u.pathname.endsWith('/market/search'))return Promise.resolve(reply({items:[],source:'market directory'}));
+    return base(url,init);
+  }});
+  h.store.setWatchQuery('zzz');
+  await h.store.searchWatch('基金');
+  assert.match(text(ui(h,'Watchlist')),/没有匹配的基金/);
+  await h.store.searchWatch('个股');
+  assert.match(text(ui(h,'Watchlist')),/没有匹配的股票/);
+  h.store.setSearch('zzz');
+  await h.store.searchStocks('基金');
+  assert.match(text(ui(h,'Stock')),/没有匹配的基金/);
+  await h.store.searchStocks('个股');
+  assert.match(text(ui(h,'Stock')),/没有匹配的股票/);
+  assert.doesNotMatch(text(ui(h,'Watchlist')),/股票或 ETF/);
+  h.store.dispose();
+});
 test('watchlist page selects stocks and starts one team session for the selection',async()=>{
   const opened=[];
   const h=setup({fetch:(url,init,base)=>{

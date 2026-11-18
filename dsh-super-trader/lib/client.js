@@ -2225,8 +2225,7 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
         {tab:'sectors',order:32,Icon:icon('M3 3h7v7H3ZM14 3h7v7h-7ZM3 14h7v7H3ZM14 14h7v7h-7Z')},
         {tab:'factors',order:33,Icon:icon('M4 20V5M4 20h16M8 16v-4M12 16V8M16 16V5M7 7l5-3 5 2')},
         {tab:'experts',order:34,Icon:icon('M8 21v-4a4 4 0 0 1 8 0v4M9 6a3 3 0 1 0 6 0 3 3 0 0 0-6 0ZM3 19v-4a3 3 0 0 1 4-3M21 19v-4a3 3 0 0 0-4-3M4 5a2 2 0 1 0 0 4M20 5a2 2 0 1 1 0 4')},
-        {tab:'watchlist',order:35,Icon:icon('m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.8-5.4 2.8 1-6L3.2 9.4l6.1-.9Z')},
-        {tab:'journal',order:36,Icon:icon('M5 3h15v18H5ZM8 3v18M3 7h4M3 12h4M3 17h4M11 8h6M11 12h6M11 16h4')}
+        {tab:'watchlist',order:35,Icon:icon('m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.8-5.4 2.8 1-6L3.2 9.4l6.1-.9Z')}
       ];
       for(const entry of entries) {
         const id=panelIds[entry.tab];

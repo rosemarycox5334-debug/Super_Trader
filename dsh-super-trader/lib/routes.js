@@ -7,7 +7,7 @@ export function allowedEndpoint(method, pathname) {
   if (method === 'GET') return READ.test(pathname);
   if (method === 'POST') return WRITE.test(pathname);
   if (method === 'PATCH') return /^\/api\/journal\/[^/]+$/.test(pathname);
-  if (method === 'DELETE') return /^\/api\/(?:watchlist|journal\/[^/]+|experts\/[^/]+)$/.test(pathname);
+  if (method === 'DELETE') return /^\/api\/(?:watchlist|reviews\/[^/]+|journal\/[^/]+|experts\/[^/]+)$/.test(pathname);
   return false;
 }
 export function sendJson(res, status, data) {

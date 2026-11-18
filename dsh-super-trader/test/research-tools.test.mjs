@@ -64,6 +64,8 @@ test('research proxy is explicit read/write allowlist, not a generic API tunnel'
   for(const path of ['/api/research/stock','/api/research/sector','/api/research/screen','/api/market/sectors','/api/market/search','/api/reviews','/api/reviews/R-1'])assert.equal(allowedEndpoint('GET',path),true);
   assert.equal(allowedEndpoint('POST','/api/reviews/sync'),true);
   assert.equal(allowedEndpoint('POST','/api/reviews/R-1/judge'),true);
+  assert.equal(allowedEndpoint('DELETE','/api/reviews/R-1'),true);
+  assert.equal(allowedEndpoint('DELETE','/api/reviews'),false);
   assert.equal(allowedEndpoint('GET','/api/reviews/R-1/judge'),false);
   assert.equal(allowedEndpoint('GET','/api/reviews/sync'),false);
   assert.equal(allowedEndpoint('POST','/api/research/team'),true);

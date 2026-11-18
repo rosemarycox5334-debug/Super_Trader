@@ -192,3 +192,19 @@ def test_judge_requires_a_configured_model(build):
     review = service.archive("job-1")
     with pytest.raises(ReviewError):
         service.judge(review["id"])
+
+def test_delete_removes_review_and_judgments(build):
+    service = build({"000001": bars([10, 11, 12])}, [pick("000001")])
+    review = service.archive("job-1")
+    assert service.count() == 1
+    service.delete(review["id"])
+    assert service.count() == 0
+    with pytest.raises(ReviewError):
+        service.get(review["id"])
+
+def test_deleted_review_is_not_recreated_by_sync(build):
+    service = build({"000001": bars([10, 11, 12])}, [pick("000001")])
+    review = service.archive("job-1")
+    service.delete(review["id"])
+    service.sync()
+    assert service.count() == 0

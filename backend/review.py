@@ -55,13 +55,17 @@ class ReviewService:
             review_id TEXT, code TEXT, status TEXT, trigger_date TEXT,
             trigger_price REAL, confidence TEXT, reason TEXT, model TEXT,
             created_at TEXT, PRIMARY KEY(review_id, code))""")
+        self.db.execute("""CREATE TABLE IF NOT EXISTS review_dismissed(
+            job_id TEXT PRIMARY KEY, dismissed_at TEXT)""")
 
     # ------------------------------------------------------------------ 归档
     def sync(self, limit: int = 10) -> dict:
         """Auto-archive finished expert-selection jobs that have no review yet."""
         rows = self.db.query(
             "SELECT id,status,finished_at,result FROM jobs WHERE type='expert_selection' "
-            "AND status IN ('done','completed','succeeded') ORDER BY created_at DESC LIMIT ?", (limit,))
+            "AND status IN ('done','completed','succeeded') "
+            "AND id NOT IN (SELECT job_id FROM review_dismissed) "
+            "ORDER BY created_at DESC LIMIT ?", (limit,))
         created = []
         for row in rows:
             try:
@@ -242,6 +246,17 @@ class ReviewService:
                 "entry_direction": target.get("entry_direction") if target.get("entry_direction") in ("above", "below") else None,
                 "invalidation_price": _number(target.get("invalidation_price")),
                 "entry_note": target.get("entry_note") or ""}
+
+    def delete(self, review_id: str) -> dict:
+        row = self.db.query_one("SELECT id,job_id FROM selection_reviews WHERE id=?", (review_id,))
+        if row is None:
+            raise ReviewError("复盘记录不存在", status=404)
+        self.db.execute("DELETE FROM review_judgments WHERE review_id=?", (review_id,))
+        self.db.execute("DELETE FROM selection_reviews WHERE id=?", (review_id,))
+        # Deleting means "never track this selection again": otherwise the next
+        # auto-archive would immediately recreate it from the same job.
+        self.db.execute("INSERT OR REPLACE INTO review_dismissed VALUES(?,?)", (row["job_id"], now_iso()))
+        return {"deleted": review_id}
 
     # ------------------------------------------------------------------ AI 判定
     def judge(self, review_id: str, codes=None, force: bool = False) -> dict:

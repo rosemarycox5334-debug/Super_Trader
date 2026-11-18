@@ -535,6 +535,13 @@ def create_app(services: Services | None = None) -> FastAPI:
     def sync_reviews():
         return svc.review.sync()
 
+    @app.delete("/api/reviews/{review_id}")
+    def delete_review(review_id: str):
+        try:
+            return svc.review.delete(review_id)
+        except ReviewError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc)) from None
+
     @app.post("/api/reviews/{review_id}/judge")
     def judge_review(review_id: str, body: dict | None = None):
         try:

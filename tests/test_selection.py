@@ -114,7 +114,7 @@ class FakeModel:
             scripts = self.scripts
         else:
             assert kwargs["max_tool_rounds"] == 1 and kwargs["response_format_json"] is True
-            assert kwargs["tool_impls"] == {} and kwargs["max_tokens"] <= 6000
+            assert kwargs["tool_impls"] == {} and kwargs["max_tokens"] is None
             scripts = self.final_scripts
         before = kwargs["before_round"]
         tools = kwargs["tool_impls"]
@@ -686,11 +686,11 @@ def test_length_finish_reason_explicitly_truncated_even_if_partial_json_parseabl
     assert diagnostic["finish_reason"] == "length" and diagnostic["phase"] == "synthesis"
     assert diagnostic["content_length"] == len(content) and diagnostic["json_parseable"] is parsed
     assert "DO-NOT-STORE" not in json.dumps(row)
-    assert 4000 <= svc.experts.model.calls[-1][1]["max_tokens"] <= 6000
+    assert svc.experts.model.calls[-1][1]["max_tokens"] is None
 
 
 @pytest.mark.parametrize("limit", [1, 2, 10])
-def test_synthesis_token_floor4000_ceiling6000_and_short_output_prompt(svc, limit):
+def test_synthesis_has_no_output_token_cap_and_keeps_the_short_prompt(svc, limit):
     def explore(tools, before):
         tools["candidate_directory"]({})
         tools["read_stock"]({"code": "000001", "sections": ["quote"]})
@@ -699,7 +699,7 @@ def test_synthesis_token_floor4000_ceiling6000_and_short_output_prompt(svc, limi
     row = run(svc, [explore], limit_per_expert=limit)
     assert row["status"] == "done"
     messages, kwargs = svc.experts.model.calls[-1]
-    assert 4000 <= kwargs["max_tokens"] <= 6000 and "不输出推理长文" in messages[0]["content"]
+    assert kwargs["max_tokens"] is None and "不输出推理长文" in messages[0]["content"]
     assert row["result"]["expert_results"][0]["picks"]
 
 

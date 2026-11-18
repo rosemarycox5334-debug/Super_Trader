@@ -15,6 +15,7 @@
 - 三个会话提示词与专家契约改为六项可执行结构；新增断言覆盖“分批位次/无条件离场/转为观望或放弃的条件”。
 - `SelectionService` 的 MAX_ROUNDS / MAX_EXPLORATION_ROUNDS / MAX_OPERATIONS / MAX_STOCKS / MAX_TOOL_CALLS / JOB_SECONDS / EXPERT_SECONDS 全部置 None；相关比较改为空值安全，`remaining_operations` 无上限时为 null。
 - 契约文案删除“最多7轮/12次/8只/180秒”，改为“不设探索预算上限，专家自行收敛”；任务仍支持取消。
+- 0.24.3：探索与综合均不再传 max_tokens（原综合 4000–6000、探索 1400），修复推理占满额度后 content 为空、finish_reason=length 的整队失败。
 - 测试重写：时间预算、操作/轮次上限、8只上限、探索轮次边界、预留综合时间五个旧断言改为“不设上限”行为；后端 624 项、插件 509 项通过。
 
 ## 自选股批量分析（0.23.0） 验收

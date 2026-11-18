@@ -567,7 +567,6 @@ class SelectionService:
     MAX_EXPLORATION_ROUNDS = None
     MODEL_TOOL_ROUNDS = 10000  # transport loop guard for one chat call, not a research budget
     FINAL_RESERVE_SECONDS = 0
-    EXPLORATION_TOKENS = 1400
     MAX_OPERATIONS = None
     MAX_STOCKS = None
     MAX_TOOL_CALLS = None
@@ -836,7 +835,7 @@ class SelectionService:
         try:
             output = self.experts.model.chat(
                 self._messages(expert, result), tools=_tool_schemas(), tool_impls=session.tools(),
-                max_tool_rounds=self.MODEL_TOOL_ROUNDS, max_tokens=self.EXPLORATION_TOKENS,
+                max_tool_rounds=self.MODEL_TOOL_ROUNDS, max_tokens=None,
                 response_format_json=False, **settings)
             session.check()
             session.validate(session.decode_output(output))
@@ -863,7 +862,7 @@ class SelectionService:
                         "researched_targets": [session.universe[c] for c in sorted(session.read_codes)],
                         "exploration_warning": session.row.get("exploration_warning")}, ensure_ascii=False)}]
         output = self.experts.model.chat(messages, tools=None, tool_impls={}, max_tool_rounds=1,
-                                        max_tokens=min(6000, max(4000, 1000+result["limit_per_expert"]*650)),
+                                        max_tokens=None,
                                         response_format_json=True, **settings)
         session.check()
         session.validate(session.decode_output(output))

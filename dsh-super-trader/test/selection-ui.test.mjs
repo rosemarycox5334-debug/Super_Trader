@@ -41,12 +41,19 @@ test('default native UI has all-A-share scope, no style/grid candidates, and mou
   assert.equal(h.requests.length,0);assert.equal(starts(h).length,0);
   cleanup.forEach(fn=>fn());off();h.store.dispose();
 });
-test('real enabled expert metadata and independent choices persist across page reloads',async()=>{
-  const h=harness();await h.store.loadExperts();h.store.toggleSelectionExpert('growth');h.store.toggleExpert('value');
-  h.store.navigate('experts');await h.store.loadExperts();h.store.navigate('screen');await h.store.loadExperts();
-  assert.deepEqual(clone(h.store.getSnapshot().selectionExpertIds),['value']);assert.deepEqual(clone(h.store.getSnapshot().expertIds),['growth']);
-  h.store.toggleSelectionExpert('off');assert.deepEqual(clone(h.store.getSnapshot().selectionExpertIds),['value']);
-  const tree=ui(h);assert.match(text(tree),/独立核实经营证据/);assert.match(text(tree),/AI风格专家，非本人/);assert.doesNotMatch(text(tree),/停用专家/);assert.equal(starts(h).length,0);h.store.dispose();
+test('selection uses every enabled expert without asking the user to tick them',async()=>{
+  const h=harness();await h.store.loadExperts();
+  const tree=ui(h,'Screen'),body=text(tree);
+  assert.doesNotMatch(body,/选择参与专家/);
+  assert.match(body,/全部已启用的专家/);
+  assert.equal(nodes(tree).filter(n=>n.type==='input'&&n.props.type==='checkbox').length,0);
+  const opened=[];
+  h.store.screenOptions({scope:'market'});
+  await h.store.startSelectionAnalysis(id=>opened.push(id));await tick();
+  const post=starts(h)[0];
+  assert.equal(Object.hasOwn(JSON.parse(post.init.body),'expert_ids'),false);
+  assert.equal(opened[0],'S-select');
+  h.store.dispose();
 });
 test('only an explicit click opens Ai专家选股 session with the selected scope, experts and brief',async()=>{
   const h=harness(),opened=[];
@@ -56,7 +63,7 @@ test('only an explicit click opens Ai专家选股 session with the selected scop
   await button.props.onClick();await tick();
   assert.equal(starts(h).length,1);
   const body=JSON.parse(starts(h)[0].init.body);
-  assert.equal(body.scope,'watchlist');assert.deepEqual(body.expert_ids,['value']);assert.equal(body.brief,'偏好耐心研究，允许量化缺失');assert.equal(body.limit_per_expert,5);
+  assert.equal(body.scope,'watchlist');assert.equal(Object.hasOwn(body,'expert_ids'),false);assert.equal(body.brief,'偏好耐心研究，允许量化缺失');assert.equal(body.limit_per_expert,5);
   assert.equal(opened[0],'S-select');
   await h.store.startSelectionAnalysis(()=>{});assert.equal(h.store.getSnapshot().selectionAi.phase,'ready');
   h.store.dispose();

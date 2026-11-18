@@ -44,6 +44,7 @@ function query(path, args) {
 
 function compactResearch(report) {
   const copy = structuredClone(report);
+  if(copy.target?.category==='ETF')for(const source of copy.analysis_policy?.excluded_sources??[])delete copy[source];
   const bars = copy.history?.data?.items;
   if (Array.isArray(bars) && bars.length > 5) {
     copy.history.data.returned_count = bars.length;
@@ -224,7 +225,7 @@ export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 4
         if(args.limit_per_expert!==undefined && (args.limit_per_expert<1 || args.limit_per_expert>10) || args.scope==='sector' && !/^\d{6}\.(?:SH|SZ|TI)$/.test(args.sector || '') || args.expert_ids!==undefined && (args.expert_ids.length<1 || args.expert_ids.length>20) || args.brief!==undefined && Array.from(args.brief).length>1000)throw Object.assign(new Error('专家选股范围、人数或偏好参数无效'),{code:'invalid_arguments'});
         return request('POST','/api/research/select',{...args,scope:args.scope ?? 'market',limit_per_expert:args.limit_per_expert ?? 5},exec,30000);
       }),
-    tool('st_stock_research', '读取个股行情、价量趋势、5/10/20多周期量化及财务证据简报；K线仅返回末5根，历史命中率不是未来概率。',
+    tool('st_stock_research', '读取个股/ETF投研简报及截至日；ETF含基金资料、净值、费率、披露持仓与区间业绩。K线仅末5根，历史表现不是未来概率。',
       {code},['code'],async(args,exec)=>{
         if(!/^\d{6}$/.test(args.code))throw Object.assign(new Error('请输入六位A股代码'),{code:'invalid_arguments'});
         return compactResearch(await request('GET',query('/api/research/stock',args),undefined,exec,180000));

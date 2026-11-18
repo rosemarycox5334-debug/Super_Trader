@@ -79,6 +79,12 @@ def test_all_scope_real_tools_independent_winners_and_envelope(setup):
     up = service.current_report("000001")
     down = service.current_report("000002")
     assert up["rule"]["id"] != down["rule"]["id"]
+    context = service.selection_context("000001")
+    assert context["candidates"] >= context["qualified"] >= 1
+    assert context["best_accuracy"] == up["metrics"]["accuracy"]
+    assert context["runner_up_accuracy"] is None or context["runner_up_accuracy"] <= context["best_accuracy"]
+    assert context["coverage_floor"] == service.MIN_COVERAGE
+    assert service.selection_context("999999") is None
     for report, direction in ((up, 1), (down, -1)):
         assert report["direction"] == direction
         assert report["metrics"]["accuracy"] == 1.

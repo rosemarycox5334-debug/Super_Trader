@@ -1165,6 +1165,39 @@ class FactorResearchService:
         except FactorError:
             return None
 
+    def selection_context(self, code, timeframe="1d", category="个股"):
+        """Describe how the stored winner was chosen; never mines or re-evaluates."""
+        self._timeframe(timeframe)
+        tid = f"{category}:{str(code).split('.')[0]}"
+        rec = next((r for r in self._directory() if r["target_id"] == tid), None)
+        if rec is None:
+            return None
+        try:
+            df = read_bars(rec["path"])
+            if len(df) < 100:
+                return None
+            version = data_version(rec["path"], len(df))
+        except Exception:
+            return None
+        rows = self.db.query(
+            """SELECT json_extract(report,'$.metrics.accuracy') accuracy,
+                      json_extract(report,'$.metrics.coverage') coverage
+               FROM factor_research_trials
+               WHERE target_id=? AND timeframe=? AND data_version=? AND report IS NOT NULL""",
+            (tid, timeframe, version))
+        floor = self.MIN_COVERAGE
+        accuracies = sorted(
+            (row["accuracy"] for row in rows
+             if type(row["accuracy"]) in (int, float) and type(row["coverage"]) in (int, float)
+             and row["coverage"] >= floor), reverse=True)
+        if not accuracies:
+            return None
+        return {"candidates": len(rows), "qualified": len(accuracies), "coverage_floor": floor,
+                "best_accuracy": accuracies[0],
+                "runner_up_accuracy": accuracies[1] if len(accuracies) > 1 else None,
+                "selection": "最高全样本准确率（覆盖率达标者优先）",
+                "metric": "全样本历史准确率"}
+
     def evaluate_saved(self, code, rule_id, timeframe="1d", category="个股"):
         self._timeframe(timeframe)
         rule = self.rule(rule_id)

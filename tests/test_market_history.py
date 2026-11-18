@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from backend.app import create_app
 from backend.market import MarketService, MarketError
 from backend.quant import QuantError
-from backend.watchlist import WatchlistService
+from backend.watchlist import WatchlistError, WatchlistService
 from backend.db import Database
 
 NOW = 1794559974.0
@@ -130,5 +130,13 @@ def test_watchlist_can_use_verified_market_symbol_without_research_data(tmp_path
         assert watch.add('601088',None)['added'] is False
         watch.remove('601088','个股')
         assert watch.list() == []
-        with pytest.raises(QuantError): watch.add('601088','ETF')
+        with pytest.raises(WatchlistError): watch.add('601088','ETF')
+        class FundMarket:
+            def fund_symbol(self, code):
+                return {"code": code, "name": "纳指生物科技ETF", "category": "ETF",
+                        "thscode": code + ".SH", "asset_type": "fund-etf"}
+        etf = WatchlistService(db, NoResearch(), None, None, market=FundMarket())
+        assert etf.add('513290','ETF')['added'] is True
+        row = etf.list()[0]
+        assert (row["code"], row["category"], row["name"]) == ("513290", "ETF", "纳指生物科技ETF")
     finally: db.close(); svc.close()

@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 from .db import now_iso
 from .experts import ExpertError, _research_bundle
+from .etf_evidence import etf_sections
 from .quant import QuantEngine
 
 HORIZONS = (5, 10, 20)
@@ -23,6 +24,8 @@ MIN_COVERAGE = 0.10
 SECTOR_SAMPLE_LIMIT = 50
 _CODE = re.compile(r"^[0-9]{6}(?:\.(?:SH|SZ|BJ))?$")
 _SECTOR = re.compile(r"^[0-9]{6}\.[A-Z][A-Z0-9]{1,7}$")
+# Listed fund vehicles share the exchange-traded fund data path.
+_FUND_CATEGORIES = ("ETF", "LOF")
 
 
 class ResearchError(Exception):
@@ -239,44 +242,67 @@ class ResearchService:
                 "identity": {"kind": "stock", "code": code} if category == "个股" else None,
                 "agreement": agreement, **({"error": "本地量化网格无可用窗口"} if not directions else {})}
 
-    def factor_evidence(self, code):
+    def factor_evidence(self, code, category="个股"):
         """Read only verified current persisted LLM results; never start mining.
 
         The provider owns data-version validation/re-evaluation. No seed/grid is
         substituted when it has no matching result, even if legacy quant exists.
         """
         bare = self._stock_code(code)[:6]
+        if category not in ("个股", "ETF"):
+            return _unavailable("该资产类别尚无可验证的因子成果")
         if self.factor_provider is None:
             return _unavailable("未接入新版因子成果提供者；未以旧网格或种子规则替代LLM成果")
         try:
-            report = self.factor_provider.current_report(bare, timeframe="1d", category="个股")
+            report = self.factor_provider.current_report(bare, timeframe="1d", category=category)
             if not isinstance(report, dict):
                 return _unavailable("该标的暂无当前数据版本的已验证LLM因子成果；未启动模型挖掘")
             target, rule = report.get("target", {}), report.get("rule", {})
             if (report.get("kind") != "factor" or report.get("source") != "llm_batch"
                     or report.get("status") != "completed" or not report.get("data_version")
                     or not report.get("as_of") or not isinstance(target, dict)
-                    or target.get("code") != bare or target.get("category") != "个股"
-                    or target.get("timeframe") != "1d" or target.get("target_id") != f"个股:{bare}"
+                    or target.get("code") != bare or target.get("category") != category
+                    or target.get("timeframe") != "1d" or target.get("target_id") != f"{category}:{bare}"
                     or not isinstance(rule, dict) or rule.get("kind") != "code" or not rule.get("id")
                     or not isinstance(report.get("metrics"), dict)):
                 return _unavailable("因子成果身份、来源或当前有效状态未通过核验；未使用替代网格")
-            return {"available": True, "data": deepcopy(report), "source": "llm_batch",
-                    "as_of": report["as_of"]}
+            data = deepcopy(report)
+            warnings = []
+            context = None
+            reader = getattr(self.factor_provider, "selection_context", None)
+            if callable(reader):
+                try:
+                    context = reader(bare, timeframe="1d", category=category)
+                except Exception:
+                    context = None
+            if isinstance(context, dict):
+                data["selection"] = context
+                floor = context.get("coverage_floor")
+                best = context.get("best_accuracy")
+                qualified = context.get("qualified")
+                if type(best) in (int, float) and type(qualified) is int:
+                    warnings.append(
+                        f"该规则是本标的达到覆盖率下限（{floor:.0%}）的{qualified}个候选中全样本准确率最高者；"
+                        f"最高准确率{best:.2%}{'，不高于随机水平，不能视为有效方向边际' if best <= 0.5 else ''}。")
+            return {"available": True, "data": data, "source": "llm_batch",
+                    "as_of": report["as_of"], "warnings": warnings}
         except Exception:
             return _unavailable("当前LLM因子成果暂不可用；未回退旧网格、未发起模型调用")
 
     def stock_report(self, code, category: str | None = None):
         code = self._stock_code(code)
-        if category not in (None, "个股", "ETF"):
-            raise ResearchError("category只支持个股或ETF", status=400)
+        if category not in (None, "个股", *_FUND_CATEGORIES):
+            raise ResearchError("category只支持个股或上市基金（ETF/LOF）", status=400)
         report = self._cached(("stock", code, category or "auto"),
                               lambda: self._stock_report(code, category))
         # Market observations may be cached, but newly persisted/invalidated
         # factor results must not inherit the market cache's availability.
-        report["factor"] = (self.factor_evidence(code)
-                              if report["target"].get("category") != "ETF"
-                              else _unavailable("ETF不提供个股LLM因子"))
+        factor = self.factor_evidence(code, report["target"].get("category", "个股"))
+        accuracy = _number(factor.get("data", {}).get("metrics", {}).get("accuracy"))
+        if factor.get("available") and (accuracy is None or accuracy <= 0.55):
+            factor = {"available": False, "excluded": True}
+            report["quant"] = {"available": False, "excluded": True, "agreement": "unavailable"}
+        report["factor"] = factor
         return report
 
     def _stock_report(self, code, requested_category: str | None = None):
@@ -289,7 +315,7 @@ class ResearchService:
         stock_identity = fund_identity = None
         stock_error = fund_error = None
 
-        if requested_category != "ETF":
+        if requested_category not in _FUND_CATEGORIES:
             try:
                 stock_identity = self.market.symbol(code)
                 if stock_identity.get("category") != "个股" or stock_identity.get("code") != bare:
@@ -304,7 +330,7 @@ class ResearchService:
         if requested_category != "个股":
             try:
                 fund_identity = self.market.fund_symbol(code)
-                if fund_identity.get("category") != "ETF" or fund_identity.get("code") != bare:
+                if fund_identity.get("category") not in _FUND_CATEGORIES or fund_identity.get("code") != bare:
                     fund_identity = None
                 elif "." in code and fund_identity.get("thscode") != code:
                     fund_identity = None
@@ -312,14 +338,14 @@ class ResearchService:
                 fund_error = exc
 
         if stock_identity and fund_identity:
-            raise ResearchError("该代码同时匹配A股个股和ETF，请从搜索结果选择资产类别", status=409)
+            raise ResearchError("该代码同时匹配A股个股和上市基金，请从搜索结果选择资产类别", status=409)
         if stock_identity:
             category = "个股"
             target.update({k: stock_identity.get(k, target[k]) for k in target})
         elif fund_identity:
-            category = "ETF"
-            target.update({"category": "ETF", **{k: fund_identity.get(k, target[k]) for k in target}})
-            warnings.append("ETF 使用场内基金行情与前复权日线；与 A 股个股口径不同。")
+            category = fund_identity["category"]
+            target.update({"category": category, **{k: fund_identity.get(k, target[k]) for k in target}})
+            warnings.append(f"{category} 使用场内基金行情与前复权日线；与 A 股个股口径不同。")
         else:
             warnings.append("行情标的目录暂不可用；只按六位代码及本地网格检索，不替代为同号指数。")
             try:
@@ -331,9 +357,9 @@ class ResearchService:
             except Exception:
                 try:
                     grid, _ = self._grid()
-                    candidates = (("ETF",) if requested_category == "ETF"
-                                  else ("个股",) if requested_category == "个股"
-                                  else ("个股", "ETF"))
+                    candidates = ((requested_category,) if requested_category in _FUND_CATEGORIES
+                                  else ("个股", "ETF", "LOF") if not requested_category
+                                  else ("个股",))
                     for candidate in candidates:
                         entry = grid.get((bare, candidate)) or {}
                         if entry:
@@ -345,12 +371,16 @@ class ResearchService:
                     pass
         if requested_category and category != requested_category:
             raise ResearchError(f"该代码不是{requested_category}，请检查资产类别", status=404)
-        if category == "ETF":
-            quote = _capture(lambda: self.market.fund_snapshot(code), "ETF最新行情") if callable(getattr(self.market, "fund_snapshot", None)) else _unavailable("未接入ETF行情")
-            history = _capture(lambda: self.market.fund_history(code, limit=120), "ETF真实日线") if callable(getattr(self.market, "fund_history", None)) else _unavailable("未接入ETF日线")
-            fundamentals = _unavailable("ETF不提供个股财报")
-            valuation = _unavailable("ETF不提供个股估值")
-            news = _unavailable("未接入基金新闻")
+        etf_extra = {}
+        if category in _FUND_CATEGORIES:
+            quote = _capture(lambda: self.market.fund_snapshot(code), "基金最新行情") if callable(getattr(self.market, "fund_snapshot", None)) else _unavailable("未接入基金行情")
+            history = _capture(lambda: self.market.fund_history(code, limit=120), "基金真实日线") if callable(getattr(self.market, "fund_history", None)) else _unavailable("未接入基金日线")
+            try:
+                datasets = self.market.fund_research(code)
+            except Exception:
+                datasets = {}
+            etf_extra = etf_sections(datasets, quote, history)
+            fundamentals, valuation, news = (etf_extra[key] for key in ("fundamentals", "valuation", "news"))
         else:
             quote = _capture(lambda: self.market.quotes(code), "最新行情")
             history = _capture(lambda: self.market.history(code, limit=120, adjust="forward"), "真实日线")
@@ -370,7 +400,7 @@ class ResearchService:
         return {"kind": "stock", "target": target, "quote": quote, "history": history,
                 "trend": _trend(history), "quant": self._quant(bare, category, target["name"]),
                 "fundamentals": fundamentals, "valuation": valuation,
-                "news": news, "warnings": warnings, "created_at": now_iso()}
+                "news": news, "warnings": warnings, "created_at": now_iso(), **etf_extra}
 
     def sector_report(self, thscode):
         thscode = self._sector_code(thscode)
@@ -571,9 +601,22 @@ class ResearchService:
                     return None
                 if not getattr(getattr(self.experts.model, "settings", None), "configured", False):
                     raise ResearchError("模型配置不可用，任务未调用专家", status=503)
-                report = _research_bundle(self.stock_report(code) if kind == "stock" else self.sector_report(code))
+                full = self.stock_report(code) if kind == "stock" else self.sector_report(code)
+                report = _research_bundle(full)
+                factor_view = deepcopy(full.get("factor") or {"available": False})
+                if not factor_view.get("available"):
+                    # Nothing verified: expose no reason text the session could quote back.
+                    factor_view = {"available": False}
                 votes, errors = [], []
+                direction = (factor_view.get("data", {}).get("direction")
+                             if factor_view.get("available") else None)
+                agreement = {1: "bullish", -1: "bearish", 0: "neutral"}.get(direction, "unavailable")
                 result = {"kind": kind, "target": report["target"], "report": report,
+                          "factor_view": factor_view,
+                          "final_synthesis": {
+                              "input": "全部专家意见 + 量化因子",
+                              "quant_visible_to_experts": False,
+                              "note": "专家独立判断，未看到量化因子；因子只在本层汇总后参与最终判断。"},
                           "consensus": self.experts._consensus([], 0.6, False), "votes": votes,
                           "errors": errors, "created_at": now_iso()}
                 for i, e in enumerate(experts, 1):
@@ -590,25 +633,16 @@ class ResearchService:
                         errors.append(error)
                         vote = {"expert": {"id": e["id"], "name": e["name"], "tag": e.get("tag", "")},
                                 "vote": 0, "abstained": True, "confidence": "low", "reason": error["error"],
-                                "evidence": [], "error": error["error"], "status": status,
+                                "evidence": [], "evidence_status": "unavailable", "error": error["error"],
+                                "status": status, "trade_plan": None, "trade_plan_status": "missing",
                                 "outlook": {}, "risks": []}
-                    factor = report.get("factor", {})
-                    if self.factor_provider is not None and kind == "stock":
-                        direction = factor.get("data", {}).get("direction") if factor.get("available") else None
-                        agreement = {1: "bullish", -1: "bearish", 0: "neutral"}.get(direction, "unavailable")
-                        vote["alignment_source"] = "factor"
-                    else:
-                        agreement = report["quant"]["agreement"]
-                        vote["alignment_source"] = "legacy_quant_grid"
-                    expected = {"bullish": 1, "bearish": -1}.get(agreement)
-                    vote["quant_alignment"] = ("abstained" if vote.get("abstained") else
-                                               "unavailable" if expected is None else
-                                               "aligned" if vote["vote"] == expected else "divergent")
                     votes.append(vote)
                     result["consensus"] = self.experts._consensus(votes, 0.6, False)
                     result["consensus"].update(support_label="有效票支持比例，不是成功概率",
                                                disagreement=bool(result["consensus"]["up"] and result["consensus"]["down"]),
-                                               quant_agreement=agreement)
+                                               quant_agreement=agreement,
+                                               quant_source="factor" if factor_view.get("available") else "unavailable",
+                                               quant_note="因子仅用于汇总阶段，未提供给专家")
                     handle.progress(i, deepcopy(result))
                 if errors and len(errors) == len(experts) and not handle.cancelled:
                     raise ResearchError("所有专家模型调用失败；未产生团队意见", status=502)

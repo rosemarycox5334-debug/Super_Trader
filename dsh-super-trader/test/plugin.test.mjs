@@ -18,13 +18,13 @@ test('patch parses to package insert and distribution exports metadata',async()=
 test('apply tolerates missing/throwing host context',()=>{
   for(const ctx of [undefined,null,{}, {effect(){throw new Error('host unavailable');}},new Proxy({},{get(){throw Error('hostile');}})])assert.doesNotThrow(()=>apply(ctx));
 });
-test('mount registers exactly twenty-six tools and six routes without awaiting backend',async()=>{
+test('mount registers exactly twenty-six tools and eight routes without awaiting backend',async()=>{
   const registered=[],routes=[],cleanup=[];
   let starts=0,disposed=0;
   const manager={getState:()=>({phase:'idle'}),ensureBackend(){starts++;return new Promise(()=>{});},dispose:async()=>{disposed++;}};
   const services={tools:{register(t){registered.push(t);return ()=>{};}},webServer:{register(r){routes.push(r);return ()=>{};},getOrigin:()=> 'http://127.0.0.1:57621'}};
   mount({get:k=>services[k],effect(fn){const d=fn();if(d)cleanup.push(d);}},()=>manager);
-  assert.equal(registered.length,26);assert.equal(routes.length,6);
+  assert.equal(registered.length,26);assert.equal(routes.length,8);
   // Host WebServer.match appends '/' itself; a trailing slash never matches descendants.
   const proxy=routes.find(r=>r.kind==='prefix');
   assert.equal(proxy.path,'/dsh-super-trader/backend');

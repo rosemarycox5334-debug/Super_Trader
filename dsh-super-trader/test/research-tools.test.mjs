@@ -27,6 +27,19 @@ test('stock brief truncates only chart payload and retains source counts and qua
   assert.equal(result.history.data.items.length,5);assert.equal(result.history.data.omitted_items,115);assert.equal(result.history.data.returned_count,120);
   assert.equal(report.history.data.items.length,120);assert.equal(result.quant.items[0].result.probability,null);
 });
+test('ETF brief retains fund evidence and verified ETF factor without stock placeholders',async()=>{
+  const report={kind:'stock',target:{code:'513290',category:'ETF'},fund:{available:true,data:{nav:{available:true,data:{items:[{nav_date:1000,unit_nav:1.7}]}},profile:{available:true,data:{items:[{rate_info:[{standard_rate:'0.50%'}]}]}}}},factor:{available:true,data:{target:{category:'ETF'}}}};
+  const {get}=setup(report);const result=await get('st_stock_research').execute({code:'513290'});
+  assert.equal(result.fund.data.nav.data.items[0].unit_nav,1.7);
+  assert.equal(result.fund.data.profile.data.items[0].rate_info[0].standard_rate,'0.50%');
+  assert.equal(result.factor.data.target.category,'ETF');
+});
+test('ETF excluded sources are omitted rather than shown as unavailable in the session',async()=>{
+  const report={kind:'stock',target:{code:'513290',category:'ETF'},analysis_policy:{excluded_sources:['valuation','news'],ignore_missing_excluded:true},fund:{available:true,data:{nav:{available:true,data:{items:[{unit_nav:1.7}]}}}},valuation:{available:false,excluded:true},news:{available:false,excluded:true}};
+  const {get}=setup(report);const result=await get('st_stock_research').execute({code:'513290'});
+  assert.equal(Object.hasOwn(result,'valuation'),false);assert.equal(Object.hasOwn(result,'news'),false);
+  assert.equal(result.fund.data.nav.data.items[0].unit_nav,1.7);assert.equal(report.news.excluded,true);
+});
 test('sector catalog and report require real complete index identity',async()=>{
   const {calls,get}=setup({kind:'sector',constituents:{data:{items:Array.from({length:50},(_,n)=>({code:String(n)}))}}});
   await get('st_sector_research').execute({action:'catalog',tag:'industry',q:'煤炭'});

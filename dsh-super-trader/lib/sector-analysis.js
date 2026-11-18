@@ -15,32 +15,38 @@ export function buildSectorAnalysisPrompt(name,thscode){
 2. 如需多专家交叉验证，调用 st_team_research(kind="sector", code="${thscode}", wait=true)，不要传 expert_ids，使用全部启用专家；当前支持最多20位，不要为了绕开限制自行删减专家。它会真实调用模型并可能计费，并在返回前等待任务到终态。不要把任务受理或中间进度当成分析完成。
 3. 板块行情/成分等关键数据缺失时写明缺什么；量化缺失不写。不要用个股或同号指数替代该板块。
 
-## 团队逐位展示（如果调用了 st_team_research，必须遵守）
-不能只写“N/N 全部投票”“无共识”或一句汇总。必须为每位专家单独一节，包含：
-- 专家名称与投票（看多 / 看空 / 弃权）；
-- 置信度；
+## 团队逐位展示（如果调用了团队分析，必须遵守）
+**全部用中文表述**：除板块代码、网址、必要的字段路径外，正文不要出现英文单词或英文字段名；把 buy/hold/reduce/avoid/wait 写成 买入（加仓）/持有/减仓（清仓）/回避/观望，不要出现 outlook、action、evidence、source、ref、abstained 这类词。
+不能只写“全部投票”“无共识”或一句汇总。必须为每位专家单独一节，包含：
+- 专家名称与投票（只写 看多 / 看空 / 观望）；
+- 信心度（高/中/低，表示专家对该判断的信心，不是胜率或概率）；
 - 完整理由，不要只写结论；
-- 依据：逐条列出 evidence 的 source 与 ref，并说明对应的数据含义；
-- outlook：短期、中期、多头情景、空头情景、失效条件；
-- 风险；
-- 弃权专家也要写弃权原因和已看到的依据，不能省略。
-先给团队汇总（有效票、弃权、法定人数、共识/无共识、分歧），再逐位展开。
+- 依据：逐条写“数据来源与字段路径 → 实际数值 → 数据含义”；
+- 交易策略：操作、入场触发条件与价位或板块位置、仓位、止损、目标、持有周期、失效条件、风险收益比；
+- 情景展望：短期、中期、多头情景、空头情景、失效条件；
+- 风险。
+**A股默认不能做空**：看空只能写成不买入、减仓或清仓、回避或观望，不得出现做空、卖空、融券、借券、开空、回补；专家给的计划若被标记不可执行，必须改写为可执行版本。
+**专家看不到量化因子**：团队分析时量化因子与旧量化网格都没有提供给专家，每位专家的小节里不得出现量化因子方向、准确率等内容，也不要替专家编造这类依据。
+每位专家无论看多、看空还是观望都必须给出交易策略；观望也要写清“什么条件才动手、在哪里放弃”。
+禁止输出“未提供、空数组、无依据、证据缺失”这类字样：字段缺失就整段省略，只写实际拿到的内容；不要替专家补造引用。
+先给团队汇总（看多、看空、观望、法定人数、共识或无共识、分歧），再逐位展开。
 
 ## 输出要求
 用中文给出可审计的板块分析，而不是复述原始数据：
 - 板块趋势与所处阶段：均线结构、5/20日表现、支撑阻力、量能；
 - 成分与广度：上涨/下跌/平盘样本，明确只是样本广度，不代表全板块；
-- 量化证据：只有报告实际返回 h5/h10/h20 结果时才写，并引用样本与覆盖率；如果量化完全不可用，整节省略，不要写“量化不可用/覆盖率0”等占位说明；
 - 多空条件：支持走强的可观测条件，以及证伪/失效条件；
-- 主要风险与分歧：至少一条反向证据；不要把“任务仍在运行/1/N”写进最终报告，必须等到终态后再总结；若最终仍无法完成，直接省略多专家部分，不写“尚未完成”章节；
-- 数据时间和来源：报告 created_at、行情截至日；量化有数据时才写量化截至日。
+- 主要风险与分歧：至少一条反向证据；不要把“任务仍在运行/第几项”写进最终报告，必须等到终态后再总结；若最终仍无法完成，直接省略多专家部分，不写“尚未完成”章节；
+- 综合判断必须分两层：第一层汇总专家票数与分歧；第二层才是量化校验，**且只在 factor_view 可用并达到 55% 准确率门槛时写**，说明方向、全样本准确率、覆盖率，以及它支持还是削弱专家结论；因子不可用、被门槛排除或标注“尚无可验证的因子成果”时，整层省略，不写“本次不采用因子辅助”“因子不可用”之类说明，直接进入策略；
+- 综合交易策略：要写到可直接执行——方向与前提、分批位次（第一笔/第二笔的触发条件与总仓位上限）、止损（价格与关键位）、目标与逐档减仓、持有周期与成本、转为观望或放弃的条件；即使结论是观望，也给出条件化执行计划；价位必须来自本次报告的真实数据；
+- 数据时间和来源：报告生成时间、行情截至日；量化有数据时才写量化截至日。
 
 区分“数据观测”“研究者推断”，不承诺收益、不预测具体点位；不交易、不下单。若数据不足以支撑结论，直接说明，不编造。`;
 }
 
 export class SectorAnalysisService {
-  constructor({workspaces,sessions,workingDirectory,uuid=randomUUID}){
-    Object.assign(this,{workspaces,sessions,workingDirectory,uuid});
+  constructor({workspaces,sessions,workingDirectory,uuid=randomUUID,applyPermission}){
+    Object.assign(this,{workspaces,sessions,workingDirectory,uuid,applyPermission});
     this.inFlight=new Map();this.records=new Map();this.workspacePending=null;
   }
   async workspace(){
@@ -93,6 +99,10 @@ export class SectorAnalysisService {
       const created=await this.sessions.create({workspaceId:workspace.id});
       if(typeof created?.sessionId!=='string'||!created.sessionId)throw fail('DSH 未返回有效的新会话标识');
       record.sessionId=created.sessionId;
+      if(typeof this.applyPermission==='function'){
+        try{await this.applyPermission(record.sessionId);}
+        catch{record.warnings.push('会话已创建，但未能自动切换为完全访问权限；可在会话内用 /permission 或权限选择器手动切换。');}
+      }
       if(this.sessions.rename){
         try{await this.sessions.rename({sessionId:record.sessionId,title:'Ai板块分析：'+name});}
         catch{record.warnings.push('会话已创建，但自动命名失败，可在 DSH 中手动命名。');}

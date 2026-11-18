@@ -28,7 +28,7 @@ function setup(options={}) {
     if(u.pathname.endsWith('/stock-analysis'))return reply({status:'accepted',submitted:true,sessionId:'S-stock',workspaceId:'W-stock',code:JSON.parse(init.body).code,request_id:JSON.parse(init.body).request_id});
     if(u.pathname.endsWith('/research/stock'))return reply(report('stock',u.searchParams.get('code')));
     if(u.pathname.endsWith('/research/sector'))return reply(report('sector',u.searchParams.get('thscode')));
-    if(u.pathname.endsWith('/research/select'))return reply({job:{id:'S1',status:'queued',progress:0,total:1}});
+    if(u.pathname.endsWith('/selection-analysis')){const b=JSON.parse(init.body);return reply({status:'accepted',submitted:true,sessionId:'S-select',workspaceId:'W-select',params:b,request_id:b.request_id});}
     if(/\/experts\/[^/]+$/.test(u.pathname)&&init.method==='DELETE')return reply({deleted:decodeURIComponent(u.pathname.split('/').pop())});
     if(u.pathname.endsWith('/experts'))return init.method==='POST'?reply({id:'E3',...JSON.parse(init.body)}):reply({items:[{id:'E1',name:'真实专家一',tag:'价值',criteria:'现金流证据',enabled:true},{id:'E2',name:'真实专家二',enabled:false}]});
     if(u.pathname.endsWith('/market/sectors'))return reply({items:[{name:'真实板块',thscode:'881101.TI'}],total:31,source:'real directory'});
@@ -48,14 +48,40 @@ function nodes(node){return Array.isArray(node)?node.flatMap(nodes):!node||typeo
 function text(node){return Array.isArray(node)?node.map(text).join(' '):node&&typeof node==='object'?text(node.props?.children):String(node ?? '');}
 function ui(h,component,props={}){const R=fakeReact(),c=h.api.createInvestComponents(R,h.store),t=k=>h.api.investMessages().zh[k] || k;return render(c[component]({t,...props}));}
 
+test('watchlist page searches stocks and listed funds (ETF/LOF) from the page itself',async()=>{
+  const h=setup({fetch:(url,init,base)=>{
+    const u=new URL('http://local'+url);
+    if(u.pathname.endsWith('/market/search'))return Promise.resolve(reply({items:[
+      {name:'中国神华',code:'601088',category:'个股',thscode:'601088.SH'},
+      {name:'纳指生物科技ETF',code:'513290',category:'ETF',thscode:'513290.SH'},
+      {name:'标普信息科技LOF',code:'161128',category:'LOF',thscode:'161128.SZ'}],source:'market directory'}));
+    if(u.pathname.endsWith('/watchlist')&&init.method==='POST'){
+      const body=JSON.parse(init.body);
+      return Promise.resolve(reply({added:true,code:body.code,category:body.category,name:'标普信息科技LOF'}));
+    }
+    if(u.pathname.endsWith('/watchlist'))return Promise.resolve(reply({items:[]}));
+    return base(url,init);
+  }});
+  h.store.setWatchQuery('科技');
+  await h.store.searchWatch('基金');
+  const tree=ui(h,'Watchlist'),body=text(tree);
+  assert.match(body,/添加自选股/);assert.match(body,/查找股票/);assert.match(body,/查找基金/);
+  assert.match(body,/513290/);assert.match(body,/161128/);assert.doesNotMatch(body,/601088/);
+  const add=nodes(tree).filter(n=>n.type==='button').find(n=>text(n).includes('161128'));
+  assert.ok(add,'LOF result must offer an add button');
+  await add.props.onClick();
+  const post=h.requests.find(r=>r.url.endsWith('/watchlist')&&r.init.method==='POST');
+  assert.deepEqual(JSON.parse(post.init.body),{code:'161128',category:'LOF'});
+  h.store.dispose();
+});
 test('declarations have no effects; locale keys align and main copy concerns trends, not one-day guesses',()=>{
   const h=setup(),m=h.api.investMessages();assert.equal(h.requests.length,0);assert.deepEqual(Object.keys(m.zh).sort(),Object.keys(m.en).sort());assert.doesNotMatch(source,/^(?:import |export |window\.|document\.|const |let )/m);assert.match(m.zh.cost,/费用/);assert.match(m.zh.teamIntro,/AI风格专家，非本人/);assert.match(m.zh.disclaimer,/不是校准的未来概率/);h.store.dispose();
 });
 test('expert selection defaults to all A-shares without preset style or automatic model calls',async()=>{
-  const h=setup();assert.match(text(ui(h,'Screen')),/全A股/);assert.match(text(ui(h,'Screen')),/专家各自按理念自主找候选/);assert.equal(h.requests.length,0);assert.equal(h.store.getSnapshot().screen.style,undefined);await h.store.screen();assert.equal(h.requests.length,0);assert.equal(h.store.getSnapshot().notice.key,'consentRequired');await h.store.loadExperts();await h.store.screen(true);const post=h.requests.find(r=>r.url.endsWith('/research/select'));assert.deepEqual(JSON.parse(post.init.body),{scope:'market',expert_ids:['E1'],brief:'',limit_per_expert:5});assert.equal(h.store.getSnapshot().selectionJob.data.id,'S1');assert.equal(h.requests.some(r=>r.url.includes('/research/screen')),false);h.store.dispose();
+  const h=setup();assert.match(text(ui(h,'Screen')),/全A股/);assert.match(text(ui(h,'Screen')),/专家各自按理念自主找候选/);assert.equal(h.requests.length,0);assert.equal(h.store.getSnapshot().screen.style,undefined);await h.store.screen();assert.equal(h.requests.length,0);assert.equal(h.store.getSnapshot().notice.key,'consentRequired');const opened=[];await h.store.loadExperts();await h.store.screen(true,id=>opened.push(id));const post=h.requests.find(r=>r.url.endsWith('/selection-analysis'));const body=JSON.parse(post.init.body);assert.equal(body.scope,'market');assert.deepEqual(body.expert_ids,['E1']);assert.equal(body.brief,'');assert.equal(body.limit_per_expert,5);assert.equal(opened[0],'S-select');assert.equal(h.requests.some(r=>r.url.includes('/research/select')),false);h.store.dispose();
 });
 test('selection scope uses autonomous expert POST; stock open shares target to separate team',async()=>{
-  const nav=[],h=setup({store:{onNavigate:t=>nav.push(t)}});h.store.screenOptions({scope:'watchlist',brief:'关注经营现金流'});await h.store.loadExperts();await h.store.screen(true);const post=h.requests.find(r=>r.url.endsWith('/research/select'));assert.deepEqual(JSON.parse(post.init.body),{scope:'watchlist',expert_ids:['E1'],brief:'关注经营现金流',limit_per_expert:5});await h.store.openStock('601088','中国神华');h.store.navigate('experts');assert.deepEqual(nav,['stock','experts']);assert.equal(h.store.getSnapshot().target.code,'601088');assert.equal(h.store.getSnapshot().report.data.kind,'stock');assert.equal(h.store.getSnapshot().job.data,null);assert.equal(h.requests.some(r=>r.url.includes('/research/team')),false);h.store.dispose();
+  const nav=[],h=setup({store:{onNavigate:t=>nav.push(t)}});h.store.screenOptions({scope:'watchlist',brief:'关注经营现金流'});await h.store.loadExperts();await h.store.screen(true,()=>{});const post=h.requests.find(r=>r.url.endsWith('/selection-analysis'));const sb=JSON.parse(post.init.body);assert.equal(sb.scope,'watchlist');assert.deepEqual(sb.expert_ids,['E1']);assert.equal(sb.brief,'关注经营现金流');assert.equal(sb.limit_per_expert,5);await h.store.openStock('601088','中国神华');h.store.navigate('experts');assert.deepEqual(nav,['stock','experts']);assert.equal(h.store.getSnapshot().target.code,'601088');assert.equal(h.store.getSnapshot().report.data.kind,'stock');assert.equal(h.store.getSnapshot().job.data,null);assert.equal(h.requests.some(r=>r.url.includes('/research/team')),false);h.store.dispose();
 });
 test('ETF research report is accepted with fund quote, forward history and ETF quant category',async()=>{
   const r=report('stock','513290');
@@ -79,6 +105,19 @@ test('stock page team button starts Ai个股分析 directly without navigating t
   assert.equal(h.store.getSnapshot().tab,beforeTab);assert.notEqual(h.store.getSnapshot().tab,'experts');assert.equal(opened[0],'S-stock');
   assert.equal(h.requests.some(r=>r.url.includes('/experts')),false);h.store.dispose();
 });
+test('a new stock analysis click uses a fresh request after the previous session was accepted',async()=>{
+  const h=setup();await h.store.queryStock('601088');
+  await h.store.startStockAnalysis(()=>{});await h.store.startStockAnalysis(()=>{});
+  const requests=h.requests.filter(r=>r.url.endsWith('/stock-analysis')).map(r=>JSON.parse(r.init.body));
+  assert.equal(requests.length,2);assert.notEqual(requests[0].request_id,requests[1].request_id);h.store.dispose();
+});
+test('failed stock submission retries same target id but a different target gets a new id',async()=>{
+  const h=setup({fetch:(url,init,base)=>url.endsWith('/stock-analysis')?Promise.resolve(reply({error:'not accepted'},503)):base(url,init)});
+  await h.store.queryStock('601088');await h.store.startStockAnalysis(()=>{});await h.store.startStockAnalysis(()=>{});
+  await h.store.queryStock('513290');await h.store.startStockAnalysis(()=>{});
+  const requests=h.requests.filter(r=>r.url.endsWith('/stock-analysis')).map(r=>JSON.parse(r.init.body));
+  assert.equal(requests[0].request_id,requests[1].request_id);assert.notEqual(requests[1].request_id,requests[2].request_id);h.store.dispose();
+});
 test('stock page hides raw legacy quant, evidence coverage and technical warnings',async()=>{
   const h=setup();await h.store.queryStock('601088');const body=text(ui(h,'Stock'));
   for(const hidden of ['legacy（旧网格','信号一致性','专家可用证据','历史数据截至'])assert.equal(body.includes(hidden),false,hidden);
@@ -94,7 +133,7 @@ test('mismatched full report is rejected; invalid neutral percentages disable on
   const r=report();r.quant.items[1].result.probability=.9;const h=setup({fetch:async()=>reply(r)});await h.store.queryStock('601088');assert.equal(h.store.getSnapshot().report.data.quant.items[1].available,false);assert.equal(h.store.getSnapshot().report.data.quant.items[0].available,true);await h.store.queryStock('000001');assert.equal(h.store.getSnapshot().report.phase,'error');assert.equal(h.store.getSnapshot().report.data,null);h.store.dispose();
 });
 test('sector requests use full identity, index null adjustment, breadth and real constituents',async()=>{
-  const h=setup();h.store.sectorOptions({tag:'cn_concept',q:'新能源'});assert.equal(h.requests.length,0);await h.store.loadSectors(30);assert.match(h.requests[0].url,/tag=cn_concept/);assert.match(h.requests[0].url,/offset=30/);await h.store.querySector({thscode:'881101.TI',name:'真实板块'});const r=h.store.getSnapshot().report.data;assert.equal(r.kind,'sector');assert.equal(r.history.data.adjust,null);assert.equal(r.quant.items[0].available,true);const tree=ui(h,'Brief',{report:r});assert.match(text(tree),/指数，无复权/);assert.doesNotMatch(text(tree),/前复权/);assert.match(text(tree),/成分股/);h.store.screenSector();assert.equal(h.store.getSnapshot().screen.sector,'881101.TI');await h.store.loadExperts();await h.store.screen(true);const post=h.requests.find(r=>r.url.endsWith('/research/select'));assert.equal(JSON.parse(post.init.body).scope,'sector');assert.equal(JSON.parse(post.init.body).sector,'881101.TI');h.store.dispose();
+  const h=setup();h.store.sectorOptions({tag:'cn_concept',q:'新能源'});assert.equal(h.requests.length,0);await h.store.loadSectors(30);assert.match(h.requests[0].url,/tag=cn_concept/);assert.match(h.requests[0].url,/offset=30/);await h.store.querySector({thscode:'881101.TI',name:'真实板块'});const r=h.store.getSnapshot().report.data;assert.equal(r.kind,'sector');assert.equal(r.history.data.adjust,null);assert.equal(r.quant.items[0].available,true);const tree=ui(h,'Brief',{report:r});assert.match(text(tree),/指数，无复权/);assert.doesNotMatch(text(tree),/前复权/);assert.match(text(tree),/成分股/);h.store.screenSector();assert.equal(h.store.getSnapshot().screen.sector,'881101.TI');await h.store.loadExperts();await h.store.screen(true,()=>{});const post=h.requests.find(r=>r.url.endsWith('/selection-analysis'));assert.equal(JSON.parse(post.init.body).scope,'sector');assert.equal(JSON.parse(post.init.body).sector,'881101.TI');h.store.dispose();
 });
 test('sector quant needs explicit wrapper identity, never a same-number stock substitute',()=>{
   const h=setup(),r=report('sector','881101.TI'),target=h.api.investTarget('sector','881101.TI');delete r.quant.identity;assert.equal(h.api.investReport(r,target).quant.available,false);r.quant.identity={kind:'sector',thscode:'881101.TI'};r.quant.items.forEach(i=>{i.result.symbol.category='个股';});assert.equal(h.api.investReport(r,target).quant.available,false);assert.throws(()=>h.api.investHistory(history('stock','881101'),'sector'));h.store.dispose();
@@ -253,6 +292,34 @@ test('team views present outlook, disagreement, evidence, risks and abstention r
 });
 test('DSH secondary action only calls draft bridge and rejects stale draft completion',async()=>{
   const h=setup();await h.store.queryStock('601088');let resolve,received;const drafting=h.store.draft(prompt=>{received=prompt;return new Promise(r=>{resolve=r;});},k=>h.api.investMessages().zh[k] || k);assert.match(received,/DATA_EVIDENCE_JSON/);assert.match(received,/历史内样本命中率/);h.store.setCode('000001');resolve({accepted:true,submitted:false});await drafting;assert.equal(h.store.getSnapshot().draft.phase,'idle');assert.equal(h.requests.some(r=>/agent\/chat|research\/team/.test(r.url)),false);h.store.dispose();
+});
+test('watchlist page selects stocks and starts one team session for the selection',async()=>{
+  const opened=[];
+  const h=setup({fetch:(url,init,base)=>{
+    const u=new URL('http://local'+url);
+    if(u.pathname.endsWith('/watchlist-analysis')){
+      const body=JSON.parse(init.body);
+      return Promise.resolve(reply({status:'accepted',submitted:true,sessionId:'S-watch',workspaceId:'W-watch',items:body.items,request_id:body.request_id}));
+    }
+    if(u.pathname.endsWith('/watchlist')&&(!init.method||init.method==='GET'))
+      return Promise.resolve(reply({items:[
+        {code:'601088',name:'中国神华',category:'个股'},
+        {code:'513290',name:'纳指生物科技ETF',category:'ETF'}]}));
+    return base(url,init);
+  }});
+  await h.store.loadWatch();
+  const tree=ui(h,'Watchlist',{onOpenExpertSession:id=>opened.push(id)});
+  const boxes=nodes(tree).filter(n=>n.type==='input'&&n.props.type==='checkbox');
+  assert.equal(boxes.length,2);assert.ok(boxes.every(b=>b.props.checked===true),'default checked');
+  const start=nodes(tree).filter(n=>n.type==='button').find(n=>text(n).includes('专家团队分析选中的自选股'));
+  assert.ok(start);
+  await start.props.onClick();
+  const post=h.requests.find(r=>r.url.endsWith('/watchlist-analysis'));
+  const body=JSON.parse(post.init.body);
+  assert.deepEqual(body.items.map(x=>[x.code,x.category]),[['601088','个股'],['513290','ETF']]);
+  assert.equal(opened[0],'S-watch');
+  assert.equal(h.store.getSnapshot().watchAi.phase,'ready');
+  h.store.dispose();
 });
 test('watchlist additions use explicit clicks and stock context; watchlist opens real brief',async()=>{
   const h=setup();await h.store.queryStock('601088');await h.store.addWatch();const post=h.requests.at(-1);assert.deepEqual(JSON.parse(post.init.body),{code:'601088',category:'个股'});assert.equal(h.store.getSnapshot().add.phase,'ready');await h.store.querySector({thscode:'881101.TI'});const count=h.requests.length;await h.store.addWatch();assert.equal(h.requests.length,count);h.store.dispose();

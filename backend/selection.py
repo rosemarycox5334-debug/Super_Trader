@@ -168,7 +168,9 @@ class _ExpertSession:
     def __init__(self, service, expert, universe, handle, result, job_deadline, completed):
         self.service, self.expert, self.universe = service, expert, universe
         self.handle, self.result, self.completed = handle, result, completed
-        self.deadline = min(job_deadline, time.monotonic() + service.EXPERT_SECONDS)
+        expert_deadline = (time.monotonic() + service.EXPERT_SECONDS
+                           if service.EXPERT_SECONDS else float("inf"))
+        self.deadline = min(job_deadline, expert_deadline) if job_deadline else expert_deadline
         self.phase = "exploration"
         self.exploration_rounds = self.final_calls = 0
         self.discovered, self.read_codes, self.sources = set(), set(), []
@@ -209,18 +211,22 @@ class _ExpertSession:
         # Market requests have their own bounded in-flight timeout. Do not start
         # one so late that it consumes the minute reserved for model synthesis.
         extra = getattr(self.service.market, "TOTAL_TIMEOUT", 25) if data_request else 1
-        if (self.phase != "exploration" or self.operations >= self.service.MAX_OPERATIONS
-                or self.tool_calls > self.service.MAX_TOOL_CALLS
+        over_operations = (self.service.MAX_OPERATIONS is not None
+                           and self.operations >= self.service.MAX_OPERATIONS)
+        over_tools = (self.service.MAX_TOOL_CALLS is not None
+                      and self.tool_calls > self.service.MAX_TOOL_CALLS)
+        if (self.phase != "exploration" or over_operations or over_tools
                 or self.deadline-time.monotonic() <= self.service.FINAL_RESERVE_SECONDS + extra):
             raise _FinishExploration("探索阶段结束：保留预算，仅允许一次无工具综合", 429)
 
     def before_round(self):
         self.check()
-        if self.rounds >= self.service.MAX_ROUNDS:
+        if self.service.MAX_ROUNDS is not None and self.rounds >= self.service.MAX_ROUNDS:
             raise _Stopped("专家模型轮次预算已耗尽", 504)
         if self.phase == "exploration":
             self.check_exploration()
-            if self.exploration_rounds >= self.service.MAX_EXPLORATION_ROUNDS:
+            if (self.service.MAX_EXPLORATION_ROUNDS is not None
+                    and self.exploration_rounds >= self.service.MAX_EXPLORATION_ROUNDS):
                 raise _FinishExploration("自主探索轮数已到，进入唯一综合阶段", 429)
             self.exploration_rounds += 1
         self.rounds += 1
@@ -228,7 +234,7 @@ class _ExpertSession:
 
     def request_timeout(self):
         self.check()
-        remaining = self.deadline-time.monotonic()-1
+        remaining = self.deadline-time.monotonic()-1 if self.deadline != float("inf") else float("inf")
         if self.phase == "exploration":
             remaining -= self.service.FINAL_RESERVE_SECONDS
         if remaining <= 0:
@@ -255,7 +261,7 @@ class _ExpertSession:
 
     def operation(self):
         self.check_exploration(data_request=True)
-        if self.operations >= self.service.MAX_OPERATIONS:
+        if self.service.MAX_OPERATIONS is not None and self.operations >= self.service.MAX_OPERATIONS:
             raise SelectionError("数据操作预算已耗尽，请依据已有真实证据完成或弃权", 429)
         self.operations += 1
 
@@ -370,12 +376,14 @@ class _ExpertSession:
         period, count = args.get("financial_period", "quarterly"), args.get("financial_limit", 5)
         if period not in ("annual", "quarterly") or type(count) is not int or not 1 <= count <= 8:
             raise SelectionError("财报period须annual/quarterly，limit须1..8")
-        if code not in self.read_codes and len(self.read_codes) >= self.service.MAX_STOCKS:
+        if (self.service.MAX_STOCKS is not None and code not in self.read_codes
+                and len(self.read_codes) >= self.service.MAX_STOCKS):
             raise SelectionError("已达深入取证股票数量预算")
         self.check()
         # Each requested source consumes one operation; shared history/trend use one HTTP request.
         cost = len(sections) - int("history" in sections and "trend" in sections)
-        if self.operations + cost > self.service.MAX_OPERATIONS:
+        if (self.service.MAX_OPERATIONS is not None
+                and self.operations + cost > self.service.MAX_OPERATIONS):
             raise SelectionError("剩余数据操作预算不足，请减少sections或完成名单", 429)
         self.read_codes.add(code)
         records, history = [], None
@@ -416,17 +424,20 @@ class _ExpertSession:
                                             factor_read if factor_requested else operations[section]))
             self.progress("source_read", "read_stock", f"{code} {section}已返回真实可用性及来源")
         self.exposed_sources.update(record["id"] for record in records)
+        remaining = (None if self.service.MAX_OPERATIONS is None
+                     else self.service.MAX_OPERATIONS-self.operations)
         return {"code": code, "name": identity["name"], "sources": deepcopy(records),
-                "remaining_operations": self.service.MAX_OPERATIONS-self.operations}
+                "remaining_operations": remaining}
 
     def tools(self):
         def wrap(name):
             def run(args):
                 # Bound bookkeeping even if a provider emits an excessive tool-call array.
-                self.tool_calls = min(self.tool_calls+1, self.service.MAX_TOOL_CALLS+1)
+                self.tool_calls += 1
                 try:
                     self.check()
-                    if self.tool_calls > self.service.MAX_TOOL_CALLS:
+                    if (self.service.MAX_TOOL_CALLS is not None
+                            and self.tool_calls > self.service.MAX_TOOL_CALLS):
                         raise SelectionError("工具调用预算已耗尽", 429)
                     if not isinstance(args, dict):
                         raise SelectionError("工具参数须为对象")
@@ -551,15 +562,17 @@ class _ExpertSession:
 
 
 class SelectionService:
-    MAX_ROUNDS = 7
-    MAX_EXPLORATION_ROUNDS = 4
-    FINAL_RESERVE_SECONDS = 60
+    # No exploration budget caps: an expert decides when its evidence is enough.
+    MAX_ROUNDS = None
+    MAX_EXPLORATION_ROUNDS = None
+    MODEL_TOOL_ROUNDS = 10000  # transport loop guard for one chat call, not a research budget
+    FINAL_RESERVE_SECONDS = 0
     EXPLORATION_TOKENS = 1400
-    MAX_OPERATIONS = 12
-    MAX_STOCKS = 8
-    MAX_TOOL_CALLS = 24
-    JOB_SECONDS = 600
-    EXPERT_SECONDS = 180
+    MAX_OPERATIONS = None
+    MAX_STOCKS = None
+    MAX_TOOL_CALLS = None
+    JOB_SECONDS = None
+    EXPERT_SECONDS = None
     MAX_SCOPE_PAGES = 100
 
     def __init__(self, market, research, experts, jobs, watchlist):
@@ -717,7 +730,7 @@ class SelectionService:
         payload = dict(scope=scope, sector=sector, expert_ids=ids, brief=brief, limit_per_expert=limit_per_expert)
 
         def runner(handle):
-            deadline = time.monotonic() + self.JOB_SECONDS
+            deadline = time.monotonic() + self.JOB_SECONDS if self.JOB_SECONDS else float("inf")
             result = {"kind": "expert_selection", "scope": scope, "sector": sector, "brief": brief,
                       "limit_per_expert": limit_per_expert, "universe": {"total": None, "source": None, "timestamp": None},
                       "expert_results": [], "common_picks": [], "differences": [], "errors": [], "activity": [],
@@ -725,6 +738,7 @@ class SelectionService:
                           "每位专家仅在预算内自主探索；不是全市场完整扫描、最优排名或统一财务/量化阈值筛选。",
                           "这是配置投资理念的AI模型研究，不代表真人投资者参与，不是买入建议，不执行交易。",
                           "factor只读新版LLM源码h1–h20同规则成果；生产quant请求转factor，无成果不回退网格，无覆盖/中性不排除候选。",
+                          "本次不设探索预算上限（轮次、取证只数、数据操作与时长）；任务可随时取消。",
                           "未接入新闻、管理层和护城河一手证据；相关内容必须列为待进一步研究，不可杜撰。",
                           "预算在每次工具/模型请求前检查；不承诺中断已在途HTTP请求。"]}
             def check():
@@ -822,7 +836,7 @@ class SelectionService:
         try:
             output = self.experts.model.chat(
                 self._messages(expert, result), tools=_tool_schemas(), tool_impls=session.tools(),
-                max_tool_rounds=self.MAX_EXPLORATION_ROUNDS, max_tokens=self.EXPLORATION_TOKENS,
+                max_tool_rounds=self.MODEL_TOOL_ROUNDS, max_tokens=self.EXPLORATION_TOKENS,
                 response_format_json=False, **settings)
             session.check()
             session.validate(session.decode_output(output))
@@ -861,10 +875,10 @@ class SelectionService:
             "从真实目录自己探索行业与候选，自己按理念决定取哪些证据、选哪些股票；不存在服务端统一财务阈值或量化预筛名单。"
             "本次scope只是成员边界。目录名称不是选股事实依据；先用目录发现股票再read_stock，一次一只。"
             "可自行分页（目录每页<=30）；预算仅探索，不得声称完整扫描、全市场最优。"
-            "每专家总计最多7轮模型、12数据操作（每证据节一次，history/trend共一次）、8只深入取证、180秒；"
-            "自主工具探索最多4轮，服务端保留至少约60秒进行唯一一次无工具JSON综合；有结论可提前输出最终JSON。"
-            "探索应优先为自己发现的少量股票取得一条以上有效事实，不要只翻目录耗尽轮次。"
-            "根据工具remaining_operations自行收敛。工具不可用就如实说明，不猜数据。"
+            "不设探索预算上限：可以持续浏览目录、逐只取证，直到你认为证据足够并输出最终JSON；"
+            "服务端只在你提前结束或工具异常时，保留一次无工具JSON综合作为兜底。"
+            "探索应先为自己发现的股票取得一条以上有效事实，不要只翻目录。"
+            "工具不可用就如实说明，不猜数据。"
             "factor为已保存LLM源码的同规则h1–h20准确率，同一标的各h共享方向、每标的可独立最佳规则；仅为内样本历史频率。"
             "优先请求factor；生产quant旧请求也转为factor，绝不以旧网格补称新LLM成果。无结果即明确无已验证新成果。"
             "factor当前direction=0、中性、accuracy=null或无覆盖不排除其他证据候选，不必强制量化或财报。"

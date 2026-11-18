@@ -244,6 +244,8 @@ class MarketService:
         self._put(self._metadata, result["thscode"], (self._clock(), result), self.META_MAX)
         return result
 
+    _FUND_ASSETS = {"fund-etf": "ETF", "fund-lof": "LOF"}
+
     def _resolve_fund(self, code: str, key: str, deadline: float) -> dict:
         now = self._clock()
         cache_key = ("fund", code)
@@ -252,35 +254,124 @@ class MarketService:
             self._metadata.move_to_end(cache_key)
             return cached[1]
         self._metadata.pop(cache_key, None)
-        data = self._get("/api/meta/tickers/search",
-                         {"q": code, "asset_type": "fund-etf", "limit": 50}, key, deadline)
         matches = {}
-        for row in data["item"]:
-            if not isinstance(row, dict):
-                raise MarketError("基金目录记录无效", code="market_protocol")
-            full = row.get("thscode")
-            if (isinstance(full, str) and _FULL.fullmatch(full)
-                    and row.get("asset_type") == "fund-etf"
-                    and (full == code if "." in code else full[:6] == code)):
-                matches[full] = row
+        for asset in self._FUND_ASSETS:
+            try:
+                data = self._get("/api/meta/tickers/search",
+                                 {"q": code, "asset_type": asset, "limit": 50}, key, deadline)
+            except MarketError:
+                if asset == "fund-etf":
+                    raise
+                break
+            for row in data["item"]:
+                if not isinstance(row, dict):
+                    raise MarketError("基金目录记录无效", code="market_protocol")
+                full = row.get("thscode")
+                if (isinstance(full, str) and _FULL.fullmatch(full)
+                        and row.get("asset_type") in self._FUND_ASSETS
+                        and (full == code if "." in code else full[:6] == code)):
+                    matches[full] = row
+            if matches:
+                break
         if len(matches) != 1:
-            raise MarketError("代码无法唯一解析为 ETF", code="market_ambiguous" if matches else "market_unsupported", status=422)
+            raise MarketError("代码无法唯一解析为上市基金（ETF/LOF）", code="market_ambiguous" if matches else "market_unsupported", status=422)
         result = next(iter(matches.values()))
         self._put(self._metadata, cache_key, (self._clock(), result), self.META_MAX)
+        return result
+
+    _FUND_RESEARCH_PATHS = {
+        "profile": "/api/fund/profile/detail",
+        "nav": "/api/fund/performance/nav",
+        "holdings": "/api/fund/portfolio/holdings",
+        "performance": "/api/fund/performance/returns",
+        "financials": "/api/fund/financials/indicators",
+        "indicators": "/api/fund/performance/indicators-historical",
+        "news": "/api/fund/news/article-list",
+    }
+
+    def _fund_research_dataset(self, code: str, dataset: str) -> dict:
+        """Dated, bounded fund data; empty results are not evidence availability."""
+        def load(key, deadline):
+            meta = self._resolve_fund(code, key, deadline)
+            params = {"thscode": meta["thscode"]}
+            if dataset == "nav":
+                params.update(range="month", nav_type="unit,adj")
+            elif dataset == "indicators":
+                end = int(self._clock() * 1000)
+                params.update(start=max(0, end - 90 * 86400000), end=end)
+            elif dataset == "news":
+                params["limit"] = 12
+            path = self._FUND_RESEARCH_PATHS[dataset]
+            raw = self._get(path, params, key, deadline)
+            rows = raw.get("item", raw.get("items", []))
+            if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+                raise MarketError("基金研究数据格式无效", code="market_protocol")
+            if dataset == "profile" and any(row.get("thscode") != meta["thscode"] for row in rows):
+                raise MarketError("基金资料标识不匹配", code="market_protocol")
+            date_key = {"nav": "nav_date", "financials": "end_date_ms", "indicators": "date_ms", "news": "publish_time_ms"}.get(dataset)
+            if date_key:
+                rows = sorted(rows, key=lambda row: row.get(date_key) if type(row.get(date_key)) is int else -1)
+                rows = rows[-(12 if dataset == "news" else 30):]
+            else:
+                rows = rows[:30]
+            data = {k: deepcopy(v) for k, v in raw.items() if k not in ("item", "items")}
+            data.update(thscode=meta["thscode"], items=deepcopy(rows), timestamp=_timestamp(raw.get("timestamp")) or None)
+            dates = [row[date_key] for row in rows if date_key and type(row.get(date_key)) is int and row[date_key] > 0]
+            usable = bool(rows)
+            if dataset in ("nav", "financials", "indicators"):
+                facts = ({"unit_nav", "adj_nav"} if dataset == "nav" else
+                         {"rsi_pct", "donchian_channel", "track_index_pe_ttm_five_year_percentile"} if dataset == "indicators" else
+                         {"asset_nav", "current_income", "current_profit", "share_nav", "nav_rate", "distribution_profit"})
+                usable = any(type(row.get(field)) in (int, float) and math.isfinite(row[field])
+                             for row in rows for field in facts)
+            elif dataset == "news":
+                usable = any(isinstance(row.get("title"), str) and row["title"].strip() for row in rows)
+            result = {"available": usable, "data": data, "path": path,
+                      "as_of": max(dates) if dates else None, "attempted": True}
+            if not usable:
+                result["error"] = "接口已查询，暂无该基金的有效记录"
+            return result
+        ttl = 60 if dataset == "news" else 300
+        return self._domain_cached(("fund-research", code, dataset), ttl, load)
+
+    def fund_research(self, code: str, *, include_optional: bool = False) -> dict:
+        """Fetch independent ETF sources; news/index-percentile lookup is opt-in."""
+        parsed = self._parse(code)
+        if len(parsed) != 1:
+            raise MarketError("一次只查询一个ETF研究包", code="market_codes", status=400)
+        result = {}
+        deadline = time.monotonic() + 60
+        for dataset, path in self._FUND_RESEARCH_PATHS.items():
+            if dataset in ("news", "indicators") and not include_optional:
+                result[dataset] = {"available": False, "excluded": True, "attempted": False}
+                continue
+            if time.monotonic() >= deadline:
+                result[dataset] = {"available": False, "attempted": False, "path": path,
+                                   "error": "基金补证本轮时间预算已用尽，可通过ths_api继续查询"}
+                continue
+            try:
+                result[dataset] = self._fund_research_dataset(parsed[0], dataset)
+            except MarketError as exc:
+                result[dataset] = {"available": False, "attempted": True, "path": path,
+                                   "error": "基金研究接口暂不可用", "code": exc.code}
+            except Exception:
+                result[dataset] = {"available": False, "attempted": True, "path": path,
+                                   "error": "基金研究数据暂不可用"}
         return result
 
     def fund_symbol(self, code: str) -> dict:
         parsed = self._parse(code)
         if len(parsed) != 1 or "," in code:
-            raise MarketError("一次只解析一个 ETF", code="market_codes", status=400)
+            raise MarketError("一次只解析一个上市基金", code="market_codes", status=400)
         deadline = time.monotonic() + self.TOTAL_TIMEOUT
         with self._lock:
             if self._closed:
                 raise MarketError("行情服务已关闭", code="market_closed", status=503)
             key = self._credentials()
             meta = self._resolve_fund(parsed[0], key, deadline)
+        category = self._FUND_ASSETS.get(meta.get("asset_type"), "ETF")
         return {"code": meta["thscode"][:6], "thscode": meta["thscode"],
-                "name": meta.get("name"), "category": "ETF", "asset_type": "fund-etf"}
+                "name": meta.get("name"), "category": category, "asset_type": meta.get("asset_type")}
 
     def fund_snapshot(self, code: str) -> dict:
         parsed = self._parse(code)
@@ -602,17 +693,24 @@ class MarketService:
                     rows.append({"code": full[:6], "thscode": full, "name": row.get("name"), "category": "个股"})
                     self._put(self._metadata, full, (self._clock(), row), self.META_MAX)
             if len(rows) < limit:
-                try:
-                    fund = self._get("/api/meta/tickers/search",
-                                     {"q": query, "asset_type": "fund-etf", "limit": limit}, key, deadline)
+                seen = {row["thscode"] for row in rows}
+                for asset, label in self._FUND_ASSETS.items():
+                    if len(rows) >= limit:
+                        break
+                    try:
+                        fund = self._get("/api/meta/tickers/search",
+                                         {"q": query, "asset_type": asset, "limit": limit}, key, deadline)
+                    except MarketError:
+                        continue
                     for row in fund["item"]:
                         if not isinstance(row, dict):
                             continue
                         full = row.get("thscode")
-                        if row.get("asset_type") == "fund-etf" and isinstance(full, str) and _FULL.fullmatch(full):
-                            rows.append({"code": full[:6], "thscode": full, "name": row.get("name"), "category": "ETF"})
-                except MarketError:
-                    pass
+                        if (row.get("asset_type") == asset and isinstance(full, str)
+                                and _FULL.fullmatch(full) and full not in seen):
+                            seen.add(full)
+                            rows.append({"code": full[:6], "thscode": full,
+                                         "name": row.get("name"), "category": label})
             return {"items": rows[:limit], "timestamp": _timestamp(data.get("timestamp")), "query": query}
         return self._domain_cached(("symbol-search", query, limit), 300, load)
 
@@ -788,6 +886,13 @@ class MarketService:
         {"path": "/api/news/stock/timeline-list", "description": "个股分时新闻"},
         {"path": "/api/news/flash/list", "description": "快讯"},
         {"path": "/api/news/notice/detail", "description": "公告详情与解读"},
+        {"path": "/api/fund/profile/detail", "description": "基金资料/原始规模/费率（thscode）；资料净值无日期，不是IOPV"},
+        {"path": "/api/fund/performance/nav", "description": "带nav_date的净值（thscode；range=month；nav_type=unit,adj）；非实时IOPV"},
+        {"path": "/api/fund/portfolio/holdings", "description": "基金披露持仓/权重/报告日（thscode）；含海外证券，不是实时指数成分"},
+        {"path": "/api/fund/financials/indicators", "description": "基金报告期利润/资产净值（thscode）；不是成分股财报"},
+        {"path": "/api/fund/performance/returns", "description": "基金及同类区间收益（thscode）"},
+        {"path": "/api/fund/performance/indicators-historical", "description": "净值指标和可能的指数PE五年分位（thscode/start/end毫秒，均必填）；缺失不补造"},
+        {"path": "/api/fund/news/article-list", "description": "基金新闻（thscode/limit；offset为不透明游标），可能为空"},
     )
 
     @classmethod

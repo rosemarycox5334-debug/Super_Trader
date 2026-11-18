@@ -58,15 +58,12 @@ window.__ModuleLoader__.load({
         React.useSyncExternalStore(fn=>locale.subscribe(fn),()=>locale.getSnapshot());
         const state=React.useSyncExternalStore(store.subscribe,store.getSnapshot,store.getSnapshot);
         const tab=props.initialTab || 'screen';
-        const [advanced,setAdvanced]=React.useState(null);
-        React.useEffect(()=>{setAdvanced(null);},[tab]);
         const onAnalyze=createAnalysisBridge(ctx,props);
         const onOpenExpertSession=createExpertSessionBridge(ctx);
         return h('section',{className:'st-native-panel','aria-label':t(tab)},h('style',null,CSS),
           h('div',{className:'st-native-top'},h('div',{className:'st-native-status',role:'status','data-ready':state.connection.ready?'true':'false'},t(state.connection.ready?'connected':'offline')),h('div',{className:'st-native-modes'},h('button',{type:'button',onClick:()=>ctx.layout.selectPanel(null)},t('backChat')),!state.connection.ready?h('button',{type:'button',onClick:()=>store.retryConnection()},t('retryStart')):null)),
           state.connection.error?h('p',{className:'st-native-error',role:'alert'},t(state.connection.error.key)+': '+state.connection.error.detail):null,
-          advanced?h(Legacy,{tab,advanced}):['journal','settings'].includes(tab)?h(Legacy,{tab}):h(Invest,{tab,t,onAnalyze,onOpenExpertSession}),
-          h('details',{className:'sti-advanced',onToggle:event=>{if(!event.currentTarget.open)setAdvanced(null);}},h('summary',null,t('advanced')),h('p',null,t('advancedNote')),h('nav',{className:'st-advanced-nav','aria-label':t('advanced')},...['quant','experts','watchlist','journal'].map(id=>h('button',{key:id,type:'button','aria-pressed':advanced===id,onClick:()=>setAdvanced(id)},t(id==='quant'?'quantTab':id))))));
+          ['journal','settings'].includes(tab)?h(Legacy,{tab}):h(Invest,{tab,t,onAnalyze,onOpenExpertSession}));
       }
       function icon(path) {return function Icon(props) {return h('svg',{width:props.size || 20,height:props.size || 20,viewBox:'0 0 24 24',fill:'none','aria-hidden':'true'},h('path',{d:path,stroke:'currentColor',strokeWidth:props.active?1.9:1.6,strokeLinecap:'round',strokeLinejoin:'round'}));};}
       const entries=[

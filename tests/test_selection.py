@@ -107,7 +107,7 @@ class FakeModel:
 
     def chat(self, messages, **kwargs):
         self.calls.append((deepcopy(messages), kwargs))
-        assert kwargs["max_tool_rounds"] <= 7
+        assert kwargs["max_tool_rounds"] >= 1
         if kwargs["tools"] is not None:
             assert {tool["function"]["name"] for tool in kwargs["tools"]} == {
                 "candidate_directory", "sector_directory", "sector_members", "read_stock"}
@@ -430,52 +430,46 @@ def test_cancellation_checked_before_more_tools_and_model_rounds(svc):
     assert not any(call[0] == "history" for call in svc.market.calls)
 
 
-def test_expert_time_budget_before_round_and_job_budget_between_experts(svc, monkeypatch):
+def test_no_expert_or_job_time_budget(svc, monkeypatch):
     clock = [0.0]
     monkeypatch.setattr("backend.selection.time.monotonic", lambda: clock[0])
     def slow(tools, before):
         tools["candidate_directory"]({})
-        tools["read_stock"]({"code": "000001", "sections": ["quote"]})
+        got = tools["read_stock"]({"code": "000001", "sections": ["quote"]})
         clock[0] = 601
         before()
+        return final([pick("000001", got["sources"][0]["id"], "/data/items/0/last_price")])
     row = run(svc, [slow, script_pick()], ids=["price_action", "quant_expert"])
-    assert row["status"] == "error" and len(svc.experts.model.calls) == 1
-    assert len(row["result"]["errors"]) == 2 and all(e["status"] == 504 for e in row["result"]["errors"])
-    assert row["result"]["expert_results"][0]["evidence_sources"]
+    assert row["status"] == "done" and len(svc.experts.model.calls) == 2
+    assert all(x["status"] == "done" for x in row["result"]["expert_results"])
 
 
-def test_operation_budget_12_and_round_budget_7_are_enforced(svc):
+def test_operation_and_round_budgets_are_not_capped(svc):
     def script(tools, before):
-        for _ in range(12):
+        for _ in range(30):
             assert tools["candidate_directory"]({})["items"]
-        refused = tools["read_stock"]({"code": "000001", "sections": ["quote"]})
-        assert refused["status"] == 429
-        return final(abstained="已在预算内浏览但无剩余取证预算")
+        got = tools["read_stock"]({"code": "000001", "sections": ["quote"]})
+        assert got["sources"]
+        for _ in range(7):
+            before()
+        return final([pick("000001", got["sources"][0]["id"], "/data/items/0/last_price")])
     row = run(svc, [script])
     assert row["status"] == "done"
-    assert row["result"]["expert_results"][0]["coverage"]["data_operations"] == 12
-    assert not any(call[0] == "quote" for call in svc.market.calls)
-    def rounds(tools, before):
-        for _ in range(7):
-            before()  # initial round already counted, eighth is rejected
-        return final()
-    row = run(svc, [rounds])
-    assert row["status"] == "error"
-    assert row["result"]["expert_results"][0]["coverage"]["model_rounds"] == 4
+    coverage = row["result"]["expert_results"][0]["coverage"]
+    assert coverage["data_operations"] >= 31 and coverage["model_rounds"] >= 8
+    assert coverage["budgets"]["data_operations"] is None and coverage["budgets"]["model_rounds"] is None
 
 
-def test_unique_stock_budget_eight_and_section_operations_count_separately(svc):
+def test_unique_stock_budget_is_not_capped(svc):
     svc.market.rows = [stock(i) for i in range(1, 11)]
     def script(tools, before):
         assert len(tools["candidate_directory"]({})["items"]) == 10
-        for i in range(1, 9):
+        for i in range(1, 11):
             assert tools["read_stock"]({"code": f"{i:06}", "sections": ["quote"]})["sources"]
-        refused = tools["read_stock"]({"code": "000009", "sections": ["quote"]})
-        assert refused["available"] is False
         return final()
     row = run(svc, [script])
-    assert row["result"]["expert_results"][0]["coverage"]["researched_count"] == 8
-    assert len([call for call in svc.market.calls if call[0] == "quote"]) == 8
+    assert row["result"]["expert_results"][0]["coverage"]["researched_count"] == 10
+    assert len([call for call in svc.market.calls if call[0] == "quote"]) == 10
 
 
 def test_tool_page_max_30_and_arguments_validation_do_not_call_provider(svc):
@@ -553,29 +547,20 @@ def test_ipo_and_delisting_metadata_preserved_without_filtering(svc):
     assert row["result"]["expert_results"][0]["picks"][0]["code"] == "000004"
 
 
-def test_exploration_round_boundary_forces_one_synthesis_without_reloading_or_rebasing(svc):
+def test_exploration_rounds_are_not_capped_before_the_expert_finishes(svc):
     observed = []
     def exploring(tools, before):
         tools["candidate_directory"]({"q": "000001"})
         got = tools["read_stock"]({"code": "000001", "sections": ["quote", "fundamentals"]})
         observed.extend(deepcopy(got["sources"]))
-        for _ in range(4):
-            before()  # fifth exploration request is refused; synthesis owns remaining round
-        pytest.fail("must leave exploration")
-    def synthesize(tools, before):
-        assert tools == {}
-        model = svc.experts.model
-        bundle = json.loads(model.calls[-1][0][-1]["content"].split("\n", 1)[1])
-        assert bundle["evidence_sources"] == observed
+        for _ in range(6):
+            before()
         return final([pick("000001", observed[0]["id"], "/data/items/0/last_price")])
-    svc.experts.model.final_scripts = [synthesize]
     row = run(svc, [exploring])
     assert row["status"] == "done"
     expert = row["result"]["expert_results"][0]
-    assert expert["picks"] and expert["coverage"]["model_rounds"] == 5
-    assert expert["coverage"]["exploration_rounds"] == 4 and expert["coverage"]["final_calls"] == 1
-    assert expert["evidence_sources"] == observed
-    assert expert["exploration_warning"]["code"] == "exploration_budget"
+    assert expert["picks"] and expert["coverage"]["exploration_rounds"] >= 7
+    assert expert["coverage"]["final_calls"] == 0 and not expert.get("exploration_warning")
     assert len([call for call in svc.market.calls if call[0] == "quote"]) == 1
     assert len([call for call in svc.market.calls if call[0] == "financials"]) == 1
 
@@ -593,25 +578,18 @@ def test_operation_limit_forces_summary_with_existing_evidence_and_no_more_reads
     assert row["status"] == "done" and expert["picks"]
     assert expert["coverage"]["data_operations"] == 12
     assert expert["coverage"]["final_calls"] == 1
-    assert expert["coverage"]["model_rounds"] <= svc.MAX_ROUNDS
+    assert expert["coverage"]["model_rounds"] >= 0
 
 
-def test_reserved_synthesis_time_and_per_request_timeout_never_exceed_hard_remaining(svc, monkeypatch):
-    clock = [0.0]
-    monkeypatch.setattr("backend.selection.time.monotonic", lambda: clock[0])
+def test_request_timeout_uses_configured_value_without_a_reserve(svc):
     def exploring(tools, before):
         tools["candidate_directory"]({})
         tools["read_stock"]({"code": "000001", "sections": ["quote"]})
-        clock[0] = 120
         assert svc.experts.model.calls[0][1]["timeout"] is not None
-        before()
-    def synthesize(tools, before):
-        assert svc.experts.model.calls[-1][1]["timeout"]() == 59
         return final([pick("000001", "s1", "/data/items/0/last_price")])
-    svc.experts.model.final_scripts = [synthesize]
     row = run(svc, [exploring])
     assert row["status"] == "done"
-    assert row["result"]["expert_results"][0]["coverage"]["final_calls"] == 1
+    assert row["result"]["expert_results"][0]["coverage"]["final_calls"] == 0
 
 
 @pytest.mark.parametrize("failure,expected", [(ModelError("raw timeout body", 504), "model_timeout"),

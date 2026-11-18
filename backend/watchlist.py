@@ -39,11 +39,19 @@ class WatchlistService:
         try:
             info = self.engine.resolve_symbol(code, category)
         except QuantError as exc:
-            if self.market is None or exc.status not in (404, 503) or category not in (None, "个股"):
+            if self.market is None or exc.status not in (404, 503):
                 raise
             # Watching a verified market symbol does not imply local fitting data
             # exists; batch analysis will still report the original quant error.
-            info = SimpleNamespace(**self.market.symbol(code))
+            if category in ("ETF", "LOF"):
+                try:
+                    info = SimpleNamespace(**self.market.fund_symbol(code))
+                except Exception:
+                    raise WatchlistError("未找到该上市基金（ETF/LOF），或当前行情服务不可用", status=404) from None
+            elif category in (None, "个股"):
+                info = SimpleNamespace(**self.market.symbol(code))
+            else:
+                raise
         exists = self.db.query_one(
             "SELECT 1 FROM watchlist WHERE symbol_code=? AND symbol_category=?",
             (info.code, info.category))

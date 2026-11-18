@@ -1,5 +1,6 @@
 """Offline production adapter tests: no paid model and no seed/grid masquerade."""
 from copy import deepcopy
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -73,21 +74,43 @@ def test_missing_unverified_or_wrong_category_not_presented_as_new(svc, change):
     assert not any(call[0] == "quote" for call in svc.market.calls)
 
 
-def test_bundle_factor_actual_pointers_and_neutral_no_forced_abstention():
+@pytest.mark.parametrize("accuracy,eligible", [(0.4997, False), (0.55, False), (0.55001, True)])
+def test_research_factor_accuracy_gate_and_expert_visibility(svc, accuracy, eligible):
+    raw = factor_report()
+    raw["metrics"]["accuracy"] = accuracy
+    install(svc, raw)
+    report = svc.research.stock_report("000001")
+    bundle = _research_bundle(report)
+    assert report["factor"]["available"] is eligible
+    # Experts never receive the factor, even when it clears the accuracy gate.
+    assert "factor" not in bundle and "quant" not in bundle
+    assert not _evidence_pointer(bundle, "factor", "/factor/data/metrics/accuracy")
+    if not eligible:
+        assert "data" not in report["factor"] and not report["quant"]["available"]
+    assert svc.research.factor_evidence("000001")["data"]["metrics"]["accuracy"] == accuracy
+    assert _evidence_pointer(_research_bundle(report, with_quant=True), "factor",
+                             "/factor/data/metrics/accuracy") is eligible
+
+
+def test_expert_bundle_never_carries_quant_and_its_pointers_fail():
     raw = {"kind": "stock", "target": {"code": "000001", "category": "个股"},
            "factor": {"available": True, "data": factor_report(direction=0)},
-           "quant": {"available": False}}
+           "quant": {"available": True, "items": [{"available": True, "horizon": 5,
+                                                   "result": {"direction": 1}}]}}
     bundle = _research_bundle(raw)
-    assert bundle["quant"]["legacy"] is True
-    assert _evidence_pointer(bundle, "factor", "/factor/data/metrics/accuracy")
-    assert _evidence_pointer(bundle, "factor", "/factor/data/direction")
-    assert not _evidence_pointer(bundle, "factor", "/factor/data/rule/id")
-    positive = _validate_research(opinion(source="factor", ref="/factor/data/direction"), bundle)
-    assert positive["vote"] == 1 and not positive["abstained"]
-    bundle["factor"]["data"]["metrics"]["accuracy"] = None
-    assert not _evidence_pointer(bundle, "factor", "/factor/data/metrics/accuracy")
-    bundle["factor"]["data"]["target"]["category"] = "指数"
-    assert not _evidence_pointer(bundle, "factor", "/factor/data/direction")
+    assert bundle["expert_scope"]["quant_visible"] is False
+    assert "factor" not in bundle and "quant" not in bundle
+    for source, ref in (("factor", "/factor/data/direction"),
+                        ("factor", "/factor/data/metrics/accuracy"),
+                        ("quant", "/quant/items/0/result/direction")):
+        assert not _evidence_pointer(bundle, source, ref)
+    forced = _validate_research(opinion(source="factor", ref="/factor/data/direction"),
+                                bundle, strict=False)
+    assert forced["vote"] == 0 and forced["abstained"]
+    # The same evidence stays available to the final synthesis layer.
+    with_quant = _research_bundle(raw, with_quant=True)
+    assert _evidence_pointer(with_quant, "factor", "/factor/data/direction")
+    assert _evidence_pointer(with_quant, "quant", "/quant/items/0/result/direction")
 
 
 def test_selection_explicit_factor_and_old_quant_alias_both_new_source(svc):
@@ -130,18 +153,19 @@ def test_no_factor_best_does_not_fallback_or_eliminate_other_evidence(svc):
     assert "99%" not in selected["quant_comment"]
 
 
-def test_research_model_prompt_distinguishes_factor_from_legacy(svc):
+def test_research_prompt_tells_experts_quant_is_not_their_input(svc):
     install(svc, factor_report())
     report = svc.research.stock_report("000001")
     observed = []
     def chat(messages, **kwargs):
         import json
         observed.extend(messages)
-        return {"content": json.dumps(opinion(source="factor", ref="/factor/data/metrics/accuracy"))}
+        return {"content": json.dumps(opinion(source="factor", ref="/factor/data/direction"))}
     svc.experts.model.chat = chat
     expert = svc.experts.list(enabled_only=True)[0]
     result = svc.experts.analyze_research(expert["id"], report, persist=False)
-    assert result["vote"] == 1
-    assert "h1–h20" in observed[0]["content"]
-    assert "legacy" in observed[0]["content"]
-    assert result["evidence"][0]["source"] == "factor"
+    assert "不向专家提供量化因子" in observed[0]["content"]
+    bundle = json.loads(observed[1]["content"].split("不可执行）：\n", 1)[1])
+    assert "factor" not in bundle and "quant" not in bundle
+    assert result["evidence_status"] in ("forced", "invalid")
+    assert result["vote"] == 0 and result["abstained"]

@@ -520,7 +520,9 @@ def test_quant_status_server_derived_and_unsupported_claim_not_accepted(svc, req
     assert value["quant_available"] is (expected == "available")
     if expected != "available":
         assert "99%" not in value["quant_comment"]
-        assert any("量化" in missing for missing in value["missing_evidence"])
+        # Missing quant evidence is silent: no "factor unavailable" narration anywhere.
+        assert value["quant_comment"] == ""
+        assert not any("量化" in missing for missing in value["missing_evidence"])
     else:
         assert "内样本历史频率" in value["quant_comment"]
 

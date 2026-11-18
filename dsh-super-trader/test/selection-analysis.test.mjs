@@ -29,6 +29,13 @@ test('selection creates Ai专家选股 and a session that runs the real screenin
   for(const phrase of ['st_screen_stocks','st_job','scope: "market"','limit_per_expert','重视现金流','逐位专家展示','排除','不得编造','不是买入建议','universe.total = 0','st_watchlist','值得观察','不要向用户提问'])assert.ok(prompt.includes(phrase),phrase);
 });
 
+test('watchlist scope evaluates every saved target instead of screening a list',async t=>{
+  const h=await setup(t);
+  await h.service.start({scope:'watchlist',limit_per_expert:5,request_id:'selection-request-0001'});
+  const prompt=h.calls.prompt[0].content[0].text;
+  assert.doesNotMatch(prompt,/st_screen_stocks/);
+  for(const phrase of ['st_watchlist','每一只','st_stock_research','st_team_research','值得观察','ETF','不要向用户提问'])assert.ok(prompt.includes(phrase),phrase);
+});
 test('sector scope passes the complete thscode and the same id reuses one session',async t=>{
   const h=await setup(t,{existing:true});
   const params={scope:'sector',sector:'881101.TI',expert_ids:['price_action'],brief:'',limit_per_expert:3};

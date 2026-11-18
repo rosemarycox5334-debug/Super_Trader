@@ -28,11 +28,45 @@ export function normalizeSelectionRequest(body){
   return {scope,sector,brief,limit_per_expert:limit,expert_ids:ids};
 }
 
+function buildSelfWatchPrompt(expertLine){
+  return `# AI 自选股逐只分析：我的自选股
+
+用户已在“专家选股”页选择“自选股”。本次**不是海选名单**，而是把自选里的**每一只都评一遍**（个股、ETF、LOF 都要），请现在直接完成，不要等待用户再次发送，不要新建工作区或会话，也不要向用户提问。
+
+## 第一步：取当前自选
+调用 st_watchlist({"action":"list"})，拿到真实的 code / category / name。以工具返回为唯一事实来源，不要凭记忆或旧结果。
+
+## 第二步：逐只深度研判（一只都不能跳）
+对自选里的每一只依次执行：
+1. st_stock_research({"code":"代码","category":"类别"})，类别原样传（个股 / ETF / LOF）。
+2. st_team_research({"kind":"stock","code":"代码","wait":true})，不要传 expert_ids，${expertLine}；等到任务终态。
+逐只串行执行，不要把“任务受理”或中间进度当成完成。
+
+## 第三步：逐只输出
+每一只单独一节，先给一句话结论：**值得观察 / 可以分批建仓 / 暂不参与**；然后包含：
+- 专家票型（看多/看空/观望）与信心度（高/中/低，不是胜率）；
+- 理由（完整）；
+- 依据：数据来源与字段路径 → 实际数值 → 含义；
+- 交易策略：操作、入场触发条件与价位、仓位、止损、目标、持有周期、放弃条件；
+- 情景展望与风险。
+**A股默认不能做空**：看空只写不买入、减仓或清仓、回避、观望。
+**专家看不到量化因子**：专家小节不得出现因子方向/准确率；只有团队结果 factor_view 可用且通过 55% 门槛时才在该只末尾写因子校验，否则整段省略。
+
+## 第四步：横向汇总
+一张表：名称、代码、类别、结论、几位专家看多、关键价位、主要风险；说明排序只是观点整理，不是收益承诺。
+对结论最积极的 1–3 只，给**可直接执行**的计划（方向与前提、分批位次、止损、目标与减仓、持有周期、放弃条件），价位必须来自工具返回的真实数据。
+
+## 通用要求
+全部用中文；不得输出“未提供、空数组、无依据”这类占位词；不得编造专家理由或证据；不预测具体点位承诺收益、不代客下单。
+拿不到数据就如实写明并继续评下一只，不要反问用户，也不要空手结束。`;
+}
+
 export function buildSelectionPrompt(params){
   const scopeText=params.scope==='market'?'全A股':params.scope==='watchlist'?'自选股':`板块 ${params.sector}`;
   const expertLine=params.expert_ids.length
     ? `使用指定专家 ID：${params.expert_ids.join(', ')}（不要擅自增减）`
     : '不要传 expert_ids，使用全部启用专家';
+  if(params.scope==='watchlist')return buildSelfWatchPrompt(expertLine);
   return `# AI 专家选股：${scopeText}
 
 用户已在“专家选股”页发起本次选股。请现在直接完成，不要等待用户再次发送，也不要新建工作区或会话。

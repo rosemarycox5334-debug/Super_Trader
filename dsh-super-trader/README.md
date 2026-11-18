@@ -1,4 +1,12 @@
-# Super Trader 0.25 · AI 投研工作台
+# Super Trader 0.26 · AI 投研工作台
+
+## 工具输出可序列化 + st_job 等待（0.26.0）
+
+- 所有工具输出在返回前做无损清洗：NaN/Infinity/-0/undefined/BigInt/循环引用都会被修正，避免 “value is not lossless JSON” 把整个任务查询打断。
+- `st_job` 新增 `wait` 与 `timeout_ms`：在进程内等到终态再返回，不再需要在命令行 sleep 轮询。
+- 后端任务读取时同样把非有限浮点替换为 null，运行中的 partial result 也能安全序列化。
+- 选股会话提示词改为 `st_job({...,wait:true,timeout_ms:120000})` 等待终态。
+
 
 ## 自选股范围改为逐只评估（0.25.3 → 0.25.4）
 

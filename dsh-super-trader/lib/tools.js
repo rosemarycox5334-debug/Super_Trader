@@ -1,5 +1,41 @@
 import {listSessions, readSession, toMessages, SESSION_ID} from './session-log.js';
 
+/** DSH rejects tool output that is not lossless JSON: fix NaN/Infinity/-0/undefined/bigint in place. */
+function lossless(value, seen = new Set()) {
+  const type = typeof value;
+  if (value === null) return null;
+  if (type === 'number') {
+    if (Object.is(value, -0)) return 0;
+    return Number.isFinite(value) ? value : null;
+  }
+  if (type === 'string' || type === 'boolean') return value;
+  if (type === 'bigint') return value.toString();
+  if (type === 'undefined' || type === 'function' || type === 'symbol') return undefined;
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return null;
+    seen.add(value);
+    for (let index = 0; index < value.length; index += 1) {
+      const next = lossless(value[index], seen);
+      value[index] = next === undefined ? null : next;
+    }
+    seen.delete(value);
+    return value;
+  }
+  if (type === 'object') {
+    if (value instanceof Date) return value.toISOString();
+    if (seen.has(value)) return null;
+    seen.add(value);
+    for (const key of Object.keys(value)) {
+      const next = lossless(value[key], seen);
+      if (next === undefined) delete value[key]; else value[key] = next;
+    }
+    seen.delete(value);
+    return value;
+  }
+  return null;
+}
+
+const TERMINAL_JOB = new Set(['completed', 'succeeded', 'done', 'failed', 'error', 'cancelled', 'canceled', 'interrupted']);
 const str = description => ({ type: 'string', description });
 const horizon = { type: 'integer', description: '持有交易日数，整数 1–20；省略由后端使用默认值。' };
 const category = str('标的类别；省略由后端解析。');
@@ -87,7 +123,9 @@ export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 4
           validate(parameters, args);
           if (JSON.stringify(args).length > 60000) throw Object.assign(new Error('Arguments exceed 60 KiB'), {code:'invalid_arguments'});
           if (args.date !== undefined && args.horizon !== undefined) throw Object.assign(new Error('date and horizon are mutually exclusive'), { code: 'invalid_arguments' });
-          return await run(args, exec);
+          const output = await run(args, exec);
+          const safe = lossless(output);
+          return safe === undefined ? null : safe;
         } catch (error) { return failure(error); }
       },
     };
@@ -213,9 +251,21 @@ export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 4
         const data=await request('GET',kind==='symbols'?query('/api/symbols/search',{q,limit}):'/api/experts',undefined,exec);
         return {items:data.items.slice(0,limit).map(row=>kind==='symbols'?row:{id:row.id,name:row.name,tag:row.tag,enabled:row.enabled}),has_more:data.items.length>limit};
       }),
-    tool('st_job', '查询或取消后端研究任务；cancel只停止该任务，不发送证券订单。',
-      {action:{type:'string',enum:['get','cancel']},id:str('研究任务ID。')},['action','id'],
-      ({action,id},exec)=>request(action==='get'?'GET':'POST','/api/jobs/'+encodeURIComponent(id)+(action==='cancel'?'/cancel':''),undefined,exec)),
+    tool('st_job', '查询或取消后端研究任务；get 可带 wait=true 在服务进程内等待到终态（避免命令行 sleep 轮询）；cancel 只停止任务，不发送证券订单。',
+      {action:{type:'string',enum:['get','cancel']},id:str('研究任务ID。'),wait:{type:'boolean',description:'get 时是否等待到终态，默认 false。'},timeout_ms:{type:'integer',description:'wait 的最长等待毫秒数 1000–600000，默认 120000。'}} ,['action','id'],
+      async ({action,id,wait,timeout_ms},exec)=>{
+        const path='/api/jobs/'+encodeURIComponent(id)+(action==='cancel'?'/cancel':'');
+        if(action!=='get'||!wait)return request(action==='get'?'GET':'POST',path,undefined,exec);
+        const budget=timeout_ms===undefined?120000:timeout_ms;
+        if(!Number.isInteger(budget)||budget<1000||budget>600000)throw Object.assign(new Error('timeout_ms 须为 1000–600000'),{code:'invalid_arguments'});
+        const deadline=Date.now()+budget;
+        let job=await request('GET',path,undefined,exec,45000);
+        while(job&&!TERMINAL_JOB.has(job.status)&&Date.now()<deadline){
+          await sleep(Math.min(3000,Math.max(500,deadline-Date.now())),exec?.signal);
+          job=await request('GET',path,undefined,exec,45000);
+        }
+        return job;
+      }),
     tool('st_backend_retry', '显式重试启动失败的本地Super Trader后端；健康或外部后端不会被终止。',
       {},[],()=>manager.retryBackend()),
     tool('st_symbol_search', '按代码或名称查真实A股目录，不要求本地历史数据。',

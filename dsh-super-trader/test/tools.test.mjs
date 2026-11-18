@@ -14,7 +14,7 @@ function setup(handler = () => ({ actual: true }), options = {}) {
   return { calls, tools, get: name => tools.find(tool => tool.name === name) };
 }
 
-test('exact twenty-six names, real ToolDefinition output renderer and basic schema dialect', async () => {
+test('exact twenty-eight names, real ToolDefinition output renderer and basic schema dialect', async () => {
   const { tools } = setup(); assert.deepEqual(tools.map(tool => tool.name), names);
   const allowed = new Set(['type', 'properties', 'required', 'additionalProperties', 'items', 'enum', 'oneOf', 'description']);
   function inspect(schema) {
@@ -177,4 +177,24 @@ test('malformed job is not reported as success, generic backend failure structur
   assert.equal((await get('st_watchlist_analyze').execute({})).error.code, 'invalid_job_response');
   const broken = setup(() => { throw new Error('offline'); });
   assert.deepEqual((await broken.get('st_memory_recall').execute({ q: 'a' })).error, { code: 'request_failed', message: 'offline' });
+});
+
+test('tool output is lossless JSON and st_job can wait without shell sleeps', async () => {
+  const {get} = setup(() => ({ status: 'done', nan: NaN, inf: Infinity, neg: -0, big: 10n, nested: [undefined, { ok: true }] }));
+  const job = await get('st_job').execute({ action: 'get', id: 'job-1' });
+  assert.deepEqual(job, { status: 'done', nan: null, inf: null, neg: 0, big: '10', nested: [null, { ok: true }] });
+});
+
+test('st_job wait returns at the terminal state instead of sleeping in a shell', async () => {
+  const terminal = setup(() => ({ status: 'completed', result: { ok: true } }));
+  const done = await terminal.get('st_job').execute({ action: 'get', id: 'job-1', wait: true, timeout_ms: 1000 });
+  assert.equal(done.status, 'completed');
+  assert.equal(terminal.calls.length, 1);
+
+  const running = setup(() => ({ status: 'running', progress: 1 }));
+  const started = Date.now();
+  const snapshot = await running.get('st_job').execute({ action: 'get', id: 'job-1', wait: true, timeout_ms: 1000 });
+  assert.equal(snapshot.status, 'running');
+  assert.ok(Date.now() - started >= 900, 'waits for the requested budget');
+  assert.ok(running.calls.length >= 2);
 });

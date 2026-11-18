@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import math
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -32,6 +33,17 @@ class JobHandle:
     def progress(self, done: int, partial: Any | None = None) -> None:
         self._mgr._update_progress(self.id, done, self.total, partial)
 
+
+
+def _finite(value):
+    """JSON cannot carry NaN/Infinity; running task payloads must stay serializable."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _finite(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_finite(v) for v in value]
+    return value
 
 class JobManager:
     def __init__(self, db: Database, max_workers: int = 2):
@@ -115,7 +127,7 @@ class JobManager:
         return {
             "id": r["id"], "type": r["type"], "status": r["status"],
             "progress": r["progress"], "total": r["total"],
-            "payload": loads(r["payload"], {}), "result": loads(r["result"]),
+            "payload": _finite(loads(r["payload"], {})), "result": _finite(loads(r["result"])),
             "error": r["error"], "created_at": r["created_at"],
             "finished_at": r["finished_at"],
         }

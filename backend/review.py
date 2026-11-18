@@ -399,13 +399,16 @@ class ReviewService:
             else:
                 windows[f"{window}d"] = None
                 pending.append(window)
+        future = len(bars) - base_index - 1
         peak, drawdown = base, 0.0
-        for _, close in bars[base_index:]:
-            peak = max(peak, close)
-            drawdown = min(drawdown, close / peak - 1)
+        if future > 0:
+            for _, close in bars[base_index:]:
+                peak = max(peak, close)
+                drawdown = min(drawdown, close / peak - 1)
         return {"status": status, "windows": windows,
-                "current": round(bars[-1][1] / base - 1, 6),
-                "max_drawdown": round(drawdown, 6),
+                "current": round(bars[-1][1] / base - 1, 6) if future > 0 else None,
+                "max_drawdown": round(drawdown, 6) if future > 0 else None,
+                "future_bars": future,
                 "pending_windows": pending,
                 "base_date": self._day(bars[base_index][0]), "base_price": base,
                 "trigger": trigger, "days_waited": base_index - start,
@@ -438,8 +441,11 @@ class ReviewService:
             available = [value for value in values if type(value) is float]
             out[key] = {"equal_weight": round(sum(available) / len(available), 6) if available else None,
                         "sample": len(available), "total": len(targets)}
-        entered = sum(1 for t in targets if (t.get("metrics") or {}).get("status") in ("triggered", "reference"))
-        return {"kind": "本次候选等权（仅统计已触发/参考口径）", "entered": entered,
+        statuses = [(t.get("metrics") or {}).get("status") for t in targets]
+        return {"kind": "本次候选等权（只统计已触发/参考口径中有真实两端价格者）",
+                "entered": statuses.count("triggered"), "reference": statuses.count("reference"),
+                "not_triggered": statuses.count("not_triggered"), "invalidated": statuses.count("invalidated"),
+                "pending": statuses.count("pending"), "unavailable": statuses.count("unavailable"),
                 "total": len(targets), "windows": out}
 
     @staticmethod
@@ -454,11 +460,13 @@ class ReviewService:
             status = metrics.get("status")
             for expert in target.get("experts") or []:
                 bucket = buckets.setdefault(expert, {"expert": expert, "picks": 0, "triggered": 0,
-                                                     "not_triggered": 0, "invalidated": 0,
+                                                     "not_triggered": 0, "invalidated": 0, "reference": 0,
                                                      "samples": 0, "wins": 0, "sum": 0.0})
                 bucket["picks"] += 1
-                if status in ("triggered", "reference"):
+                if status == "triggered":
                     bucket["triggered"] += 1
+                elif status == "reference":
+                    bucket["reference"] += 1
                 elif status == "not_triggered":
                     bucket["not_triggered"] += 1
                 elif status == "invalidated":
@@ -472,7 +480,8 @@ class ReviewService:
         for bucket in buckets.values():
             rows.append({"expert": bucket["expert"], "picks": bucket["picks"],
                          "triggered": bucket["triggered"], "not_triggered": bucket["not_triggered"],
-                         "invalidated": bucket["invalidated"], "trigger_rate": self._rate(bucket),
+                         "invalidated": bucket["invalidated"], "reference": bucket["reference"],
+                         "trigger_rate": self._rate(bucket),
                          "samples": bucket["samples"],
                          "avg_return_5d": round(bucket["sum"] / bucket["samples"], 6) if bucket["samples"] else None,
                          "win_rate_5d": round(bucket["wins"] / bucket["samples"], 4) if bucket["samples"] else None,
@@ -489,12 +498,14 @@ class ReviewService:
             level = target.get("confidence") or "low"
             metrics = target.get("metrics") or {}
             bucket = buckets.setdefault(level, {"confidence": level, "picks": 0, "triggered": 0,
-                                                "not_triggered": 0, "invalidated": 0,
+                                                "not_triggered": 0, "invalidated": 0, "reference": 0,
                                                 "samples": 0, "wins": 0, "sum": 0.0})
             bucket["picks"] += 1
             status = metrics.get("status")
-            if status in ("triggered", "reference"):
+            if status == "triggered":
                 bucket["triggered"] += 1
+            elif status == "reference":
+                bucket["reference"] += 1
             elif status == "not_triggered":
                 bucket["not_triggered"] += 1
             elif status == "invalidated":
@@ -510,6 +521,7 @@ class ReviewService:
             if not bucket:
                 continue
             rows.append({"confidence": level, "picks": bucket["picks"],
+                         "triggered": bucket["triggered"], "reference": bucket["reference"],
                          "trigger_rate": self._rate(bucket), "samples": bucket["samples"],
                          "avg_return_5d": round(bucket["sum"] / bucket["samples"], 6) if bucket["samples"] else None,
                          "win_rate_5d": round(bucket["wins"] / bucket["samples"], 4) if bucket["samples"] else None})

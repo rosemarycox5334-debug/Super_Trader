@@ -38,7 +38,7 @@ class Services:
         self.watchlist = WatchlistService(self.db, self.engine, self.experts, self.jobs, market=self.market)
         self.research = ResearchService(self.engine, self.market, self.experts, self.jobs, self.watchlist, factor_provider=self.factor_research)
         self.selection = SelectionService(self.market, self.research, self.experts, self.jobs, self.watchlist)
-        self.review = ReviewService(self.db, self.market, self.jobs)
+        self.review = ReviewService(self.db, self.market, self.jobs, model=self.model)
         self.journal = JournalService(self.db, self.engine)
         self.memory = MemoryService(self.db)
         self.agent = AgentService(self.plugins, self.engine, self.experts,

@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 from backend.db import Database
+from types import SimpleNamespace
+
 from backend.review import ReviewError, ReviewService
 
 SH = timezone(timedelta(hours=8))
@@ -71,8 +73,8 @@ def build():
     root = Path(tempfile.mkdtemp())
     db = Database(root / "review.sqlite")
 
-    def make(series, picks, finished="2026-01-05T15:00:00+08:00"):
-        service = ReviewService(db, FakeMarket(series), FakeJobs({"job-1": job(picks, finished)}))
+    def make(series, picks, finished="2026-01-05T15:00:00+08:00", model=None):
+        service = ReviewService(db, FakeMarket(series), FakeJobs({"job-1": job(picks, finished)}), model=model)
         return service
 
     yield make
@@ -140,3 +142,53 @@ def test_unfinished_job_cannot_be_archived(build):
     service.jobs.jobs["job-1"]["status"] = "running"
     with pytest.raises(ReviewError):
         service.archive("job-1")
+
+class FakeModel:
+    def __init__(self, replies, configured=True):
+        self.settings = SimpleNamespace(configured=configured, model="fake-reviewer")
+        self.replies = list(replies)
+        self.calls = []
+
+    def chat(self, messages, **kwargs):
+        self.calls.append(kwargs)
+        return {"content": self.replies.pop(0)}
+
+
+def test_ai_judgment_can_trigger_a_complex_condition(build):
+    model = FakeModel(['{"status":"triggered","trigger_date":"2026-01-07","confidence":"medium","reason":"放量站上12.5"}'])
+    service = build({"000001": bars([10, 11, 13, 14, 15, 16])}, [pick("000001")], model=model)
+    review = service.archive("job-1")
+    result = service.judge(review["id"])
+    assert result["judged"][0]["status"] == "triggered"
+    metrics = service.get(review["id"])["targets"][0]["metrics"]
+    assert metrics["status"] == "triggered"
+    assert metrics["base_date"] == "2026-01-07" and metrics["base_price"] == 13
+    assert metrics["ai"]["reason"] == "放量站上12.5"
+    assert model.calls and model.calls[0]["response_format_json"] is True
+
+
+def test_ai_judgment_rejects_a_trigger_date_without_a_real_bar(build):
+    model = FakeModel(['{"status":"triggered","trigger_date":"2026-02-30","confidence":"high","reason":"x"}'])
+    service = build({"000001": bars([10, 11, 12])}, [pick("000001")], model=model)
+    review = service.archive("job-1")
+    service.judge(review["id"])
+    metrics = service.get(review["id"])["targets"][0]["metrics"]
+    assert metrics["status"] == "ambiguous" and metrics["windows"] == {}
+
+
+def test_second_judge_skips_already_judged_targets(build):
+    model = FakeModel(['{"status":"not_triggered","trigger_date":null,"confidence":"high","reason":"wait"}'])
+    service = build({"000001": bars([10, 11, 12])}, [pick("000001")], model=model)
+    review = service.archive("job-1")
+    service.judge(review["id"])
+    again = service.judge(review["id"])
+    assert again["judged"] == [] and again["skipped"] == ["000001"]
+    assert len(model.calls) == 1
+
+
+def test_judge_requires_a_configured_model(build):
+    model = FakeModel([], configured=False)
+    service = build({"000001": bars([10, 11])}, [pick("000001")], model=model)
+    review = service.archive("job-1")
+    with pytest.raises(ReviewError):
+        service.judge(review["id"])

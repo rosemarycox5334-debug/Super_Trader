@@ -535,6 +535,15 @@ def create_app(services: Services | None = None) -> FastAPI:
     def sync_reviews():
         return svc.review.sync()
 
+    @app.post("/api/reviews/{review_id}/judge")
+    def judge_review(review_id: str, body: dict | None = None):
+        try:
+            body = body or {}
+            codes = body.get("codes") if isinstance(body.get("codes"), list) else None
+            return svc.review.judge(review_id, codes=codes, force=body.get("force") is True)
+        except ReviewError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc)) from None
+
     @app.get("/api/reviews/{review_id}")
     def get_review(review_id: str):
         try:

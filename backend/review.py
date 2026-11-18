@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
+import json
 import math
 import uuid
 
@@ -38,10 +39,11 @@ class ReviewError(Exception):
 
 
 class ReviewService:
-    def __init__(self, db, market, jobs):
+    def __init__(self, db, market, jobs, model=None):
         self.db = db
         self.market = market
         self.jobs = jobs
+        self.model = model
         self._table()
 
     def _table(self):
@@ -49,6 +51,10 @@ class ReviewService:
             id TEXT PRIMARY KEY, job_id TEXT UNIQUE, created_at TEXT, archived_at TEXT,
             scope TEXT, sector TEXT, brief TEXT, expert_ids TEXT, targets TEXT,
             status TEXT, warnings TEXT)""")
+        self.db.execute("""CREATE TABLE IF NOT EXISTS review_judgments(
+            review_id TEXT, code TEXT, status TEXT, trigger_date TEXT,
+            trigger_price REAL, confidence TEXT, reason TEXT, model TEXT,
+            created_at TEXT, PRIMARY KEY(review_id, code))""")
 
     # ------------------------------------------------------------------ 归档
     def sync(self, limit: int = 10) -> dict:
@@ -221,8 +227,11 @@ class ReviewService:
 
     def _with_metrics(self, review: dict) -> None:
         targets = review.get("targets") or []
+        judgments = {row["code"]: dict(row) for row in self.db.query(
+            "SELECT code,status,trigger_date,trigger_price,confidence,reason,model FROM review_judgments WHERE review_id=?",
+            (review["id"],))}
         for target in targets:
-            target["metrics"] = self._metrics(target)
+            target["metrics"] = self._metrics(target, judgments.get(target["code"]))
         review["benchmark"] = self._benchmark(targets)
         review["experts"] = self._experts(targets)
         review["confidence"] = self._confidence(targets)
@@ -234,31 +243,153 @@ class ReviewService:
                 "invalidation_price": _number(target.get("invalidation_price")),
                 "entry_note": target.get("entry_note") or ""}
 
-    def _metrics(self, target: dict) -> dict:
-        """Triggered entries get returns from the trigger bar; untriggered picks get none."""
+    # ------------------------------------------------------------------ AI 判定
+    def judge(self, review_id: str, codes=None, force: bool = False) -> dict:
+        """Let the model read the pick's own condition and the real bars to decide the trigger."""
+        settings = getattr(self.model, "settings", None)
+        if self.model is None or not getattr(settings, "configured", False):
+            raise ReviewError("未配置模型，无法做 AI 触发判定", status=503)
+        review = self.get(review_id)
+        wanted = set(codes or [])
+        judged, skipped, errors = [], [], []
+        for target in review["targets"]:
+            if wanted and target["code"] not in wanted:
+                continue
+            exists = self.db.query_one("SELECT 1 FROM review_judgments WHERE review_id=? AND code=?",
+                                       (review_id, target["code"]))
+            if exists and not force:
+                skipped.append(target["code"])
+                continue
+            try:
+                judgment = self._judge_one(review, target)
+            except Exception:
+                errors.append({"code": target["code"], "error": "AI 判定失败，未改写已有结论"})
+                continue
+            self.db.execute("INSERT OR REPLACE INTO review_judgments VALUES(?,?,?,?,?,?,?,?,?)",
+                            (review_id, target["code"], judgment["status"], judgment.get("trigger_date"),
+                             judgment.get("trigger_price"), judgment.get("confidence"),
+                             judgment.get("reason") or "", judgment.get("model") or "", now_iso()))
+            judged.append({"code": target["code"], **judgment})
+        return {"review_id": review_id, "judged": judged, "skipped": skipped, "errors": errors}
+
+    def _judge_one(self, review: dict, target: dict) -> dict:
+        bars = self._raw_bars(target["code"], target.get("category") or "个股")
+        selection_day = (target.get("entry") or {}).get("date")
+        if not bars or not selection_day:
+            raise ReviewError("没有可用于判定的真实行情", status=409)
+        window = [bar for bar in bars if bar["date"] >= selection_day][:25]
+        if not window:
+            raise ReviewError("入选日之后还没有交易日", status=409)
+        plan = self._plan(target)
+        system = ("你是复盘审核员，只做一件事：判断某位专家当时的买入条件，在这段真实行情中是否真的被触发。"
+                  "以收盘价为主，可以参考最高/最低与成交量；触发日必须是给定数据中的真实交易日，不得猜测或使用未来信息。"
+                  "条件含糊、数据不足或需要主观解释时，输出 ambiguous，不要勉强判定。"
+                  "只输出 JSON：{status:'triggered'|'not_triggered'|'invalidated'|'ambiguous',"
+                  "trigger_date:'YYYY-MM-DD'|null, confidence:'high'|'medium'|'low', reason:'不超过120字'}。")
+        user = json.dumps({"selection_date": selection_day,
+                           "pick": {"code": target["code"], "name": target.get("name"),
+                                    "confidence": target.get("confidence"),
+                                    "reason": target.get("reason"), "why_fit": target.get("why_fit"),
+                                    "entry_price": plan["entry_price"], "entry_direction": plan["entry_direction"],
+                                    "invalidation_price": plan["invalidation_price"],
+                                    "entry_note": plan["entry_note"]},
+                           "bars": window}, ensure_ascii=False)
+        out = self.model.chat([{"role": "system", "content": system}, {"role": "user", "content": user}],
+                              response_format_json=True, timeout=120)
+        payload = self._parse_json(out.get("content", ""))
+        if not isinstance(payload, dict) or payload.get("status") not in (
+                "triggered", "not_triggered", "invalidated", "ambiguous"):
+            raise ReviewError("AI 返回的判定不合规", status=502)
+        status = payload["status"]
+        trigger_date = payload.get("trigger_date")
+        price = None
+        if status == "triggered":
+            match = next((bar for bar in window if bar["date"] == trigger_date), None)
+            if match is None:
+                status, trigger_date = "ambiguous", None
+            else:
+                price = match["close"]
+        return {"status": status, "trigger_date": trigger_date if status == "triggered" else None,
+                "trigger_price": price,
+                "confidence": payload.get("confidence") if payload.get("confidence") in ("high", "medium", "low") else None,
+                "reason": str(payload.get("reason") or "")[:240],
+                "model": getattr(getattr(self.model, "settings", None), "model", None)}
+
+    @staticmethod
+    def _parse_json(text):
+        if not isinstance(text, str):
+            return None
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("```")[1] if "```" in cleaned else cleaned
+            cleaned = cleaned[4:] if cleaned.lower().startswith("json") else cleaned
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        if start == -1 or end == -1:
+            return None
+        try:
+            return json.loads(cleaned[start:end + 1])
+        except Exception:
+            return None
+
+    def _raw_bars(self, code: str, category: str):
+        rows = []
+        if category in ("ETF", "LOF"):
+            try:
+                rows = (self.market.fund_history(code, limit=120) or {}).get("items") or []
+            except Exception:
+                rows = []
+        else:
+            try:
+                rows = (self.market.history(code, limit=120, adjust="forward") or {}).get("items") or []
+            except Exception:
+                rows = []
+        out = []
+        for row in rows:
+            date = _date_ms(row)
+            close = _number(row.get("close_price", row.get("unit_nav")))
+            if not date or close is None or close <= 0:
+                continue
+            out.append({"date": self._day(date), "close": close,
+                        "high": _number(row.get("high_price")), "low": _number(row.get("low_price")),
+                        "volume": _number(row.get("volume"))})
+        return out
+
+    def _metrics(self, target: dict, judgment: dict | None = None) -> dict:
+        """AI judgment (when present) decides the trigger; otherwise daily-close rules apply."""
         bars = self._history(target["code"], target.get("category") or "个股")
         entry = target.get("entry") or {}
         if not bars:
             return {"status": "unavailable", "windows": {}, "current": None, "max_drawdown": None,
-                    "reason": "没有可用的真实行情"}
+                    "reason": "没有可用的真实行情", "ai": judgment}
         selection_day = entry.get("date")
         start = next((i for i, (date, _) in enumerate(bars) if self._day(date) >= selection_day), None)
         if start is None:
             return {"status": "pending", "windows": {}, "current": None, "max_drawdown": None,
-                    "reason": "入选日之后还没有新的交易日"}
+                    "reason": "入选日之后还没有新的交易日", "ai": judgment}
         plan = self._plan(target)
-        later = list(range(start + 1, len(bars)))
-        if plan["entry_price"] is None:
+        if judgment:
+            status = judgment.get("status") or "ambiguous"
+            if status == "triggered":
+                date = judgment.get("trigger_date")
+                index = next((i for i, (bar_date, _) in enumerate(bars) if self._day(bar_date) == date), None)
+                if index is None or index < start:
+                    return {"status": "ambiguous", "windows": {}, "current": None, "max_drawdown": None,
+                            "reason": "AI 给出的触发日不是入选后的真实交易日，退回人工核对", "ai": judgment}
+                base_index, trigger = index, {"date": date, "price": bars[index][1], "source": "ai"}
+            else:
+                base_index, trigger = None, None
+        elif plan["entry_price"] is None:
             base_index, status, trigger = start, "reference", None
         else:
-            base_index, status, trigger = self._find_trigger(bars, start, later, plan)
+            base_index, status, trigger = self._find_trigger(bars, start, list(range(start + 1, len(bars))), plan)
         if base_index is None:
-            waited = len(later)
+            reasons = {"invalidated": "价格先触及失效价，按失效处理，不计收益",
+                       "not_triggered": "观察期内没有触发买入条件，视为未入场，不计收益",
+                       "ambiguous": "触发条件无法用真实行情判定，等待人工核对"}
             return {"status": status, "windows": {}, "current": None, "max_drawdown": None,
-                    "trigger": trigger or plan, "days_waited": waited,
-                    "reason": ("价格先触及失效价，按失效处理，不计收益" if status == "invalidated"
-                               else "观察期内价格未达到触发条件，视为未入场，不计收益" if status == "not_triggered"
-                               else "尚未积累足够的交易日判断是否触发")}
+                    "trigger": trigger or plan, "days_waited": len(bars) - start - 1,
+                    "reason": reasons.get(status, "尚未积累足够的交易日判断是否触发"),
+                    "ai": judgment}
         base = bars[base_index][1]
         windows, pending = {}, []
         for window in WINDOWS:
@@ -278,7 +409,8 @@ class ReviewService:
                 "pending_windows": pending,
                 "base_date": self._day(bars[base_index][0]), "base_price": base,
                 "trigger": trigger, "days_waited": base_index - start,
-                "bars_after_entry": len(bars) - base_index, "as_of": self._day(bars[-1][0])}
+                "bars_after_entry": len(bars) - base_index, "as_of": self._day(bars[-1][0]),
+                "ai": judgment}
 
     @staticmethod
     def _find_trigger(bars, start: int, later, plan: dict):

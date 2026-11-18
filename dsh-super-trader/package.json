@@ -1,6 +1,6 @@
 {
   "name": "dsh-super-trader",
-  "version": "0.27.0",
+  "version": "0.27.2",
   "private": true,
   "type": "module",
   "description": "DSH 原生 AI 投研系统：专家自主选股、个股与板块趋势、量化因子预测（1–20根日K方向、支持模型自写因子代码）及专家团队，可移植插件。",

@@ -198,3 +198,27 @@ test('st_job wait returns at the terminal state instead of sleeping in a shell',
   assert.ok(Date.now() - started >= 900, 'waits for the requested budget');
   assert.ok(running.calls.length >= 2);
 });
+
+test('st_job returns a compact result by default and full data on request', async () => {
+  const full = { id: 'job-1', status: 'done', payload: { scope: 'market' },
+    result: { report: { history: new Array(120).fill({ close: 1 }) },
+      expert_results: [{ expert: { id: 'buffett' }, picks: [{ code: '000001', confidence: 'high' }],
+        evidence_sources: [{ id: 's1', data: { items: new Array(200).fill(1) } }], rejected: [] }],
+      activity: new Array(50).fill({ at: 'x' }) } };
+  const compact = await setup(() => full).get('st_job').execute({ action: 'get', id: 'job-1' });
+  assert.equal(compact.result.report, undefined);
+  assert.equal(compact.result.expert_results[0].evidence_sources, undefined);
+  assert.deepEqual(compact.result.expert_results[0].picks, [{ code: '000001', confidence: 'high' }]);
+  assert.equal(compact.result.activity.length, 10);
+
+  const raw = await setup(() => full).get('st_job').execute({ action: 'get', id: 'job-1', include_evidence: true });
+  assert.ok(raw.result.report && raw.result.expert_results[0].evidence_sources);
+});
+
+test('a running job is summarized without its partial result', async () => {
+  const job = await setup(() => ({ id: 'job-1', status: 'running', progress: 3, total: 7, result: { expert_results: [] } }))
+    .get('st_job').execute({ action: 'get', id: 'job-1', wait: true, timeout_ms: 1000 });
+  assert.deepEqual(Object.keys(job).sort(), ['created_at', 'error', 'finished_at', 'id', 'progress', 'status', 'total', 'type'].filter(k => k in job).sort());
+  assert.equal(job.result, undefined);
+  assert.equal(job.progress, 3);
+});

@@ -35,6 +35,36 @@ function lossless(value, seen = new Set()) {
   return null;
 }
 
+
+const TERMINAL_JOB_NAMES = new Set(['completed', 'succeeded', 'done', 'failed', 'error', 'cancelled', 'canceled', 'interrupted']);
+function compactJob(job) {
+  if (!job || typeof job !== 'object') return job;
+  if (!TERMINAL_JOB_NAMES.has(job.status)) {
+    return { id: job.id, type: job.type, status: job.status, progress: job.progress, total: job.total,
+             error: job.error, created_at: job.created_at, finished_at: job.finished_at };
+  }
+  const out = { ...job };
+  const result = job.result;
+  if (result && typeof result === 'object') {
+    const r = { ...result };
+    // The market report and per-source payloads dominate the size and are not
+    // needed to read a result; picks keep their reasons and evidence pointers.
+    delete r.report;
+    if (Array.isArray(r.expert_results)) {
+      r.expert_results = r.expert_results.map(row => {
+        const copy = { ...row };
+        delete copy.evidence_sources;
+        if (Array.isArray(copy.picks)) copy.picks = copy.picks.map(pick => ({ ...pick }));
+        if (Array.isArray(copy.rejected)) copy.rejected = copy.rejected.slice(0, 20);
+        return copy;
+      });
+    }
+    if (Array.isArray(r.activity)) r.activity = r.activity.slice(-10);
+    out.result = r;
+  }
+  return out;
+}
+
 const TERMINAL_JOB = new Set(['completed', 'succeeded', 'done', 'failed', 'error', 'cancelled', 'canceled', 'interrupted']);
 const str = description => ({ type: 'string', description });
 const horizon = { type: 'integer', description: '持有交易日数，整数 1–20；省略由后端使用默认值。' };
@@ -251,12 +281,13 @@ export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 4
         const data=await request('GET',kind==='symbols'?query('/api/symbols/search',{q,limit}):'/api/experts',undefined,exec);
         return {items:data.items.slice(0,limit).map(row=>kind==='symbols'?row:{id:row.id,name:row.name,tag:row.tag,enabled:row.enabled}),has_more:data.items.length>limit};
       }),
-    tool('st_job', '查询或取消后端研究任务；get 可带 wait=true 在服务进程内等待到终态（避免命令行 sleep 轮询）；cancel 只停止任务，不发送证券订单。',
-      {action:{type:'string',enum:['get','cancel']},id:str('研究任务ID。'),wait:{type:'boolean',description:'get 时是否等待到终态，默认 false。'},timeout_ms:{type:'integer',description:'wait 的最长等待毫秒数 1000–600000，默认 120000。'}} ,['action','id'],
-      async ({action,id,wait,timeout_ms},exec)=>{
+    tool('st_job', '查询或取消后端研究任务；get 默认返回精简结果（不含整份行情报告与原始证据数据），wait=true 时在进程内等到终态；cancel 只停止任务，不发送证券订单。',
+      {action:{type:'string',enum:['get','cancel']},id:str('研究任务ID。'),wait:{type:'boolean',description:'get 时是否等待到终态，默认 false。'},timeout_ms:{type:'integer',description:'wait 的最长等待毫秒数 1000–600000，默认 180000。'},include_evidence:{type:'boolean',description:'是否返回完整原始结果（含报告与证据数据），默认 false。'}} ,['action','id'],
+      async ({action,id,wait,timeout_ms,include_evidence},exec)=>{
         const path='/api/jobs/'+encodeURIComponent(id)+(action==='cancel'?'/cancel':'');
-        if(action!=='get'||!wait)return request(action==='get'?'GET':'POST',path,undefined,exec);
-        const budget=timeout_ms===undefined?120000:timeout_ms;
+        const shape=job=>include_evidence===true?job:compactJob(job);
+        if(action!=='get'||!wait)return shape(await request(action==='get'?'GET':'POST',path,undefined,exec));
+        const budget=timeout_ms===undefined?180000:timeout_ms;
         if(!Number.isInteger(budget)||budget<1000||budget>600000)throw Object.assign(new Error('timeout_ms 须为 1000–600000'),{code:'invalid_arguments'});
         const deadline=Date.now()+budget;
         let job=await request('GET',path,undefined,exec,45000);
@@ -264,8 +295,8 @@ export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 4
           await sleep(Math.min(3000,Math.max(500,deadline-Date.now())),exec?.signal);
           job=await request('GET',path,undefined,exec,45000);
         }
-        return job;
-      }),
+        return shape(job);
+      }, 900000),
     tool('st_backend_retry', '显式重试启动失败的本地Super Trader后端；健康或外部后端不会被终止。',
       {},[],()=>manager.retryBackend()),
     tool('st_symbol_search', '按代码或名称查真实A股目录，不要求本地历史数据。',

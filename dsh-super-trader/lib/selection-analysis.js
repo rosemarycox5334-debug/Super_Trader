@@ -81,7 +81,7 @@ export function buildSelectionPrompt(params){
 它会让每位专家各自在目录里探索、取证并形成名单，会真实调用模型并可能计费。返回 job id 后进入下一步。
 
 ## 第二步：等任务到终态
-用 st_job({"action":"get","id":"<job id>","wait":true,"timeout_ms":120000}) 在进程内等到终态（完成/失败/取消）；不要用命令行 sleep 轮询，超时后继续调用同一个 wait 即可。中间进度不是结果，不要把“queued/running”写成分析结论；也不要在同一 job 上重复提交。任务可取消，取消时保留已有部分结果。
+用 st_job({"action":"get","id":"<job id>","wait":true,"timeout_ms":600000}) 在进程内等到终态（完成/失败/取消）。返回是精简结果（已去掉整份行情报告与原始证据数据），直接阅读即可；不要用命令行 sleep 轮询，不要写脚本解析结果，也不要把结果复制成文件。若仍返回 running，再调用一次同样的 wait。中间进度不是结果，不要把“queued/running”写成分析结论；也不要在同一 job 上重复提交。任务可取消，取消时保留已有部分结果。
 
 ## 第二步之后的分支：选股池为空时不要提问，改做逐只分析
 “专家选股”只在 A 股个股里选；如果你的自选股全是 ETF/LOF，st_screen_stocks 会返回 universe.total = 0，这是正常现象，不是故障。

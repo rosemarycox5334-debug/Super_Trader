@@ -1,5 +1,11 @@
 # Super Trader 0.28 · AI 投研工作台
 
+## 证据字段中文化（0.28.1）
+
+- 依据展示时把英文字段名翻成中文（如 parent_holder_net_profit→归母净利润、act_cash_flow_net→经营活动现金流量净额、pe_ttm→滚动市盈率），必要时才在括号里保留原键名。
+- 前端证据明细同样按中文标签渲染，未收录的字段保留原名。
+
+
 ## 因子缺失静默处理（0.28.0）
 
 - 选股里 factor/quant 无成果时不再写入 missing_evidence 或 quant_comment，也不再输出“因子不可用、量化无覆盖、无成果”这类说明。

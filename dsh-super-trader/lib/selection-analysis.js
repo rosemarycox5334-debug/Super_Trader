@@ -46,7 +46,7 @@ function buildSelfWatchPrompt(expertLine){
 每一只单独一节，先给一句话结论：**值得观察 / 可以分批建仓 / 暂不参与**；然后包含：
 - 专家票型（看多/看空/观望）与信心度（高/中/低，不是胜率）；
 - 理由（完整）；
-- 依据：数据来源与字段路径 → 实际数值 → 含义；
+- 依据：数据来源与字段路径 → 实际数值 → 含义；字段名要翻成中文再展示，例如 parent_holder_net_profit→归母净利润、act_cash_flow_net→经营活动现金流量净额、pe_ttm→滚动市盈率；不要直接贴英文键名，需要时可写成“归母净利润（parent_holder_net_profit）”。
 - 交易策略：操作、入场触发条件与价位、仓位、止损、目标、持有周期、放弃条件；
 - 情景展望与风险。
 **A股默认不能做空**：看空只写不买入、减仓或清仓、回避、观望。
@@ -95,7 +95,7 @@ export function buildSelectionPrompt(params){
 每位专家单独一节，必须包含：
 - 专家名称与候选（代码 + 名称）；
 - 每位专家的选股思路（selection_approach）；
-- 每只候选：入选理由、为什么符合该专家理念、信心度（高/中/低，不是胜率）、风险、缺失证据（missing_evidence）、依据（source_id 与 ref 指向的真实数值）；
+- 每只候选：入选理由、为什么符合该专家理念、信心度（高/中/低，不是胜率）、风险、缺失证据（missing_evidence）、依据（source_id 与 ref 指向的真实数值，字段名要翻成中文再展示，例如 parent_holder_net_profit→归母净利润、act_cash_flow_net→经营活动现金流量净额、pe_ttm→滚动市盈率；不要直接贴英文键名，需要时可写成“归母净利润（parent_holder_net_profit）”。 ）；
 - 该专家排除的股票及原因（rejected），没有就省略；
 - 若该专家弃权，写明 abstained_reason 和已看到的依据。
 不要替专家补造理由或证据；没有 evidence 的候选直接说明证据不足，不要编路径。

@@ -22,6 +22,22 @@ function investFactorOutputGroups(items) {
 function investFactorAction(action) {return ({model_request:'请求模型',tool_error:'工具错误',tool_call:'调用工具',tool_result:'工具结果',shard_saved:'分片保存',started:'开始',start:'开始',rule_written:'量化因子写入',trial_started:'试验开始',trial_start:'试验开始',trial_completed:'试验完成',trial_complete:'试验完成',note_saved:'保存笔记',notes_saved:'保存笔记',stopped:'结束',completed:'完成',budget_exhausted:'预算停止',budget_stop:'预算停止'})[action]||investText(action);}
 function investOutputTime(value) {const date=new Date(value);return typeof value==='string'&&Number.isFinite(date.getTime())?date.toLocaleString(undefined,{timeZone:'Asia/Shanghai',hour12:false}):investText(value)||'—';}
 function investTargetKey(target) { return target ? target.kind+'|'+target.code : ''; }
+function investFieldLabel(key) {
+  const labels = investFieldLabel.labels || (investFieldLabel.labels = {
+    parent_holder_net_profit:'归母净利润', net_profit:'净利润', total_operating_income:'营业总收入', operating_income:'营业收入',
+    operating_cost:'营业成本', act_cash_flow_net:'经营活动现金流量净额', total_assets:'资产总计', total_liability:'负债合计',
+    owner_total_equity:'所有者权益合计', pe_ttm:'滚动市盈率(TTM)', pb_mrq:'市净率(最新)', ps_ttm:'市销率(TTM)', pcf_ttm:'市现率(TTM)',
+    last_price:'最新价', prev_price:'昨收', price_change_ratio_pct:'涨跌幅%', turnover_ratio_pct:'换手率%', volume:'成交量',
+    turnover:'成交额', close_price:'收盘价', open_price:'开盘价', high_price:'最高价', low_price:'最低价', ma5:'5日均线',
+    ma20:'20日均线', ma60:'60日均线', support_20d:'20日支撑', resistance_20d:'20日压力', volume_ratio:'量比',
+    hold_ratio:'持仓占比', position_capital:'持仓市值', unit_nav:'单位净值', adj_nav:'复权净值', nav_date:'净值日期',
+    fund_scale:'基金规模', rate_info:'费率', manager_name:'基金经理', stock_name:'证券名称', asset_type:'资产类型',
+    security_market_value_rate_pct:'占净值比例%', end_date_ms:'报告期末', publish_date_ms:'披露日期', date_ms:'日期',
+    timestamp:'数据时间', accuracy:'准确率', coverage:'覆盖率', direction:'方向'});
+  return labels[key] || investText(key);
+}
+
+
 function investTarget(kind,code,name,category) {
   code=String(code || '').trim();
   if(kind==='sector' ? !/^\d{6}\.(?:TI|SH|SZ)$/i.test(code) : !/^\d{6}$/.test(code)) throw cockpitError(kind==='sector'?'invalidSector':'invalidCode');
@@ -667,7 +683,7 @@ function createInvestComponents(React,store) {
     if(typeof value!=='object')return h('span',null,investText(value,900));
     if(depth>=3)return h('span',null,Array.isArray(value)?'['+value.length+']':Object.keys(value).slice(0,8).join(' · '));
     if(Array.isArray(value))return h('ul',{className:'sti-evidence-data'},...value.slice(0,5).map((v,i)=>h('li',{key:i},h(SelectionData,{value:v,depth:depth+1}))),value.length>5?h('li',null,'… ('+value.length+')'):null);
-    return h('dl',{className:'sti-evidence-data'},...Object.entries(value).slice(0,16).map(([key,v])=>h('div',{key},h('dt',null,investText(key)),h('dd',null,h(SelectionData,{value:v,depth:depth+1})))));
+    return h('dl',{className:'sti-evidence-data'},...Object.entries(value).slice(0,16).map(([key,v])=>h('div',{key},h('dt',null,investFieldLabel(key)),h('dd',null,h(SelectionData,{value:v,depth:depth+1})))));
   }
   function SelectionEvidence({evidence,sources,t}) {
     const nearest=(ancestors,keys)=>{for(let i=ancestors.length-1;i>=0;i--){const value=ancestors[i];for(const key of keys)if(!Array.isArray(value)&&Object.hasOwn(value,key))return {found:true,value:value[key]};}return {found:false};};
@@ -1072,5 +1088,5 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
           detail.confidence?.length?h(React.Fragment,null,h('h3',null,t('reviewByConfidence')),confidenceTable(detail.confidence)):null):null):null);
   }
   function Invest({tab,t,onAnalyze,onOpenExpertSession}) {const s=useStore();return h('div',{className:'sti-invest','data-view':tab},h('header',{className:'sti-heading'},h('p',{className:'sti-eyebrow'},'SUPER TRADER'),h('h1',null,t(tab)),h('p',null,t('workflow'))),h('p',{className:'sti-disclaimer'},t('disclaimer')),h(ErrorView,{error:s.notice,t}),tab==='screen'?h(Screen,{t,onOpenExpertSession}):tab==='stock'?h(Stock,{t,onAnalyze,onOpenExpertSession}):tab==='sectors'?h(Sectors,{t,onAnalyze,onOpenExpertSession}):tab==='experts'?h(Experts,{t,onOpenExpertSession}):tab==='factors'?h(Factors,{t}):tab==='review'?h(Review,{t}):h(Watchlist,{t,onOpenExpertSession}));}
-  return {Invest,Screen,Stock,Sectors,Experts,Watchlist,Review,Candles,Quant,Brief,Vote,TeamResult,SelectionResult,SelectionEvidence,Factors,FactorTranscript,FactorCurve,FactorMetrics,FactorSamples};
+  return {Invest,Screen,Stock,Sectors,Experts,Watchlist,Review,investFieldLabel,Candles,Quant,Brief,Vote,TeamResult,SelectionResult,SelectionEvidence,Factors,FactorTranscript,FactorCurve,FactorMetrics,FactorSamples};
 }

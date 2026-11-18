@@ -359,3 +359,13 @@ test('installed client hides host Plugins, More and Data-settings entries global
 test('theme-only responsive styles do not hardcode colors or hide the native application',()=>{
   assert.doesNotMatch(css,/#(?:[0-9a-f]{3,8})\b|rgba?\(|hsla?\(/i);assert.match(css,/--dsw-alias-/);assert.match(css,/minmax\(0,1fr\)/);assert.match(css,/max-width:420px/);assert.match(css,/overflow-wrap:anywhere/);
 });
+
+test('evidence field names are translated for readers',()=>{
+  const h=setup();
+  const label=h.api.createInvestComponents({},h.store).investFieldLabel;
+  assert.equal(label('parent_holder_net_profit'),'归母净利润');
+  assert.equal(label('act_cash_flow_net'),'经营活动现金流量净额');
+  assert.equal(label('pe_ttm'),'滚动市盈率(TTM)');
+  assert.equal(label('unknown_field'),'unknown_field');
+  h.store.dispose();
+});

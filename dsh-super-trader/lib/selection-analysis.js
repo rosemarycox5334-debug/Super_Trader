@@ -97,7 +97,7 @@ export function buildSelectionPrompt(params){
 - 每位专家的选股思路（selection_approach）；
 - 每只候选：入选理由、为什么符合该专家理念、信心度（高/中/低，不是胜率）、风险、缺失证据（missing_evidence）、依据（source_id 与 ref 指向的真实数值，字段名要翻成中文再展示，例如 parent_holder_net_profit→归母净利润、act_cash_flow_net→经营活动现金流量净额、pe_ttm→滚动市盈率；不要直接贴英文键名，需要时可写成“归母净利润（parent_holder_net_profit）”。 ）；
 - 该专家排除的股票及原因（rejected），没有就省略；
-- 若该专家弃权，写明 abstained_reason 和已看到的依据。
+- 若该专家没有候选，才写“弃权说明：…”并给出 abstained_reason 与已看到的依据；**有候选时不要叫弃权**，如需交代覆盖范围，写成“覆盖说明：…”。
 不要替专家补造理由或证据；没有 evidence 的候选直接说明证据不足，不要编路径。
 
 ## 第四步：汇总

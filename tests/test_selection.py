@@ -207,6 +207,38 @@ def test_experts_independently_decide_different_candidate_and_sources(svc):
     assert all(row["evidence_sources"][0]["id"] == "s1" for row in result["expert_results"])
 
 
+def test_history_appears_after_own_current_evidence_and_references_are_validated(svc):
+    queries = []
+    def history(codes, **kwargs):
+        queries.append((codes, kwargs))
+        assert ('quote', '000001.SZ') in svc.market.calls
+        return [{"review_id": "R-real", "plan_id": "P-real", "expert_id": "price_action",
+                 "code": "000001", "status": "triggered", "windows": {"5d": 0.04},
+                 "thesis": "等待突破", "must_not_leak": "opaque field"}]
+    svc.review_provider = SimpleNamespace(history_context=history)
+
+    def script(tools, before):
+        assert not queries
+        assert "historical_review_context" not in tools["candidate_directory"]({"q": "000001"})
+        assert not queries
+        assert "historical_review_context" not in tools["read_stock"]({"code": "000001", "sections": ["quant"]})
+        assert not queries
+        got = tools["read_stock"]({"code": "000001", "sections": ["quote"]})
+        context = got["historical_review_context"]
+        assert context[0]["relation"] == "own_target" and context[0]["thesis"] == "等待突破"
+        assert "must_not_leak" not in context[0]
+        return final([pick("000001", got["sources"][0]["id"], "/data/items/0/last_price", history_comparison=[
+            {"review_id": "R-invented", "plan_id": "P-real", "comparison": "幻觉"},
+            {"review_id": "R-real", "plan_id": "P-real", "comparison": "本轮价量证据仍需要确认，继续等待。", "status": "invalidated"},
+        ])])
+
+    result = run(svc, [script])["result"]
+    p = result["expert_results"][0]["picks"][0]
+    assert [(x["review_id"], x["status"]) for x in p["history_comparison"]] == [("R-real", "triggered")]
+    assert p["history_comparison"][0]["windows"] == {"5d": 0.04}
+    assert len(svc.experts.model.calls) == 1
+
+
 def test_common_picks_count_actual_experts(svc):
     row = run(svc, [script_pick(), script_pick()], ids=["price_action", "quant_expert"])
     common = row["result"]["common_picks"]

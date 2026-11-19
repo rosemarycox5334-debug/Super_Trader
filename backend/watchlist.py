@@ -19,12 +19,13 @@ class WatchlistError(Exception):
 
 class WatchlistService:
     def __init__(self, db: Database, engine: QuantEngine, experts: ExpertService,
-                 jobs: JobManager, market=None):
+                 jobs: JobManager, market=None, *, review_provider=None):
         self.db = db
         self.engine = engine
         self.experts = experts
         self.jobs = jobs
         self.market = market
+        self.review_provider = review_provider
 
     def list(self) -> list[dict]:
         rows = self.db.query("SELECT * FROM watchlist ORDER BY added_at ASC")
@@ -91,6 +92,7 @@ class WatchlistService:
                      with_experts: bool):
         def runner(handle: JobHandle):
             results = []
+            review_kwargs = {} if self.review_provider is None else {"review_provider": self.review_provider}
             for i, m in enumerate(members, 1):
                 if handle.cancelled:
                     break
@@ -108,12 +110,13 @@ class WatchlistService:
                     try:
                         team = self.experts.team_analyze(
                             m["code"], m["category"], horizon, threshold=threshold,
-                            persist=True)
+                            persist=True, **review_kwargs)
                         row["consensus"] = team["consensus"]
                         row["votes"] = [
                             {"expert": v["expert"]["name"], "vote": v["vote"],
                              "confidence": v["confidence"], "abstained": v["abstained"],
-                             "reason": v["reason"], "evidence": v["evidence"]}
+                             "reason": v["reason"], "evidence": v["evidence"],
+                             **({"history_comparison": v["history_comparison"]} if v.get("history_comparison") else {})}
                             for v in team["votes"]
                         ]
                         if team["errors"]:

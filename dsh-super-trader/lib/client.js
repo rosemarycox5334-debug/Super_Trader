@@ -1210,10 +1210,26 @@ function investBatchMessages(lang) {
   const en={factorLiveOutput:'Live output',factorOutputWaiting:'Waiting for model output',factorOutputNote:'Read-only model output, not accuracy evidence or verified conclusions.',factorOutputLatest:'Back to latest',factorOutputThinking:'Thinking',factorOutputTool:'Tool',factorOutputStatus:'Status',factorOutputSummary:'Live summary (not full output)',factorOutputEnded:'Output ended',factorOutputRetry:'Retry output read',factorBacktestPick:'Backtest the selected rule on a target',factorQueryRule:'Query this rule backtest',factorNoRuleSelected:'Select a mined rule in the factor library first',factorBatch:'Batch mining',factorContractError:'Factor API field mismatch',factorAll:'All local daily targets (stocks / ETFs / indices)',factorBatchIntro:'One LLM researches shared candidates. A fixed number of backend processes evaluate all local targets in shards, retaining each target’s best rule. One daily rule spans h=1–20 per target; rules may differ by target. No cross-sectional ranking.',factorBatchCapacity:'No sampling or first-200 proxy. Shards are processed progressively; no instant completion or all-target memory promise.',factorDirectory:'Local daily directory',factorDirectoryEmpty:'Directory not read; unknown counts are not presented as complete.',factorWorkers:'Evaluation processes',factorBudget:'Advanced budget limits',factorBudgetHint:'“New rules to try” counts evaluations; a full 8,228-target pass takes about 9.5 minutes, so 50 tries usually need hours. Research time is unlimited; the job runs until it finishes or you cancel.',factorTrials:'New rules to try',factorCalls:'Maximum model calls',factorMinutes:'Maximum minutes',factorBrief:'Optional research brief',factorStart:'Start batch mining (model calls may incur cost)',factorCost:'Only explicitly starting may call paid models. Directory and result reads do not call models.',factorResearchInvalid:'Invalid parameters: processes 2/4/8, positive integer budgets, brief up to 1000 characters.',factorBatchPhase:'Current candidate evaluation',factorFinalValidation:'Automatic full validation (local compute, no extra model calls)',factorFinalValidationNote:'After the model stops, the best candidate is evaluated on all targets; no extra model calls, takes a few minutes.',factorPhaseProgress:'This candidate: processed / targets',factorTrialProgress:'Completed trials / new rules to try',factorJobProgress:'Job scheduling progress (not quality completion)',factorProcessed:'Target evaluations',factorFailed:'Failed',factorInsufficient:'Insufficient / skipped',factorImproved:'Best-rule updates',factorModelCalls:'Model calls',factorRulesWritten:'Candidate rules written',factorTrialsDone:'Completed trials',factorPartial:'Partial verified results are retained. Budget exhaustion or job termination does not imply every target was evaluated.',factorPollPaused:'Automatic checks paused (network or API error). The job keeps running; continue manually without resubmitting.',factorResults:'Evaluation and results by target',factorResultsNote:'Paged by category / code, never cross-target accuracy or return rankings. Pending, failed and insufficient-data targets are not verified results. Nulls stay null.',factorNoResults:'No verified results yet; seed references never masquerade as LLM results.',factorResultQuery:'Filter by code',factorCategory:'Target category',factorOpen:'Query this target',factorSourceLLM:'LLM batch result',factorSourceAdHoc:'Ad-hoc code backtest (not LLM batch)',factorSourceSeed:'Seed reference (not LLM batch)',factorSourceUnknown:'Rule source not supplied',factorActivity:'Recent research steps',factorErrors:'Bounded error summary',factorRestore:'Read recent batch job',factorRestoreNote:'Read-only recovery from factor_research jobs among the latest 10; never auto-submit.',factorNoHistory:'No batch research job among the latest 10.',factorPhaseUnknown:'Awaiting phase summary',factorCandidates:'Candidate rules',factorCreated:'Job created',factorTaskSubset:'This job: explicit subset',factorTaskLocalTotal:'Local total',factorTaskAll:'This job: all local targets',factorTaskScopeNote:'This is the submitted job scope. The start form creates all-target jobs only; it never inherits a subset.',factorResultStatus:'Evaluation status',factorPendingResult:'Pending mining (no verified rule)',factorFailedResult:'Evaluation failed',factorInsufficientResult:'Insufficient data / skipped',factorCompletedResult:'Evaluation completed',factorVerifiedResult:'Verified rule available'};
   Object.assign(zh,{selectionWatchHint:'自选股范围会把自选的每一只（个股/ETF/LOF）都逐一深度分析并给结论，不是挑选名单。',watchAddEmptyStock:'没有匹配的股票。',watchAddEmptyFund:'没有匹配的基金（ETF/LOF）。',stockSearchEmptyFund:'没有匹配的基金（ETF/LOF）。',selectionAllExperts:'本次使用全部已启用的专家（与专家团队一致），无需在此勾选。',selectionSector:'选择板块',selectionOpenSession:'打开专家选股会话',watchAiStart:'专家团队分析选中的自选股',watchAiHelp:'会为每只选中标的调用全部启用专家并可能产生较多费用；只数越多耗时越长，串行执行。',watchAiOpen:'打开自选股分析会话',watchSelectAll:'全选',watchSelectNone:'取消全选',watchChoose:'选择',watchAddTitle:'添加自选股',watchAddLabel:'股票/ETF名称或代码',watchAddHint:'输入名称或 6 位代码，选择“查找股票”或“查找基金”（含 ETF/LOF），再从结果里加入自选。',watchAddEmpty:'没有匹配的股票或 ETF。',watchInList:'已在自选',watchAdded:'已加入自选',removeWatch:'移除'});
   Object.assign(en,{selectionWatchHint:'The watchlist scope evaluates every saved target one by one (stocks, ETFs, LOFs) instead of picking a list.',watchAddEmptyStock:'No matching stock.',watchAddEmptyFund:'No matching fund (ETF/LOF).',stockSearchEmptyFund:'No matching fund (ETF/LOF).',selectionAllExperts:'This run uses every enabled expert, the same set as the expert team.',selectionSector:'Sector',selectionOpenSession:'Open selection session',watchAiStart:'Analyze selected with the expert team',watchAiHelp:'Runs every enabled expert for each selected target and may cost more; up to 10 targets per run, executed sequentially.',watchAiOpen:'Open watchlist analysis session',watchSelectAll:'Select all',watchSelectNone:'Clear selection',watchChoose:'Select',watchAddTitle:'Add to watchlist',watchAddLabel:'Stock/ETF name or code',watchAddHint:'Enter a name or 6-digit code, choose Stock or ETF, then add it from the results.',watchAddEmpty:'No matching stock or ETF.',watchInList:'already watched',watchAdded:'Added to watchlist',removeWatch:'Remove'});
-  Object.assign(zh,{reviews:'AI 专家复盘',reviewScopeSector:'板块',reviewCondition:'触发条件',reviewAtOrBelow:'≤',reviewAtOrAbove:'≥',reviewInvalidAt:'失效',reviewDelete:'删除这条复盘',reviewRule:'这个页面只做一件事：验证“选中之后到底有没有按专家说的条件买入、买入之后表现如何”，并据此统计专家与信心度的真实成绩；所有数字来自真实行情。',reviewLegend:'状态含义：已触发＝买入条件成立，收益从触发日算；未触发＝观察期内没到条件，视为没买，不计收益；参考＝专家没给触发条件，只能按入选价参考跟踪，不算已买入；已失效＝先跌破失效价；跟踪中＝还没有足够的后续交易日。窗口里的“—”表示还没走够对应交易日。',reviewReferenceCount:'无触发条件',reviewJudge:'AI 判定触发',reviewJudgeHelp:'让模型逐只阅读入选理由与触发条件，再对照入选后的真实行情判断是否真的触发；会调用模型并可能计费。',reviewJudgeDone:'已判定',reviewJudgeSkipped:'跳过',reviewHelp:'把每次选股的名单冻结下来，按真实行情跟踪是否触发买入条件、触发后的表现；未触发的不计收益。',reviewSync:'归档已完成选股',reviewOpen:'查看',reviewEmpty:'还没有可复盘的选股记录。先完成一次选股，或点“归档已完成选股”。',reviewDetail:'复盘详情',reviewTime:'归档时间',reviewScope:'范围',reviewTargets:'候选数',reviewName:'名称',reviewExperts:'推荐专家',reviewConfidence:'信心度',reviewStatus:'状态',reviewBaseDate:'触发/起算日',reviewBasePrice:'起算价',reviewNow:'当前',reviewDrawdown:'最大回撤',reviewEntered:'已入场 / 候选',reviewBench5:'候选等权5日',reviewBench20:'候选等权20日',reviewByExpert:'按专家',reviewByConfidence:'按信心度',reviewExpert:'专家',reviewPicks:'入选',reviewTriggeredCount:'已触发',reviewNotTriggeredCount:'未触发',reviewTriggerRate:'触发率',reviewWinRate:'胜率',reviewRank:'名次',reviewNotRanked:'样本不足',reviewTriggered:'已触发',reviewReference:'参考(未给条件)',reviewNotTriggered:'未触发(未入场)',reviewInvalidated:'已失效',reviewPending:'跟踪中',reviewUnavailable:'不可计算'});
-  Object.assign(en,{reviews:'AI selection review',reviewScopeSector:'Sector',reviewCondition:'Trigger',reviewAtOrBelow:'≤',reviewAtOrAbove:'≥',reviewInvalidAt:'Invalid at',reviewDelete:'Delete this review',reviewRule:'This page verifies whether each pick actually met its entry condition and how it performed afterwards. Every number comes from real prices.',reviewLegend:'Status: triggered = the entry condition was met and returns start at that bar; not triggered = the condition never hit, treated as no position; reference = the expert gave no condition, tracked from the pick price only; invalidated = the stop level broke first; pending = not enough sessions yet. A dash in a window means that many sessions have not elapsed.',reviewReferenceCount:'No condition',reviewJudge:'Let AI judge triggers',reviewJudgeHelp:'The model reads each pick condition against real post-selection bars to decide whether it actually triggered. Calls the model and may cost.',reviewJudgeDone:'Judged',reviewJudgeSkipped:'Skipped',reviewHelp:'Freezes every pick and tracks real prices: whether the entry condition triggered and what happened after. Untriggered picks earn no return.',reviewSync:'Archive finished selections',reviewOpen:'Open',reviewEmpty:'No reviewable selections yet.',reviewDetail:'Review detail',reviewTime:'Archived',reviewScope:'Scope',reviewTargets:'Picks',reviewName:'Name',reviewExperts:'Experts',reviewConfidence:'Confidence',reviewStatus:'Status',reviewBaseDate:'Trigger/base date',reviewBasePrice:'Base price',reviewNow:'Now',reviewDrawdown:'Max drawdown',reviewEntered:'Entered / picks',reviewBench5:'Equal-weight 5d',reviewBench20:'Equal-weight 20d',reviewByExpert:'By expert',reviewByConfidence:'By confidence',reviewExpert:'Expert',reviewPicks:'Picks',reviewTriggeredCount:'Triggered',reviewNotTriggeredCount:'Not triggered',reviewTriggerRate:'Trigger rate',reviewWinRate:'Win rate',reviewRank:'Rank',reviewNotRanked:'sample too small',reviewTriggered:'Triggered',reviewReference:'Reference (no condition)',reviewNotTriggered:'Not entered',reviewInvalidated:'Invalidated',reviewPending:'Tracking',reviewUnavailable:'Unavailable'});
+  Object.assign(zh,{reviews:'AI 专家复盘',reviewScopeSector:'板块',reviewCondition:'触发条件',reviewAtOrBelow:'≤',reviewAtOrAbove:'≥',reviewInvalidAt:'失效',reviewDelete:'删除这条复盘',reviewRule:'这个页面只做一件事：验证“选中之后到底有没有按专家说的条件买入、买入之后表现如何”，并据此统计专家与信心度的真实成绩；所有数字来自真实行情。',reviewLegend:'状态含义：已触发＝买入条件成立，收益从触发日算；未触发＝观察期内没到条件，视为没买，不计收益；参考＝专家没给触发条件，只能按入选价参考跟踪，不算已买入；已失效＝先跌破失效价；跟踪中＝还没有足够的后续交易日。窗口里的“—”表示还没走够对应交易日。',reviewReferenceCount:'无触发条件',reviewJudge:'AI 判定触发',reviewJudgeHelp:'让模型逐只阅读入选理由与触发条件，再对照入选后的真实行情判断是否真的触发；会调用模型并可能计费。',reviewJudgeDone:'已判定',reviewJudgeSkipped:'跳过',reviewHelp:'把每次选股的名单冻结下来，按真实行情跟踪是否触发买入条件、触发后的表现；未触发的不计收益。复杂条件会在每个交易日收盘后自动判定一次，不必手动点。',reviewSync:'归档已完成选股',reviewOpen:'查看',reviewEmpty:'还没有可复盘的选股记录。先完成一次选股，或点“归档已完成选股”。',reviewDetail:'复盘详情',reviewTime:'归档时间',reviewScope:'范围',reviewTargets:'候选数',reviewName:'名称',reviewExperts:'推荐专家',reviewConfidence:'信心度',reviewStatus:'状态',reviewBaseDate:'触发/起算日',reviewBasePrice:'起算价',reviewNow:'当前',reviewDrawdown:'最大回撤',reviewEntered:'已入场 / 候选',reviewBench5:'候选等权5日',reviewBench20:'候选等权20日',reviewByExpert:'按专家',reviewByConfidence:'按信心度',reviewExpert:'专家',reviewPicks:'入选',reviewTriggeredCount:'已触发',reviewNotTriggeredCount:'未触发',reviewTriggerRate:'触发率',reviewWinRate:'胜率',reviewRank:'名次',reviewNotRanked:'样本不足',reviewTriggered:'已触发',reviewReference:'参考(未给条件)',reviewNotTriggered:'未触发(未入场)',reviewInvalidated:'已失效',reviewPending:'跟踪中',reviewUnavailable:'不可计算'});
+  Object.assign(en,{reviews:'AI selection review',reviewScopeSector:'Sector',reviewCondition:'Trigger',reviewAtOrBelow:'≤',reviewAtOrAbove:'≥',reviewInvalidAt:'Invalid at',reviewDelete:'Delete this review',reviewRule:'This page verifies whether each pick actually met its entry condition and how it performed afterwards. Every number comes from real prices.',reviewLegend:'Status: triggered = the entry condition was met and returns start at that bar; not triggered = the condition never hit, treated as no position; reference = the expert gave no condition, tracked from the pick price only; invalidated = the stop level broke first; pending = not enough sessions yet. A dash in a window means that many sessions have not elapsed.',reviewReferenceCount:'No condition',reviewJudge:'Let AI judge triggers',reviewJudgeHelp:'The model reads each pick condition against real post-selection bars to decide whether it actually triggered. Calls the model and may cost.',reviewJudgeDone:'Judged',reviewJudgeSkipped:'Skipped',reviewHelp:'Freezes every pick and tracks real prices: whether the entry condition triggered and what happened after. Untriggered picks earn no return. Complex conditions are assessed once after each trading close without a click.',reviewSync:'Archive finished selections',reviewOpen:'Open',reviewEmpty:'No reviewable selections yet.',reviewDetail:'Review detail',reviewTime:'Archived',reviewScope:'Scope',reviewTargets:'Picks',reviewName:'Name',reviewExperts:'Experts',reviewConfidence:'Confidence',reviewStatus:'Status',reviewBaseDate:'Trigger/base date',reviewBasePrice:'Base price',reviewNow:'Now',reviewDrawdown:'Max drawdown',reviewEntered:'Entered / picks',reviewBench5:'Equal-weight 5d',reviewBench20:'Equal-weight 20d',reviewByExpert:'By expert',reviewByConfidence:'By confidence',reviewExpert:'Expert',reviewPicks:'Picks',reviewTriggeredCount:'Triggered',reviewNotTriggeredCount:'Not triggered',reviewTriggerRate:'Trigger rate',reviewWinRate:'Win rate',reviewRank:'Rank',reviewNotRanked:'sample too small',reviewTriggered:'Triggered',reviewReference:'Reference (no condition)',reviewNotTriggered:'Not entered',reviewInvalidated:'Invalidated',reviewPending:'Tracking',reviewUnavailable:'Unavailable'});
   Object.assign(zh,{integrationTitle:'首次使用：先连接同花顺',integrationBody:'Super Trader 的行情、选股、复盘都依赖同花顺 MCP；未连接时页面能打开，但取不到真实数据。',integrationStep1:'打开「设置 → MCP 连接器」（侧栏入口已移入设置，不再占用左侧菜单）。',integrationStep2:'新增两个自定义连接：传输 streamable-http、鉴权 API Key（X-Api-Key），地址分别为 a-share 与 meta 两条。',integrationStep3:'保存后回到本页点「重新检测」；显示已连接即可使用。',integrationCopied:'地址已复制',integrationRecheck:'重新检测'});
   Object.assign(en,{integrationTitle:'First run: connect Hithink (THS) first',integrationBody:'Quotes, screening and review all rely on the Hithink MCP servers. Without them the page opens but shows no real data.',integrationStep1:'Open Settings → MCP Connector (its sidebar entry now lives in Settings).',integrationStep2:'Add two custom connections: transport streamable-http, auth API Key (X-Api-Key), using the a-share and meta URLs below.',integrationStep3:'Save, then press Recheck here; connected means you are ready.',integrationCopied:'URL copied',integrationRecheck:'Recheck'});
+  Object.assign(zh,{
+    reviewRefresh:'刷新复盘',reviewHistory:'历史批次',reviewLatest:'最新批次',reviewHistoryBatch:'历史批次',reviewRecordId:'复盘编号',reviewSource:'判定来源',reviewNext:'下一步',reviewAnswers:'本批结论',reviewPlans:'专家计划',reviewPlanUnit:'项',reviewStockUnit:'只',reviewStockPlans:'逐股查看独立计划',reviewStats:'专家与信心度统计',reviewNotes:'口径与数据说明',
+    reviewScopeMarket:'全 A 股',reviewScopeWatch:'自选股',reviewBatchSource:'已归档的选股计划；行情随刷新更新。',reviewLegacyBatch:'旧版归档只保留了合并后的股票记录，不能归因到各专家，也不纳入独立计划统计。',reviewLegacyPlan:'旧版合并记录',reviewLegacy:'历史合并记录',reviewMultiple:'按专家计划分别判定',reviewNeedsAi:'待判定（复杂条件）',reviewAmbiguous:'证据不足，未确认触发',reviewPending:'仍需等待',reviewReference:'仅参考（无触发条件）',reviewUnavailable:'缺少可用行情',reviewNotTriggered:'观察期结束，未入场',reviewTriggered:'已触发',reviewInvalidated:'先失效，未入场',
+    reviewSummaryWaiting:'{n} 项还在等触发',reviewSummaryTriggered:'{n} 项已触发',reviewSummaryResolved:'{n} 项已满 20 个交易日，可回看完整窗口',reviewSummaryClosed:'{n} 项未入场，观察已结束',reviewSummaryComplex:'{n} 项复杂条件尚不能确认',reviewSummaryReference:'{n} 项仅作参考',reviewSummaryUnavailable:'{n} 项暂缺行情',reviewNoneTriggered:'暂未确认有计划触发',reviewSummaryLegacy:'仅保留旧版跟踪数据，无法还原独立计划结论。',reviewSummaryEmpty:'没有可评估的独立计划。',reviewSentenceEnd:'。',reviewSentenceJoin:'；',
+    reviewNextPending:'等待后续交易日，再刷新复盘',reviewNextTriggered:'按已触发后的交易日观察表现，未满的窗口继续等',reviewNextComplete:'查看已完成的观察结果，无需再判定入场',reviewNextClosed:'该计划不计入场收益，无需继续等触发',reviewNextReference:'只看参考走势，不计入场表现',reviewNextComplex:'展开对应股票，可手动发起 AI 判定',reviewNextAmbiguous:'暂不算入场；查看证据后再核对',reviewNextUnavailable:'行情可用后手动刷新复盘',reviewNextLegacy:'仅供回看；无法重建独立计划',reviewNextMultiple:'展开股票，分别核对各专家的状态和下一步',reviewUnknownSource:'当前没有可核实的判定来源',
+    reviewSourceRule:'日线收盘价规则',reviewSourceAi:'手动发起的 AI 判定（基于真实行情）',reviewSourceArchive:'冻结的选股计划',reviewSourceLegacy:'旧版归档',reviewSourceReference:'入选价参考，不是入场',reviewSelectionEntry:'入选参考日 / 价',reviewAsOf:'行情截至',reviewWaited:'已等待交易日',reviewAfterEntry:'触发后交易日',reviewAwaitingWindows:'未到期窗口',reviewWindows:'触发后收益',reviewRefWindows:'参考价走势',reviewAiEvidence:'AI 判定依据',reviewPlanMissing:'未保存可展开的计划。',reviewNoCondition:'未给可执行条件',reviewNoWindows:'暂无可计入的入场收益。',reviewMissingEvidence:'本记录未保存额外证据。',reviewArchiveDetails:'归档信息',
+    reviewJudge:'立即 AI 判定（可能计费）',reviewJudgeHelp:'仅用于复杂条件。每天收盘后（15:05 以后）会自动判定一次；也可以现在立即判定，会调用模型并可能计费。',reviewJudgeRunning:'正在核对该计划…',reviewJudgeUnavailable:'模型已经给出判定，请查看依据。',reviewJudgeResult:'已返回判定 {judged} 项，跳过 {skipped} 项，失败 {errors} 项。',reviewComparison:'历史复盘对照',reviewOpenSource:'打开来源复盘',reviewPerformance:'触发后表现',reviewDays:'{n} 日',reviewFailedPlan:'本计划判定失败',reviewSelectedAt:'选股完成时间',reviewInvalidationObserved:'失效日 / 当日收盘价',reviewTriggerObserved:'触发日 / 当日收盘价',reviewNotFill:'观察价，不代表实际成交。',reviewAiThrough:'AI 所用行情截至',reviewSummaryOutcome:'20 日结果：上涨 {up} 项、下跌 {down} 项、持平 {flat} 项',reviewNextNone:'没有可跟踪的计划，可在下次选股归档后刷新',reviewBaseline:'基准包含参考走势，不是组合收益。',
+  });
+  Object.assign(en,{
+    reviewRefresh:'Refresh review',reviewHistory:'Batch history',reviewLatest:'Latest batch',reviewHistoryBatch:'Past batch',reviewRecordId:'Review ID',reviewSource:'Assessment source',reviewNext:'Next step',reviewAnswers:'Batch assessment',reviewPlans:'Expert plans',reviewPlanUnit:'plans',reviewStockUnit:'stocks',reviewStockPlans:'Independent plans by stock',reviewStats:'Expert and confidence statistics',reviewNotes:'Method and data notes',
+    reviewScopeMarket:'All A-shares',reviewScopeWatch:'Watchlist',reviewBatchSource:'Archived selection plans; prices update on refresh.',reviewLegacyBatch:'Older archives merged picks by stock. They cannot be attributed to individual experts and are excluded from independent-plan statistics.',reviewLegacyPlan:'Legacy merged record',reviewLegacy:'Legacy merged record',reviewMultiple:'Assessed separately by plan',reviewNeedsAi:'Manual assessment needed (complex condition)',reviewAmbiguous:'Evidence inconclusive; no confirmed entry',reviewPending:'Still waiting',reviewReference:'Reference only (no trigger)',reviewUnavailable:'Price history unavailable',reviewNotTriggered:'Window closed without entry',reviewTriggered:'Triggered',reviewInvalidated:'Invalidated before entry',
+    reviewSummaryWaiting:'{n} still waiting for their triggers',reviewSummaryTriggered:'{n} triggered',reviewSummaryResolved:'{n} have a complete 20-session return window',reviewSummaryClosed:'{n} finished without entering',reviewSummaryComplex:'{n} complex conditions not yet confirmed',reviewSummaryReference:'{n} are references only',reviewSummaryUnavailable:'{n} lack price history',reviewNoneTriggered:'No trigger has been confirmed yet',reviewSummaryLegacy:'Only legacy tracking data was saved; no independent assessments can be recovered.',reviewSummaryEmpty:'No independent plans to assess.',reviewSentenceEnd:'.',reviewSentenceJoin:'; ',
+    reviewNextPending:'Wait for more trading sessions, then refresh',reviewNextTriggered:'Track returns from the trigger date and wait for incomplete windows',reviewNextComplete:'Review the completed windows; no entry judgment needed',reviewNextClosed:'No entry return applies and no trigger remains to wait for',reviewNextReference:'Reference movement only; do not count it as an entry',reviewNextComplex:'Expand the stock to run an optional manual AI assessment',reviewNextAmbiguous:'Do not count an entry; check the evidence',reviewNextUnavailable:'Refresh when price history is available',reviewNextLegacy:'For reference only; individual plans cannot be reconstructed',reviewNextMultiple:'Expand the stock to check each expert’s status and next step',reviewUnknownSource:'No verifiable assessment source is available',
+    reviewSourceRule:'Daily close price rule',reviewSourceAi:'Manually started AI assessment (from observed prices)',reviewSourceArchive:'Frozen selection plan',reviewSourceLegacy:'Legacy archive',reviewSourceReference:'Selection price reference, not an entry',reviewSelectionEntry:'Selection reference date / price',reviewAsOf:'Prices through',reviewWaited:'Trading sessions waited',reviewAfterEntry:'Trading sessions since trigger',reviewAwaitingWindows:'Incomplete windows',reviewWindows:'Returns after trigger',reviewRefWindows:'Movement from reference price',reviewAiEvidence:'AI assessment basis',reviewPlanMissing:'No plan details were saved.',reviewNoCondition:'No actionable trigger supplied',reviewNoWindows:'No entry return is available.',reviewMissingEvidence:'No additional evidence was saved.',reviewArchiveDetails:'Archive information',
+    reviewJudge:'Run AI assessment now (may incur fees)',reviewJudgeHelp:'Complex conditions only. It runs automatically once after each close (from 15:05 Shanghai); this button checks immediately and may cost.',reviewJudgeRunning:'Assessing this plan…',reviewJudgeUnavailable:'The model already assessed this plan. See the evidence.',reviewJudgeResult:'{judged} assessed, {skipped} skipped, {errors} failed.',reviewComparison:'Prior review comparison',reviewOpenSource:'Open source review',reviewPerformance:'Post-trigger performance',reviewDays:'{n}d',reviewFailedPlan:'Plan assessment failed',reviewSelectedAt:'Selection finished',reviewInvalidationObserved:'Invalidation date / observed close',reviewTriggerObserved:'Trigger date / observed close',reviewNotFill:'Observed price, not a trade fill.',reviewAiThrough:'Prices used by the model through',reviewSummaryOutcome:'20-session results: {up} up, {down} down, {flat} unchanged',reviewNextNone:'No plans to track; refresh after another selection is archived',reviewBaseline:'The benchmark includes reference moves and is not a portfolio return.',
+  });
   return lang==='zh'?zh:en;
 }
 function investText(value,limit) { return cockpitSafeText(typeof value==='string' ? value : value == null ? '' : typeof value==='object' ? JSON.stringify(value) : String(value),limit || 1800); }
@@ -1304,6 +1320,10 @@ function investFactorReport(raw,target,ruleId) {
   if(raw.samples)for(const key of ['false_positive','false_negative']){const rows=raw.samples[key];check(Array.isArray(rows)&&rows.length<=5,'samples.'+key,'最多5条样本',rows);rows.forEach((row,i)=>check(typeof row?.date==='string'&&Number.isInteger(row.h)&&row.h>=1&&row.h<=20&&typeof row.ret==='number'&&Number.isFinite(row.ret),'samples.'+key+'['+i+']','日期、h=1–20及数值ret',row));}
   return {...raw,metrics:{...m,per_horizon:[...m.per_horizon].sort((a,b)=>a.h-b.h)}};
 }
+function investReviewItems(value) {return Array.isArray(value)?value.filter(row=>row&&typeof row==='object'):[];}
+function investReviewId(value) {return typeof value==='string'&&value.trim()===value&&value.length>0&&value.length<=128&&!/[\\/?#\u0000-\u001f]/.test(value)&&value!=='.'&&value!=='..';}
+function investReviewLegacy(detail) {const targets=investReviewItems(detail?.targets);return detail?.legacy===true||(targets.length>0&&targets.every(item=>!Array.isArray(item.plans)));}
+function investReviewCanJudge(plan) {return investReviewId(plan?.plan_id)&&plan.plan_kind==='complex'&&plan.metrics?.status==='needs_ai'&&!plan.metrics.ai;}
 function createInvestStore(options) {
   options=options || {};
   const fetcher=options.fetch || ((...args)=>globalThis.fetch(...args)),schedule=options.schedule || setTimeout,unschedule=options.unschedule || clearTimeout,now=options.now || Date.now;
@@ -1312,13 +1332,14 @@ function createInvestStore(options) {
   let selectionTimer,selectionStarted=0,selectionCount=0,selectionPolling=false,expertsInitialized=false;
   let factorTimer,factorStarted=0,factorCount=0,factorPolling=false,factorVisible=false,transcriptTimer;
   const selectionActiveStatuses=['queued','pending','running','cancelling'];
-  let state={tab:'screen',target:null,stockCode:'',stockAsset:'个股',stockSearch:{...investIdle(),q:''},connection:{phase:'idle',ready:false,apiBase:'/dsh-super-trader/backend',error:null},status:null,factors:{code:'601088',category:'个股',timeframe:'1d',tab:'batch',ruleId:'',initialized:false,report:investIdle(),backtest:investIdle(),rules:investIdle()},factorResearch:{scope:'all',timeframe:'1d',workers:4,max_trials:5,brief:''},factorUniverse:investIdle(),factorResearchJob:{...investIdle(),submitting:false,cancelling:false,paused:false},factorResults:{...investIdle(),offset:0,limit:50,q:'',jobId:''},factorHistory:{...investIdle(),initialized:false},factorTranscript:{jobId:'',items:[],seq:0,phase:'idle',error:null,following:true,finalRead:false},report:investIdle(),screen:{scope:'market',sector:'',brief:''},selectionExpertIds:[],selectionAi:{phase:'idle',sessionId:null,requestId:null,error:null},selectionJob:{...investIdle(),params:null,paused:false,submitting:false,cancelling:false},sectors:{...investIdle(),tag:'industry',q:'',offset:0},selectedSector:null,experts:investIdle(),expertIds:[],expertEdit:null,expertCreating:false,expertSaving:false,expertDraft:null,expertError:null,expertDelete:{id:null,name:'',submitting:false,error:null},expertResearch:{phase:'idle',requirement:'',requestId:null,data:null,error:null},sectorAi:{phase:'idle',sessionId:null,requestId:null,error:null},stockAi:{phase:'idle',sessionId:null,requestId:null,error:null},watch:investIdle(),watchSearch:{...investIdle(),q:'',asset:'个股'},watchAi:{phase:'idle',sessionId:null,requestId:null,error:null},integration:investIdle(),reviews:investIdle(),reviewDetail:investIdle(),reviewJudge:investIdle(),reviewId:'',watchDeselected:[],add:investIdle(),draft:investIdle(),job:{...investIdle(),target:null,paused:false,submitting:false,cancelling:false},notice:null};
+  let state={tab:'screen',target:null,stockCode:'',stockAsset:'个股',stockSearch:{...investIdle(),q:''},connection:{phase:'idle',ready:false,apiBase:'/dsh-super-trader/backend',error:null},status:null,factors:{code:'601088',category:'个股',timeframe:'1d',tab:'batch',ruleId:'',initialized:false,report:investIdle(),backtest:investIdle(),rules:investIdle()},factorResearch:{scope:'all',timeframe:'1d',workers:4,max_trials:5,brief:''},factorUniverse:investIdle(),factorResearchJob:{...investIdle(),submitting:false,cancelling:false,paused:false},factorResults:{...investIdle(),offset:0,limit:50,q:'',jobId:''},factorHistory:{...investIdle(),initialized:false},factorTranscript:{jobId:'',items:[],seq:0,phase:'idle',error:null,following:true,finalRead:false},report:investIdle(),screen:{scope:'market',sector:'',brief:''},selectionExpertIds:[],selectionAi:{phase:'idle',sessionId:null,requestId:null,error:null},selectionJob:{...investIdle(),params:null,paused:false,submitting:false,cancelling:false},sectors:{...investIdle(),tag:'industry',q:'',offset:0},selectedSector:null,experts:investIdle(),expertIds:[],expertEdit:null,expertCreating:false,expertSaving:false,expertDraft:null,expertError:null,expertDelete:{id:null,name:'',submitting:false,error:null},expertResearch:{phase:'idle',requirement:'',requestId:null,data:null,error:null},sectorAi:{phase:'idle',sessionId:null,requestId:null,error:null},stockAi:{phase:'idle',sessionId:null,requestId:null,error:null},watch:investIdle(),watchSearch:{...investIdle(),q:'',asset:'个股'},watchAi:{phase:'idle',sessionId:null,requestId:null,error:null},integration:investIdle(),reviews:investIdle(),reviewDetail:investIdle(),reviewJudge:investIdle(),reviewId:'',reviewFocusPlanId:'',reviewSyncing:false,watchDeselected:[],add:investIdle(),draft:investIdle(),job:{...investIdle(),target:null,paused:false,submitting:false,cancelling:false},notice:null};
   function publish(patch) {if(disposed)return;state={...state,...patch};for(const fn of listeners)fn();}
   function abort(key) {requests.get(key)?.abort();requests.delete(key);versions.set(key,(versions.get(key)||0)+1);}
   function token(key) {abort(key);const c=new AbortController();requests.set(key,c);return {c,v:versions.get(key)};}
   function current(key,t) {return !disposed&&!t.c.signal.aborted&&versions.get(key)===t.v;}
-  async function request(path,init,signal) {
-    const response=await fetcher(state.connection.apiBase+'/api'+path,{...init,signal:signal?AbortSignal.any([signal,AbortSignal.timeout(30000)]):AbortSignal.timeout(30000),headers:{...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});
+  async function request(path,init,signal,timeoutMs=30000) {
+    const timeout=AbortSignal.timeout(timeoutMs);
+    const response=await fetcher(state.connection.apiBase+'/api'+path,{...init,signal:signal?AbortSignal.any([signal,timeout]):timeout,headers:{...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});
     let data;try {data=await response.json();}catch {if(path.startsWith('/factors/')){if(!response.ok)throw Error('HTTP '+response.status);throw cockpitError('factorContractError',path+'：接口未返回可解析的JSON；不是股票代码无效。');}throw cockpitError('invalidResponse');}
     if(!response.ok)throw Error((path.startsWith('/factors/')?'HTTP '+response.status+': ':'')+investText(data?.error || data?.detail || response.status));
     return data;
@@ -1623,39 +1644,85 @@ function createInvestStore(options) {
       publish({integration:{phase:'error',data:null,error:cockpitFailure(error)}});
     }
   }
-  function loadReviews() {return resource('reviews','/reviews',data=>{if(!Array.isArray(data?.items))throw cockpitError('invalidResponse');return data;});}
+  let followLatestReview=true;
+  async function loadReviews({refresh=false}={}) {
+    const data=await resource('reviews','/reviews',raw=>{
+      if(!Array.isArray(raw?.items))throw cockpitError('invalidResponse');
+      return {...raw,items:investReviewItems(raw.items).filter(row=>investReviewId(row.id))};
+    });
+    if(!data)return;
+    // The service returns newest first. A historical/exact selection must not be
+    // replaced by a list request finishing after the user selected it.
+    const id=followLatestReview?(data.items[0]?.id||''):state.reviewId;
+    if(!id&&state.reviewId){abort('reviewDetail');publish({reviewId:'',reviewDetail:investIdle(),reviewFocusPlanId:''});}
+    else if(id&&(id!==state.reviewId||state.reviewDetail.phase==='idle'||refresh&&state.reviewDetail.phase!=='loading')){
+      if(id!==state.reviewId)publish({reviewFocusPlanId:''});
+      await fetchReview(id);
+    }
+    return data;
+  }
+  async function refreshReviews() {
+    if(state.reviews.phase==='loading')return;
+    // Refreshing still updates the open detail when the history endpoint fails.
+    const data=await loadReviews({refresh:true});
+    if(!data&&state.reviewId&&state.reviewDetail.phase!=='loading')await fetchReview(state.reviewId);
+    return data;
+  }
   async function syncReviews() {
-    try{await request('/reviews/sync',{method:'POST'});}catch(error){publish({notice:cockpitFailure(error)});}
-    return loadReviews();
+    if(state.reviewSyncing)return;
+    publish({reviewSyncing:true,notice:null});
+    try {await request('/reviews/sync',{method:'POST'});return await refreshReviews();}
+    catch(error){publish({notice:cockpitFailure(error)});}
+    finally{publish({reviewSyncing:false});}
   }
   async function deleteReview(id) {
-    if(!id)return;
+    if(!investReviewId(id)||state.reviewJudge.phase==='loading')return;
     try{
       await request('/reviews/'+encodeURIComponent(id),{method:'DELETE'});
-      publish({reviewId:'',reviewDetail:investIdle(),reviewJudge:investIdle()});
+      if(state.reviewId===id){followLatestReview=true;abort('reviewDetail');publish({reviewId:'',reviewDetail:investIdle(),reviewFocusPlanId:''});}
       await loadReviews();
     }catch(error){publish({notice:cockpitFailure(error)});}
   }
-  async function judgeReview(id) {
-    if(!id||state.reviewJudge.phase==='loading')return;
-    const t=token('reviewJudge');
-    publish({reviewJudge:{...investIdle(),phase:'loading'}});
+  async function judgeReview(id,planId,consent) {
+    if(consent!==true||id!==state.reviewId||state.reviewDetail.phase!=='ready'||investReviewLegacy(state.reviewDetail.data)||state.reviewJudge.phase==='loading')return;
+    const allowed=investReviewItems(state.reviewDetail.data?.targets).some(item=>investReviewItems(item.plans).some(plan=>plan.plan_id===planId&&investReviewCanJudge(plan)));
+    if(!allowed)return;
+    const t=token('reviewJudge'),identity={reviewId:id,planId};
+    publish({reviewJudge:{...investIdle(),...identity,phase:'loading'}});
     try{
-      const data=await request('/reviews/'+encodeURIComponent(id)+'/judge',{method:'POST',body:JSON.stringify({})},t.c.signal);
+      // Never send an unscoped {} or a stock code: old bulk judging must not run.
+      const data=await request('/reviews/'+encodeURIComponent(id)+'/judge',{method:'POST',body:JSON.stringify({plan_ids:[planId]})},t.c.signal,270000);
       if(!current('reviewJudge',t))return;
-      publish({reviewJudge:{phase:'ready',data,error:null}});
-      await openReview(id);
+      if(data?.review_id!==id||!['judged','skipped','errors'].every(key=>Array.isArray(data[key])))throw cockpitError('invalidResponse');
+      if(state.reviewId===id)await fetchReview(id);
+      if(current('reviewJudge',t))publish({reviewJudge:{phase:'ready',...identity,data,error:null}});
+      return data;
     }catch(error){
-      if(current('reviewJudge',t))publish({reviewJudge:{phase:'error',data:null,error:cockpitFailure(error)}});
-    }
+      if(current('reviewJudge',t))publish({reviewJudge:{phase:'error',...identity,data:null,error:cockpitFailure(error)}});
+    }finally{if(requests.get('reviewJudge')===t.c)requests.delete('reviewJudge');}
   }
-  async function openReview(id) {
-    if(typeof id!=='string'||!id){return;}
-    publish({reviewId:id,reviewDetail:investIdle()});
+  function fetchReview(id) {
+    if(id!==state.reviewId)publish({reviewId:id,reviewDetail:investIdle()});
     return resource('reviewDetail','/reviews/'+encodeURIComponent(id),data=>{
-      if(!data||typeof data!=='object'||!Array.isArray(data.targets))throw cockpitError('invalidResponse');
+      if(!data||!Array.isArray(data.targets)||data.id!==undefined&&data.id!==id)throw cockpitError('invalidResponse');
       return data;
     });
+  }
+  function openReview(id,planId) {
+    if(!investReviewId(id))return;
+    followLatestReview=id===state.reviews.data?.items?.[0]?.id;
+    publish({reviewFocusPlanId:investReviewId(planId)?planId:'',notice:null});
+    return fetchReview(id);
+  }
+  function openReviewReference(id,planId) {
+    if(!investReviewId(id))return;
+    // Pin the exact linked batch before changing native panels; the list may mount
+    // immediately, and must not redirect an explicit reference to the latest batch.
+    followLatestReview=false;
+    publish({reviewFocusPlanId:investReviewId(planId)?planId:''});
+    const detail=fetchReview(id);
+    navigate('review');
+    return detail;
   }
   function updateExpertDraft(patch) {if(!state.expertSaving)publish({expertDraft:{...state.expertDraft,...patch},expertError:null});}
   async function saveExpert() {
@@ -1858,7 +1925,7 @@ function createInvestStore(options) {
   async function retryConnection() {try {const res=await fetcher('/dsh-super-trader/retry',{method:'POST',signal:AbortSignal.timeout(30000)});if(!res.ok)throw Error('HTTP '+res.status);if(connectionTimer!==undefined)unschedule(connectionTimer);await checkConnection();}catch(error){publish({connection:{...state.connection,error:cockpitFailure(error)}});}}
   function subscribe(fn) {listeners.add(fn);if(listeners.size===1&&options.autoConnect!==false)void checkConnection();return()=>{listeners.delete(fn);if(!listeners.size){if(connectionTimer!==undefined)unschedule(connectionTimer);abort('connection');stopPolling();stopSelectionPolling();stopFactors();}};}
   function dispose() {stopFactorTranscript();stopFactorResearchPolling();factorVisible=false;disposed=true;if(connectionTimer!==undefined)unschedule(connectionTimer);stopPolling();stopSelectionPolling();for(const c of requests.values())c.abort();requests.clear();listeners.clear();}
-  return {subscribe,getSnapshot:()=>state,navigate,setCode,setSearch,searchStocks,queryStock,openStock,querySector,selectSector,screenOptions,screen,screenSector,sectorOptions,loadSectors,loadExperts,toggleExpert,toggleSelectionExpert,loadReviews,syncReviews,openReview,judgeReview,deleteReview,loadIntegration,startSelectionAnalysis,openSelectionAnalysisSession,editExpert,cancelExpertEdit,newExpert,cancelNewExpert,expertRequirement,startExpertCreation,openExpertCreationSession,startSectorAnalysis,openSectorAnalysisSession,startStockAnalysis,openStockAnalysisSession,updateExpertDraft,saveExpert,requestExpertDelete,cancelExpertDelete,confirmExpertDelete,startSelection,cancelSelection,resumeSelectionPolling,stopSelectionPolling,loadWatch,addWatch,removeWatch,searchWatch,setWatchQuery,toggleWatchSelected,selectAllWatch,startWatchlistAnalysis,openWatchlistAnalysisSession,startTeam,cancelJob,resumePolling,stopPolling,checkConnection,retryConnection,draft,factorInput,queryFactor,ensureFactors,loadFactorRules,selectFactorRule,factorTab,stopFactors,factorResearchOptions,activeFactorResearch,loadFactorUniverse,startFactorResearch,cancelFactorResearch,resumeFactorResearchPolling,stopFactorResearchPolling,restoreFactorResearch,loadFactorResults,factorResultsQuery,openFactorResult,factorTranscriptFollowing,retryFactorTranscript,dispose};
+  return {subscribe,getSnapshot:()=>state,navigate,setCode,setSearch,searchStocks,queryStock,openStock,querySector,selectSector,screenOptions,screen,screenSector,sectorOptions,loadSectors,loadExperts,toggleExpert,toggleSelectionExpert,loadReviews,refreshReviews,syncReviews,openReview,openReviewReference,judgeReview,deleteReview,loadIntegration,startSelectionAnalysis,openSelectionAnalysisSession,editExpert,cancelExpertEdit,newExpert,cancelNewExpert,expertRequirement,startExpertCreation,openExpertCreationSession,startSectorAnalysis,openSectorAnalysisSession,startStockAnalysis,openStockAnalysisSession,updateExpertDraft,saveExpert,requestExpertDelete,cancelExpertDelete,confirmExpertDelete,startSelection,cancelSelection,resumeSelectionPolling,stopSelectionPolling,loadWatch,addWatch,removeWatch,searchWatch,setWatchQuery,toggleWatchSelected,selectAllWatch,startWatchlistAnalysis,openWatchlistAnalysisSession,startTeam,cancelJob,resumePolling,stopPolling,checkConnection,retryConnection,draft,factorInput,queryFactor,ensureFactors,loadFactorRules,selectFactorRule,factorTab,stopFactors,factorResearchOptions,activeFactorResearch,loadFactorUniverse,startFactorResearch,cancelFactorResearch,resumeFactorResearchPolling,stopFactorResearchPolling,restoreFactorResearch,loadFactorResults,factorResultsQuery,openFactorResult,factorTranscriptFollowing,retryFactorTranscript,dispose};
 }
 // Resolve only factual leaves in the exact saved source, never executable paths.
 function investEvidenceReference(source,pointer) {
@@ -1927,7 +1994,7 @@ function createInvestComponents(React,store) {
       h('h4',null,t('selectionMissing')),pick.missing_evidence?.length?h(Warnings,{items:pick.missing_evidence}):h('p',{className:'sti-muted'},'—'),
       pick.quant_status?h('p',{className:'sti-muted'},t(({not_requested:'selectionQuantNotRequested',unavailable:'selectionQuantUnavailable',available:'selectionQuantAvailable'})[pick.quant_status] || 'unknown')):null,
       pick.quant_comment?h('p',{className:'sti-muted'},t('quant')+': '+investText(pick.quant_comment)):null,
-      h(SelectionEvidence,{evidence:pick.evidence,sources,t}),h(StockActions,{item:pick,t}));
+      h(SelectionEvidence,{evidence:pick.evidence,sources,t}),h(ReviewComparison,{items:pick.history_comparison,t}),h(StockActions,{item:pick,t}));
   }
   function SelectionResult({result,t,running=false,experts=[]}) {
     const expertResults=Array.isArray(result.expert_results)?result.expert_results:[];
@@ -2071,7 +2138,7 @@ function createInvestComponents(React,store) {
     );
   }
 
-  function Vote({vote,t}) {const outlook=vote.outlook || {};return h('article',{className:'sti-card sti-vote'},h('h3',null,vote.expert?.name || vote.expert?.id || '—',h('small',null,vote.expert?.tag || '')),h('strong',null,vote.abstained || !vote.evidence?.length?t('abstained'):t(vote.vote===1 || vote.vote==='up'?'up':vote.vote===-1 || vote.vote==='down'?'down':'neutral')),h('p',null,investText(vote.reason)),h('p',{className:'sti-muted'},t('confidence')+': '+t(({low:'confidenceLow',medium:'confidenceMedium',high:'confidenceHigh'})[vote.confidence] || 'unknown')),h('dl',{className:'sti-outlook'},...['short_term','medium_term','bull_case','bear_case','invalidation'].map((key,i)=>h(Metric,{key,label:t(['shortTerm','mediumTerm','bullCase','bearCase','invalidation'][i]),value:investText(outlook[key]) || '—'}))),h('h4',null,t('evidence')),vote.evidence?.length?h('ul',null,...vote.evidence.map((e,i)=>h('li',{key:i},investText(e.source)+' · '+investText(e.ref)))):h('p',{className:'sti-warning'},t('noEvidence')),h('h4',null,t('risks')),vote.risks?.length?h(Warnings,{items:vote.risks}):h('p',{className:'sti-muted'},t('noRisk')));}
+  function Vote({vote,t}) {const outlook=vote.outlook || {};return h('article',{className:'sti-card sti-vote'},h('h3',null,vote.expert?.name || vote.expert?.id || '—',h('small',null,vote.expert?.tag || '')),h('strong',null,vote.abstained || !vote.evidence?.length?t('abstained'):t(vote.vote===1 || vote.vote==='up'?'up':vote.vote===-1 || vote.vote==='down'?'down':'neutral')),h('p',null,investText(vote.reason)),h('p',{className:'sti-muted'},t('confidence')+': '+t(({low:'confidenceLow',medium:'confidenceMedium',high:'confidenceHigh'})[vote.confidence] || 'unknown')),h('dl',{className:'sti-outlook'},...['short_term','medium_term','bull_case','bear_case','invalidation'].map((key,i)=>h(Metric,{key,label:t(['shortTerm','mediumTerm','bullCase','bearCase','invalidation'][i]),value:investText(outlook[key]) || '—'}))),h('h4',null,t('evidence')),vote.evidence?.length?h('ul',null,...vote.evidence.map((e,i)=>h('li',{key:i},investText(e.source)+' · '+investText(e.ref)))):h('p',{className:'sti-warning'},t('noEvidence')),h('h4',null,t('risks')),vote.risks?.length?h(Warnings,{items:vote.risks}):h('p',{className:'sti-muted'},t('noRisk')),h(ReviewComparison,{items:vote.history_comparison,t}));}
   function TeamResult({result,t}) {const c=result.consensus || {};return h('div',{className:'sti-team-result'},h(Card,{title:t('teamView')},h('h3',null,t('resultTarget')+': '+(result.target?.name || '')+' '+(result.target?.thscode || result.target?.code || '')),h('p',{className:'sti-muted'},t('reportTime')+': '+time(result.report?.created_at || result.created_at)),h('dl',{className:'sti-metrics'},h(Metric,{label:t('decision'),value:t(c.decision==='up'?'decisionUp':c.decision==='down'?'decisionDown':'decisionNone')}),h(Metric,{label:t('votesUp'),value:num(c.up)}),h(Metric,{label:t('votesDown'),value:num(c.down)}),h(Metric,{label:t('abstained'),value:num(c.abstained)}),h(Metric,{label:t('support'),value:pct(c.support)})),h('p',{className:'sti-warning'},t('voteNote')),h(Warnings,{items:result.errors})),...(result.votes || []).map((vote,i)=>h(Vote,{key:vote.expert?.id || i,vote,t})),result.report&&result.kind!=='sector'?h('details',{className:'sti-card'},h('summary',null,t('reportEvidence')),h(Quant,{value:result.report.quant,t}),h(Warnings,{items:result.report.warnings})):null);}
   function Experts({t,onOpenExpertSession}) {const s=useStore(),j=s.job,result=j.data?.result,running=['queued','pending','running','cancelling'].includes(j.data?.status),ai=s.target?.kind==='stock'?s.stockAi:s.target?.kind==='sector'?s.sectorAi:null,anyEnabled=(s.experts.data?.items||[]).some(e=>e.enabled!==false);const startAi=()=>{if(s.target?.kind==='stock')return store.startStockAnalysis(onOpenExpertSession);if(s.target?.kind==='sector')return store.startSectorAnalysis(onOpenExpertSession);return store.startTeam(true);};React.useEffect(()=>{if(s.connection.ready)void store.loadExperts();},[s.connection.ready]);React.useEffect(()=>{store.resumePolling();return()=>store.stopPolling();},[]);return h('div',null,h(Card,{title:t('experts')},h('p',null,t('teamIntro')),h('div',{className:'sti-target'},h('strong',null,t('currentTarget')+': '+(s.target?(s.target.name+' '+s.target.code):t('chooseTarget')))),h('div',{className:'sti-actions'},!s.target?h(Button,{onClick:()=>store.navigate('stock')},t('stock')):null,!s.target?h(Button,{onClick:()=>store.navigate('sectors')},t('sectors')):null,h(Button,{disabled:s.expertSaving||s.expertDelete.submitting||s.expertResearch.phase==='submitting',onClick:()=>store.newExpert()},t('expertNew'))),h(Status,{resource:s.experts,t}),s.expertCreating?h('form',{className:'sti-expert sti-expert-edit',onSubmit:event=>{event.preventDefault();void store.startExpertCreation(onOpenExpertSession);}},
         h('label',null,t('expertAiRequirement'),h('textarea',{rows:4,maxLength:8000,value:s.expertResearch.requirement,disabled:s.expertResearch.phase==='submitting',placeholder:t('expertAiExample'),onChange:event=>store.expertRequirement(event.target.value)})),
@@ -2224,87 +2291,147 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
           h(Button,{onClick:()=>store.openStock(item.code,item.name,item.category)},t('research')),
           h(Button,{onClick:()=>store.removeWatch(item.code,item.category)},t('removeWatch'))));})}):h(Empty,null,t('watchEmpty'))));
   }
+  function reviewCopy(t,key,values={}) {return t(key).replace(/\{(\w+)\}/g,(all,name)=>Object.hasOwn(values,name)?String(values[name]):all);}
+  function reviewStatus(t,status) {
+    const labels={triggered:'reviewTriggered',reference:'reviewReference',not_triggered:'reviewNotTriggered',invalidated:'reviewInvalidated',pending:'reviewPending',unavailable:'reviewUnavailable',needs_ai:'reviewNeedsAi',ambiguous:'reviewAmbiguous',legacy:'reviewLegacy',multiple_plans:'reviewMultiple'};
+    return t(Object.hasOwn(labels,status)?labels[status]:'unknown');
+  }
+  const reviewComplete=m=>m?.status==='triggered'&&cockpitNumber(m.windows?.['20d'])!==null;
+  function reviewNext(m) {
+    const options={triggered:reviewComplete(m)?'reviewNextComplete':'reviewNextTriggered',reference:'reviewNextReference',not_triggered:'reviewNextClosed',invalidated:'reviewNextClosed',pending:'reviewNextPending',unavailable:'reviewNextUnavailable',needs_ai:m?.ai?'reviewNextAmbiguous':'reviewNextComplex',ambiguous:'reviewNextAmbiguous',legacy:'reviewNextLegacy',multiple_plans:'reviewNextMultiple'};
+    return Object.hasOwn(options,m?.status)?options[m.status]:'reviewNextUnavailable';
+  }
+  function reviewSummary(t,plans) {
+    if(!plans.length)return t('reviewSummaryEmpty');
+    const count=(...statuses)=>plans.filter(plan=>statuses.includes(plan.metrics?.status)).length;
+    const waiting=count('pending'),triggered=count('triggered'),closed=count('not_triggered','invalidated'),complex=count('needs_ai','ambiguous');
+    const completed=plans.filter(plan=>reviewComplete(plan.metrics)).map(plan=>plan.metrics.windows['20d']);
+    const parts=[['reviewSummaryWaiting',waiting],['reviewSummaryTriggered',triggered],['reviewSummaryResolved',completed.length],['reviewSummaryClosed',closed],['reviewSummaryComplex',complex],['reviewSummaryReference',count('reference')],['reviewSummaryUnavailable',count('unavailable')]]
+      .filter(([,n])=>n).map(([key,n])=>reviewCopy(t,key,{n:num(n)}));
+    if(completed.length)parts.push(reviewCopy(t,'reviewSummaryOutcome',{up:num(completed.filter(v=>v>0).length),down:num(completed.filter(v=>v<0).length),flat:num(completed.filter(v=>v===0).length)}));
+    if(!triggered)parts.push(t('reviewNoneTriggered'));
+    return parts.join(t('reviewSentenceJoin'))+t('reviewSentenceEnd');
+  }
+  function reviewScope(t,row) {
+    if(row.scope==='market')return t('reviewScopeMarket');
+    if(row.scope==='watchlist')return t('reviewScopeWatch');
+    if(row.scope==='sector')return t('reviewScopeSector')+(row.sector?' · '+investText(row.sector):'');
+    return investText(row.scope)||'—';
+  }
+  function reviewLine(label,value,props={}) {return h('p',props,h('strong',null,label+'：'),value);}
+  function reviewConf(t,value) {
+    const labels={high:'confidenceHigh',medium:'confidenceMedium',low:'confidenceLow'};
+    return t(Object.hasOwn(labels,value)?labels[value]:'unknown');
+  }
+  function reviewWindows(t,windows,keys=[1,3,5,10,20]) {
+    return keys.map(n=>reviewCopy(t,'reviewDays',{n})+' '+pct(windows?.[n+'d'])).join(' · ');
+  }
+  function ReviewComparison({items,t}) {
+    const linked=investReviewItems(items).filter(row=>investReviewId(row.review_id));
+    if(!linked.length)return null;
+    return h('div',null,h('h4',null,t('reviewComparison')),h('ul',null,...linked.map((row,i)=>h('li',{key:row.review_id+'|'+(row.plan_id||i)},
+      h('p',null,[investText(row.expert_name),investText(row.code),investText(row.selected_at),reviewStatus(t,row.status)].filter(Boolean).join(' · ')),
+      row.comparison||row.reason?h('p',null,investText(row.comparison||row.reason)):null,
+      row.status==='triggered'&&[5,20].some(n=>cockpitNumber(row.windows?.[n+'d'])!==null)?reviewLine(t('reviewPerformance'),reviewWindows(t,row.windows,[5,20])):null,
+      row.as_of?reviewLine(t('reviewAsOf'),investText(row.as_of),{className:'sti-muted'}):null,
+      h(Button,{onClick:()=>store.openReviewReference(row.review_id,row.plan_id),title:t('reviewRecordId')+' '+row.review_id},t('reviewOpenSource'))))));
+  }
+  function reviewCause(m,plan,legacy) {
+    if(legacy)return 'reviewSourceLegacy';
+    if(m.ai||m.trigger?.source==='ai'||m.source==='ai')return 'reviewSourceAi';
+    if(m.status==='reference')return 'reviewSourceReference';
+    if(m.trigger?.source==='rule'||m.trigger?.source==='close_rule'||plan.plan_kind==='rule'&&m.status!=='unavailable')return 'reviewSourceRule';
+    if(m.status==='needs_ai'||plan.plan_kind==='reference')return 'reviewSourceArchive';
+    return 'reviewUnknownSource';
+  }
+  function ReviewPlan({t,plan,legacy,reviewId,judge}) {
+    const m=plan.metrics||{},trigger=m.trigger||{},entry=plan.entry||{};
+    const displayedStatus=legacy?(m.status==='legacy'?m.historical_status:m.status):m.status;
+    const judgeable=!legacy&&investReviewCanJudge(plan),ownJudge=judge.reviewId===reviewId&&judge.planId===plan.plan_id;
+    const result=ownJudge?judge.data:null;
+    const price=plan.entry_price??trigger.entry_price,direction=plan.entry_direction??trigger.entry_direction,invalid=plan.invalidation_price??trigger.invalidation_price,note=plan.entry_note||trigger.entry_note;
+    const condition=cockpitNumber(price)!==null?((direction==='below'?t('reviewAtOrBelow'):direction==='above'?t('reviewAtOrAbove'):'')+' '+num(price)).trim():'';
+    const hasWindows=Object.values(m.windows||{}).some(v=>cockpitNumber(v)!==null)||cockpitNumber(m.current)!==null;
+    const name=legacy?t('reviewLegacyPlan'):investText(plan.expert_name||plan.expert_id)||t('unknown');
+    const evidence=investReviewItems(plan.evidence),evidenceSources=investReviewItems(plan.evidence_sources);
+    return h('article',{className:'sti-selection-pick'},
+      h('h4',null,name+(plan.expert_tag?' · '+investText(plan.expert_tag):'')+(!legacy?' · '+reviewConf(t,plan.confidence):'')),
+      reviewLine(t('reviewStatus'),reviewStatus(t,displayedStatus||(legacy?'legacy':undefined))),
+      reviewLine(t('reviewCondition'),[condition,cockpitNumber(invalid)!==null?t('reviewInvalidAt')+' '+num(invalid):'',note&&investText(note)].filter(Boolean).join(' · ')||t('reviewNoCondition')),
+      m.reason?h('p',null,investText(m.reason)):null,
+      reviewLine(t('reviewNext'),t(legacy?'reviewNextLegacy':reviewNext(m))),
+      reviewLine(t('reviewSource'),t(reviewCause(m,plan,legacy)),{className:'sti-muted'}),
+      m.status==='triggered'||m.status==='reference'||legacy&&hasWindows?reviewLine(t(m.status==='triggered'&&!legacy?'reviewWindows':'reviewRefWindows'),reviewWindows(t,m.windows)):null,
+      judgeable?h('div',null,h('p',{className:'sti-warning'},t('reviewJudgeHelp')),h(Button,{onClick:()=>store.judgeReview(reviewId,plan.plan_id,true),disabled:judge.phase==='loading'},t(ownJudge&&judge.phase==='loading'?'reviewJudgeRunning':'reviewJudge'))):null,
+      ownJudge?h(Status,{resource:judge,t}):null,
+      result?h('p',{role:'status'},reviewCopy(t,'reviewJudgeResult',{judged:result.judged.length,skipped:result.skipped.length,errors:result.errors.length})):null,
+      result?.errors.length?h(Warnings,{items:result.errors.map(item=>item?.error||t('reviewFailedPlan'))}):null,
+      h('details',null,h('summary',null,t('evidence')),
+        plan.reason?reviewLine(t('reason'),investText(plan.reason)):null,
+        plan.why_fit?reviewLine(t('selectionFit'),investText(plan.why_fit)):null,
+        plan.selected_at?reviewLine(t('reviewSelectedAt'),investOutputTime(plan.selected_at)):null,
+        entry.date||entry.price!=null?reviewLine(t('reviewSelectionEntry'),(investText(entry.date)||'—')+' / '+num(entry.price)):null,
+        entry.reason?h('p',{className:'sti-muted'},investText(entry.reason)):null,
+        trigger.date?reviewLine(t(m.status==='invalidated'?'reviewInvalidationObserved':'reviewTriggerObserved'),investText(trigger.date)+' / '+num(trigger.price??m.base_price)):
+          m.base_date?reviewLine(t('reviewBaseDate'),investText(m.base_date)+' / '+num(m.base_price)):null,
+        trigger.price_type==='observed_close'||m.is_fill===false&&(m.base_date||trigger.date)?h('p',{className:'sti-muted'},t('reviewNotFill')):null,
+        m.as_of?reviewLine(t('reviewAsOf'),investText(m.as_of)):null,
+        cockpitNumber(m.days_waited)!==null?reviewLine(t('reviewWaited'),num(m.days_waited)):null,
+        cockpitNumber(m.future_bars)!==null&&m.status==='triggered'?reviewLine(t('reviewAfterEntry'),num(m.future_bars)):null,
+        Array.isArray(m.pending_windows)&&m.pending_windows.length?reviewLine(t('reviewAwaitingWindows'),m.pending_windows.map(n=>reviewCopy(t,'reviewDays',{n:num(n)})).join(' · ')):null,
+        cockpitNumber(m.current)!==null?reviewLine(t('reviewNow'),pct(m.current)):null,
+        cockpitNumber(m.max_drawdown)!==null?reviewLine(t('reviewDrawdown'),pct(m.max_drawdown)):null,
+        m.ai?reviewLine(t('reviewAiEvidence'),[reviewStatus(t,m.ai.status),m.ai.reason&&investText(m.ai.reason),m.ai.model&&investText(m.ai.model)].filter(Boolean).join(' · ')):null,
+        m.ai?.data_through?reviewLine(t('reviewAiThrough'),investText(m.ai.data_through)):null,
+        evidence.length?h(SelectionEvidence,{evidence,sources:evidenceSources,t}):null,
+        !plan.reason&&!plan.why_fit&&!plan.selected_at&&!entry.date&&!trigger.date&&!m.base_date&&!m.as_of&&!m.ai&&!evidence.length?h('p',{className:'sti-muted'},t('reviewMissingEvidence')):null));
+  }
+  function ReviewStats({t,detail}) {
+    const experts=investReviewItems(detail.experts),confidence=investReviewItems(detail.confidence),benchmark=detail.benchmark;
+    if(!experts.length&&!confidence.length&&!benchmark)return null;
+    const rows=(items,expert)=>items.map((row,index)=>h('tr',{key:(expert?(row.expert_id||row.expert):row.confidence)+'|'+index},
+      h('td',null,expert?investText(row.expert_name||row.expert||row.expert_id):reviewConf(t,row.confidence),expert&&row.expert_tag?h('small',null,investText(row.expert_tag)):null),
+      h('td',null,num(row.picks)),h('td',null,num(row.triggered)),h('td',null,pct(row.trigger_rate)),h('td',null,pct(row.avg_return_5d)),h('td',null,pct(row.win_rate_5d)),expert?h('td',null,row.ranked?num(row.rank):t('reviewNotRanked')):null));
+    const heads=[t('reviewPicks'),t('reviewTriggeredCount'),t('reviewTriggerRate'),reviewCopy(t,'reviewDays',{n:5}),t('reviewWinRate')];
+    return h('details',null,h('summary',null,t('reviewStats')),
+      experts.length?h(React.Fragment,null,h('h3',null,t('reviewByExpert')),h(Table,{heads:[t('reviewExpert'),...heads,t('reviewRank')],rows:rows(experts,true)})):null,
+      confidence.length?h(React.Fragment,null,h('h3',null,t('reviewByConfidence')),h(Table,{heads:[t('reviewConfidence'),...heads],rows:rows(confidence,false)})):null,
+      benchmark?.windows?h('p',{className:'sti-muted'},t('reviewBench5')+' '+pct(benchmark.windows['5d']?.equal_weight)+' · '+t('reviewBench20')+' '+pct(benchmark.windows['20d']?.equal_weight)):null);
+  }
   function Review({t}) {
     const s=useStore(),list=s.reviews.data?.items||[],detail=s.reviewDetail.data;
-    React.useEffect(()=>{if(s.connection.ready&&s.reviews.phase==='idle')void store.loadReviews();},[s.connection.ready,s.reviews.phase]);
-    const confLabels={high:t('confidenceHigh'),medium:t('confidenceMedium'),low:t('confidenceLow')};
-    const confLabel=value=>confLabels[value]||investText(value||'');
-    const labels={triggered:t('reviewTriggered'),reference:t('reviewReference'),not_triggered:t('reviewNotTriggered'),
-      invalidated:t('reviewInvalidated'),pending:t('reviewPending'),unavailable:t('reviewUnavailable')};
-    const statusLabel=status=>labels[status]||status||'—';
-    function targetTable(items){
-      const rows=items.map((item,index)=>{
-        const m=item.metrics||{},win=m.windows||{};
-        return h('tr',{key:item.code+'|'+index},
-          h('td',null,item.name||'',h('small',null,item.code),m.ai?h('small',null,'AI: '+(labels[m.ai.status]||m.ai.status)+(m.ai.reason?' · '+investText(m.ai.reason,80):'')):null),
-          h('td',null,(item.experts||[]).join(' / ')),
-          h('td',null,confLabel(item.confidence)),
-          h('td',null,statusLabel(m.status),m.days_waited!=null&&m.status==='pending'?h('small',null,'（已等待 '+num(m.days_waited)+' 个交易日）'):null),
-          h('td',null,m.trigger?.entry_price!=null?((m.trigger.entry_direction==='below'?t('reviewAtOrBelow'):t('reviewAtOrAbove'))+' '+num(m.trigger.entry_price)+(m.trigger.invalidation_price!=null?' · '+t('reviewInvalidAt')+' '+num(m.trigger.invalidation_price):'')):(m.status==='reference'?t('reviewReference'):'—'),
-            m.trigger?.entry_note?h('small',null,investText(m.trigger.entry_note,60)):null),
-          h('td',null,m.trigger?.date||m.base_date||'—'),
-          h('td',null,m.base_price!=null?num(m.base_price):'—'),
-          h('td',null,typeof win['5d']==='number'?pct(win['5d']):'—'),
-          h('td',null,typeof win['20d']==='number'?pct(win['20d']):'—'),
-          h('td',null,m.current!=null?pct(m.current):'—'),
-          h('td',null,m.max_drawdown!=null?pct(m.max_drawdown):'—'));
-      });
-      return h(Table,{heads:[t('reviewName'),t('reviewExperts'),t('reviewConfidence'),t('reviewStatus'),
-        t('reviewCondition'),t('reviewBaseDate'),t('reviewBasePrice'),'5d','20d',t('reviewNow'),t('reviewDrawdown')],rows});
-    }
-    function expertTable(rows){
-      return h(Table,{heads:[t('reviewExpert'),t('reviewPicks'),t('reviewTriggeredCount'),t('reviewNotTriggeredCount'),
-        t('reviewReferenceCount'),t('reviewTriggerRate'),'5d',t('reviewWinRate'),t('reviewRank')],
-        rows:rows.map((row,index)=>h('tr',{key:row.expert+'|'+index},
-          h('td',null,investText(row.expert)),
-          h('td',null,num(row.picks)),
-          h('td',null,num(row.triggered)),
-          h('td',null,num(row.not_triggered)),
-          h('td',null,num(row.reference)),
-          h('td',null,row.trigger_rate!=null?pct(row.trigger_rate):'—'),
-          h('td',null,row.avg_return_5d!=null?pct(row.avg_return_5d):'—'),
-          h('td',null,row.win_rate_5d!=null?pct(row.win_rate_5d):'—'),
-          h('td',null,row.ranked?num(row.rank):t('reviewNotRanked'))))});
-    }
-    function confidenceTable(rows){
-      return h(Table,{heads:[t('reviewConfidence'),t('reviewPicks'),t('reviewReferenceCount'),t('reviewTriggerRate'),'5d',t('reviewWinRate')],
-        rows:rows.map((row,index)=>h('tr',{key:row.confidence+'|'+index},
-          h('td',null,confLabel(row.confidence)),
-          h('td',null,num(row.picks)),
-          h('td',null,num(row.reference)),
-          h('td',null,row.trigger_rate!=null?pct(row.trigger_rate):'—'),
-          h('td',null,row.avg_return_5d!=null?pct(row.avg_return_5d):'—'),
-          h('td',null,row.win_rate_5d!=null?pct(row.win_rate_5d):'—')))});
-    }
-    const benchmark=detail?.benchmark;
-    return h('div',null,
-      h(Card,{title:t('reviews')},
-        h('p',{className:'sti-muted'},t('reviewHelp')),
-        h('ul',{className:'sti-muted'},h('li',null,t('reviewRule')),h('li',null,t('reviewLegend'))),
-        h('div',{className:'sti-actions'},
-          h(Button,{onClick:()=>store.syncReviews(),disabled:s.reviews.phase==='loading'},t('reviewSync')),
-          h(Button,{onClick:()=>store.loadReviews(),disabled:s.reviews.phase==='loading'},t('refresh'))),
-        h(Status,{resource:s.reviews,t}),
-        list.length?h(Table,{heads:[t('reviewTime'),t('reviewScope'),t('reviewTargets'),''],
-          rows:list.map(row=>h('tr',{key:row.id},
-            h('td',null,investText(row.archived_at)),
-            h('td',null,(row.scope==='market'?t('market'):row.scope==='watchlist'?t('watchScope'):row.scope==='sector'?t('reviewScopeSector')+(row.sector?' · '+row.sector:''):(row.scope||''))+(row.brief?' · '+investText(row.brief,40):'')),
-            h('td',null,num(row.target_count)),
-            h('td',null,h(Button,{onClick:()=>store.openReview(row.id)},t('reviewOpen')))))}):h(Empty,null,t('reviewEmpty'))),
-      s.reviewId?h(Card,{title:t('reviewDetail')},
-        h(Status,{resource:s.reviewDetail,t}),
-        detail?h(React.Fragment,null,
-          h(Warnings,{items:detail.warnings}),
-          benchmark?h('dl',{className:'sti-metrics'},
-            h(Metric,{label:t('reviewEntered'),value:num(benchmark.entered)+' / '+num(benchmark.total)}),
-            h(Metric,{label:t('reviewReferenceCount'),value:num(benchmark.reference)}),
-            h(Metric,{label:t('reviewNotTriggeredCount'),value:num(benchmark.not_triggered)}),
-            h(Metric,{label:t('reviewInvalidated'),value:num(benchmark.invalidated)}),
-            h(Metric,{label:t('reviewBench5'),value:benchmark.windows?.['5d']?.equal_weight!=null?pct(benchmark.windows['5d'].equal_weight):'—'}),
-            h(Metric,{label:t('reviewBench20'),value:benchmark.windows?.['20d']?.equal_weight!=null?pct(benchmark.windows['20d'].equal_weight):'—'})):null,
-          targetTable(detail.targets||[]),
-          detail.experts?.length?h(React.Fragment,null,h('h3',null,t('reviewByExpert')),expertTable(detail.experts)):null,
-          detail.confidence?.length?h(React.Fragment,null,h('h3',null,t('reviewByConfidence')),confidenceTable(detail.confidence)):null):null):null);
+    React.useEffect(()=>{if(s.connection.ready)void store.refreshReviews();},[s.connection.ready]);
+    const targets=investReviewItems(detail?.targets),plans=targets.flatMap(item=>investReviewItems(item.plans)),legacy=investReviewLegacy(detail);
+    const opened=list.find(row=>row.id===s.reviewId)||detail,loading=s.reviews.phase==='loading'||s.reviewDetail.phase==='loading'||s.reviewSyncing;
+    const currentIsLatest=list[0]?.id===s.reviewId;
+    const next=[...new Set(legacy?['reviewNextLegacy']:plans.map(plan=>reviewNext(plan.metrics)))];
+    return h(Card,{title:opened?(currentIsLatest?t('reviewLatest'):t('reviewHistoryBatch'))+(opened.archived_at?' · '+investOutputTime(opened.archived_at):''):t('reviewAnswers')},
+      h('div',{className:'sti-actions'},h(Button,{onClick:()=>store.refreshReviews(),disabled:loading||!s.connection.ready},t('reviewRefresh'))),
+      h(Status,{resource:s.reviews,t}),h(Status,{resource:s.reviewDetail,t}),
+      detail?h(React.Fragment,null,
+        h('p',{className:'sti-muted'},[reviewScope(t,detail),num(targets.length)+' '+t('reviewStockUnit'),!legacy?num(detail.plan_count??plans.length)+' '+t('reviewPlanUnit')+t('reviewPlans'):null,t('reviewRecordId')+' '+investText(s.reviewId)].filter(Boolean).join(' · ')),
+        h('p',{role:'status'},h('strong',null,t('reviewAnswers')+'：'),legacy?t('reviewSummaryLegacy'):reviewSummary(t,plans)),
+        next.length?reviewLine(t('reviewNext'),next.map(t).join(t('reviewSentenceJoin'))+t('reviewSentenceEnd')):null,
+        reviewLine(t('source'),t(legacy?'reviewSourceLegacy':'reviewBatchSource'),{className:'sti-muted'}),
+        legacy?h('p',{className:'sti-warning'},t('reviewLegacyBatch')):null,
+        h('h3',null,t('reviewStockPlans')),
+        targets.map((item,index)=>{
+          const stored=investReviewItems(item.plans),useLegacy=legacy||!Array.isArray(item.plans),rows=useLegacy?[item]:stored;
+          const statuses=useLegacy?[reviewStatus(t,item.metrics?.status||'legacy')]:[...new Set(rows.map(plan=>reviewStatus(t,plan.metrics?.status)))];
+          const focus=!!s.reviewFocusPlanId&&rows.some(plan=>plan.plan_id===s.reviewFocusPlanId);
+          return h('details',{key:s.reviewId+'|'+item.code+'|'+index,...(focus?{open:true}:{})},
+            h('summary',null,[investText(item.name),investText(item.code),!useLegacy?num(rows.length)+' '+t('reviewPlanUnit')+t('reviewPlans'):null,statuses.join(' / ')].filter(Boolean).join(' · ')),
+            (useLegacy&&Array.isArray(item.experts)&&item.experts.length)?reviewLine(t('reviewExperts'),item.experts.map(name=>investText(name)).join(' / '),{className:'sti-muted'}):null,
+            rows.length?rows.map((plan,i)=>h(ReviewPlan,{key:plan.plan_id||i,t,plan,legacy:useLegacy,reviewId:s.reviewId,judge:s.reviewJudge})):h('p',null,t('reviewPlanMissing')));
+        }),
+        !legacy?h(ReviewStats,{t,detail}):null,
+        h('details',null,h('summary',null,t('reviewNotes')),
+          h('p',{className:'sti-muted'},t('reviewHelp')),h(Warnings,{items:detail.warnings}))):null,
+      !detail&&s.reviews.phase==='ready'&&list.length===0&&!s.reviewId?h(Empty,null,t('reviewEmpty')):null,
+      h('details',null,h('summary',null,t('reviewHistory')+(list.length?' · '+num(list.length):'')),
+        h('div',{className:'sti-actions'},h(Button,{onClick:()=>store.syncReviews(),disabled:loading||!s.connection.ready},t('reviewSync'))),
+        list.length?h(Table,{heads:[t('reviewTime'),t('reviewScope'),t('reviewTargets'),''],rows:list.map(row=>h('tr',{key:row.id},
+          h('td',null,investOutputTime(row.archived_at)),h('td',null,reviewScope(t,row)),h('td',null,num(row.target_count)),h('td',null,h(Button,{onClick:()=>store.openReview(row.id),'aria-pressed':s.reviewId===row.id},t('reviewOpen')))))}):null));
   }
   function IntegrationBanner({t,integration,onRecheck}) {
     const data=integration.data;

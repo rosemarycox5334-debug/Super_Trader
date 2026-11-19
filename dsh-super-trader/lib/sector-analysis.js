@@ -1,6 +1,7 @@
 import {mkdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
+import {REVIEW_REPORT_NOTE} from './review-report.js';
 
 const WORKSPACE_TITLE='Ai板块分析';
 const fail=(message,status=503,body)=>{const e=Object.assign(new Error(message),{status});if(body)e.body=body;return e;};
@@ -21,6 +22,7 @@ export function buildSectorAnalysisPrompt(name,thscode){
 - 专家名称与投票（只写 看多 / 看空 / 观望）；
 - 信心度（高/中/低，表示专家对该判断的信心，不是胜率或概率）；
 - 完整理由，不要只写结论；
+- ${REVIEW_REPORT_NOTE}
 - 依据：逐条写“数据来源与字段路径 → 实际数值 → 数据含义”；字段名要翻成中文再展示，例如 parent_holder_net_profit→归母净利润、act_cash_flow_net→经营活动现金流量净额、pe_ttm→滚动市盈率；不要直接贴英文键名，需要时可写成“归母净利润（parent_holder_net_profit）”。
 - 交易策略：操作、入场触发条件与价位或板块位置、仓位、止损、目标、持有周期、失效条件、风险收益比；
 - 情景展望：短期、中期、多头情景、空头情景、失效条件；

@@ -1,5 +1,8 @@
 """Selection review: only triggered entries earn returns; untriggered stays zero exposure."""
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from threading import Barrier
+import json
 import tempfile
 from pathlib import Path
 
@@ -27,8 +30,10 @@ def bars(closes, start=START):
 class FakeMarket:
     def __init__(self, series):
         self.series = series
+        self.calls = []
 
     def history(self, code, limit=120, adjust="forward"):
+        self.calls.append((code, adjust))
         return {"items": self.series.get(code, []), "timestamp": 1, "adjust": adjust}
 
     def fund_history(self, code, limit=120):
@@ -46,7 +51,7 @@ class FakeJobs:
         return self.jobs.get(job_id)
 
 
-def pick(code, entry_price=None, direction=None, invalidation=None, confidence="high", name="测试股"):
+def pick(code, entry_price=None, direction=None, invalidation=None, confidence="high", name="测试股", note=None):
     item = {"code": code, "name": name, "reason": "证据符合理念", "why_fit": "现金流可核实",
             "confidence": confidence, "risks": [], "missing_evidence": [],
             "evidence": [{"source_id": "s1", "ref": "/data/items/0/last_price"}]}
@@ -55,6 +60,8 @@ def pick(code, entry_price=None, direction=None, invalidation=None, confidence="
         item["entry_direction"] = direction
     if invalidation is not None:
         item["invalidation_price"] = invalidation
+    if note is not None:
+        item["entry_note"] = note
     return item
 
 
@@ -150,13 +157,15 @@ class FakeModel:
         self.calls = []
 
     def chat(self, messages, **kwargs):
-        self.calls.append(kwargs)
+        self.calls.append({**kwargs, "input": json.loads(messages[-1]["content"])})
         return {"content": self.replies.pop(0)}
 
 
 def test_ai_judgment_can_trigger_a_complex_condition(build):
-    model = FakeModel(['{"status":"triggered","trigger_date":"2026-01-07","confidence":"medium","reason":"放量站上12.5"}'])
-    service = build({"000001": bars([10, 11, 13, 14, 15, 16])}, [pick("000001")], model=model)
+    real_trigger = '{"status":"triggered","trigger_date":"2026-01-07","trigger_price":999,"confidence":"medium","reason":"放量站上12.5"}'
+    model = FakeModel([real_trigger, real_trigger])
+    service = build({"000001": bars([10, 11, 13, 14, 15, 16])},
+                    [pick("000001", 12.5, "above", note="放量站上12.5")], model=model)
     review = service.archive("job-1")
     result = service.judge(review["id"])
     assert result["judged"][0]["status"] == "triggered"
@@ -164,12 +173,14 @@ def test_ai_judgment_can_trigger_a_complex_condition(build):
     assert metrics["status"] == "triggered"
     assert metrics["base_date"] == "2026-01-07" and metrics["base_price"] == 13
     assert metrics["ai"]["reason"] == "放量站上12.5"
-    assert model.calls and model.calls[0]["response_format_json"] is True
+    assert metrics["trigger"]["is_fill"] is False and metrics["trigger"]["price"] == 13
+    assert model.calls[0]["response_format_json"] is True
+    assert [row["date"] for row in model.calls[1]["input"]["bars"]] == ["2026-01-06", "2026-01-07"]
 
 
 def test_ai_judgment_rejects_a_trigger_date_without_a_real_bar(build):
     model = FakeModel(['{"status":"triggered","trigger_date":"2026-02-30","confidence":"high","reason":"x"}'])
-    service = build({"000001": bars([10, 11, 12])}, [pick("000001")], model=model)
+    service = build({"000001": bars([10, 11, 12])}, [pick("000001", note="放量突破")], model=model)
     review = service.archive("job-1")
     service.judge(review["id"])
     metrics = service.get(review["id"])["targets"][0]["metrics"]
@@ -178,7 +189,7 @@ def test_ai_judgment_rejects_a_trigger_date_without_a_real_bar(build):
 
 def test_second_judge_skips_already_judged_targets(build):
     model = FakeModel(['{"status":"not_triggered","trigger_date":null,"confidence":"high","reason":"wait"}'])
-    service = build({"000001": bars([10, 11, 12])}, [pick("000001")], model=model)
+    service = build({"000001": bars([10, 11, 12])}, [pick("000001", note="放量突破")], model=model)
     review = service.archive("job-1")
     service.judge(review["id"])
     again = service.judge(review["id"])
@@ -188,7 +199,7 @@ def test_second_judge_skips_already_judged_targets(build):
 
 def test_judge_requires_a_configured_model(build):
     model = FakeModel([], configured=False)
-    service = build({"000001": bars([10, 11])}, [pick("000001")], model=model)
+    service = build({"000001": bars([10, 11])}, [pick("000001", note="放量突破")], model=model)
     review = service.archive("job-1")
     with pytest.raises(ReviewError):
         service.judge(review["id"])
@@ -223,3 +234,258 @@ def test_only_low_confidence_picks_are_not_archived(build):
     with pytest.raises(ReviewError):
         service.archive("job-1")
     assert service.count() == 0
+
+
+def test_same_stock_keeps_independent_plans_and_names_are_not_ids(build):
+    service = build({"000001": bars([10, 9, 13, 15, 16, 17, 18, 19, 20])}, [])
+    original = service.jobs.jobs["job-1"]
+    original["result"]["expert_results"] = [
+        {"expert": {"id": "a", "name": "同名", "tag": " 风格 "},
+         "picks": [pick("000001", 12, "above", note="收盘价≥12元")]},
+        {"expert": {"id": "b", "name": "同名", "tag": "风格"},
+         "picks": [pick("000001", 14, "above", invalidation=9, confidence="medium")]},
+        {"expert": {"id": "c", "name": "低信心"}, "picks": [pick("000001", confidence="low")]},
+    ]
+    archived = service.archive("job-1")
+    assert service.market.calls == []
+    assert archived["target_count"] == 1 and archived["plan_count"] == 2
+    original["result"]["expert_results"][0]["expert"]["name"] = "修改名称"
+    original["result"]["expert_results"][0]["picks"][0]["entry_price"] = 1000
+    detail = service.get(archived["id"])
+    target = detail["targets"][0]
+    a, b = target["plans"]
+    assert a["expert_id"] == "a" and b["expert_id"] == "b" and a["plan_id"] != b["plan_id"]
+    assert a["expert_name"] == b["expert_name"] == "同名" and a["expert_tag"] == " 风格 "
+    assert a["entry_price"] == 12 and a["metrics"]["status"] == "triggered"
+    assert b["entry_price"] == 14 and b["metrics"]["status"] == "invalidated"
+    assert target["metrics"]["status"] == "multiple_plans" and target["entry_price"] is None
+    assert detail["counts"]["triggered"] == detail["counts"]["invalidated"] == 1
+    assert detail["benchmark"]["stock_total"] == detail["benchmark"]["windows"]["5d"]["plan_sample"] == 1
+    assert [(e["expert_id"], e["samples"]) for e in detail["experts"]] == [("a", 1), ("b", 0)]
+    assert service.market.calls == [("000001", "none")]
+    assert service.history_context([], expert_tag=" 风格 ")[0]["expert_id"] == "a"
+    assert service.history_context([], expert_tag="风格") == []
+
+
+def insert_legacy(service, with_judgment=True):
+    service.db.execute("INSERT INTO selection_reviews VALUES(?,?,?,?,?,?,?,?,?,?,?)", (
+        "legacy-review", "job-1", "2026-01-05", "2026-01-05", "market", None, "old",
+        json.dumps(["price_action"]), json.dumps([{"code": "000001", "experts": ["old"], "entry_price": 1}]),
+        "tracking", "[]"))
+    if with_judgment:
+        service.db.execute("INSERT INTO review_judgments VALUES(?,?,?,?,?,?,?,?,?)", (
+            "legacy-review", "000001", "triggered", "2026-01-06", 999, "high", "旧合并判定", "old", "2026-01-06"))
+
+
+def test_legacy_migrates_only_from_original_job_and_ignores_merged_judgment(build):
+    service = build({"000001": bars([10, 11, 12])}, [pick("000001", 20, "above", note="量价配合")])
+    original = service.jobs.jobs.pop("job-1")
+    insert_legacy(service)
+    legacy = service.get("legacy-review")
+    assert legacy["legacy"] and legacy["target_count"] == 1 and legacy["plan_count"] == 0
+    assert legacy["targets"][0]["metrics"]["status"] == "legacy" and legacy["experts"] == []
+    assert service.judge("legacy-review")["judged"] == []
+    assert service.history_context(["000001"]) == [] and service.market.calls == []
+    service.jobs.jobs["job-1"] = original
+    assert service.list()[0]["plan_count"] == 1  # read upgrades in place
+    service.jobs.jobs.clear()
+    migrated = service.get("legacy-review")
+    target = migrated["targets"][0]
+    assert not migrated["legacy"] and target["entry_price"] == 20
+    assert target["plans"][0]["expert_id"] == "price_action"
+    assert target["metrics"]["status"] == "needs_ai" and target["metrics"]["ai"] is None
+
+
+def test_intraday_selection_and_live_or_future_bars_cannot_trigger(build, monkeypatch):
+    service = build({"000001": bars([9, 20, 11, 20, 20], start=START - timedelta(days=1))},
+                    [pick("000001", 15, "above")], finished="2026-01-05T04:00:00+00:00")
+    monday = START.replace(hour=12)
+    monkeypatch.setattr(service, "_now", lambda: monday)
+    review = service.archive("job-1")
+    target = service.get(review["id"])["targets"][0]
+    assert target["entry"]["date"] == "2026-01-04" and target["entry"]["price"] == 9
+    assert target["metrics"]["status"] == "pending"
+    monkeypatch.setattr(service, "_now", lambda: monday + timedelta(days=2))
+    assert service.get(review["id"])["targets"][0]["metrics"]["status"] == "pending"
+    monkeypatch.setattr(service, "_now", lambda: monday + timedelta(days=2, hours=3))
+    metrics = service.get(review["id"])["targets"][0]["metrics"]
+    assert metrics["status"] == "triggered" and metrics["base_date"] == "2026-01-07"
+    assert metrics["windows"]["1d"] is None and metrics["is_fill"] is False
+
+
+def test_hit_after_twenty_session_deadline_cannot_reopen_plan(build):
+    service = build({"000001": bars([10] * 21 + [20])}, [pick("000001", 15, "above")])
+    result = service.get(service.archive("job-1")["id"])["targets"][0]["metrics"]
+    assert result["status"] == "not_triggered" and result["days_waited"] == 20
+
+
+def test_ai_pending_cache_refreshes_on_new_bars_and_terminal_prefix_is_reusable(build):
+    model = FakeModel(['{"status":"not_triggered","reason":"等待"}',
+                       '{"status":"triggered","trigger_date":"2026-01-07","reason":"触发"}'])
+    market = {"000001": bars([10, 11])}
+    service = build(market, [pick("000001", note="放量且收盘突破")], model=model)
+    rid = service.archive("job-1")["id"]
+    assert service.judge(rid)["judged"][0]["status"] == "pending"
+    assert service.judge(rid)["skipped"] == ["000001"]
+    market["000001"] = bars([10, 11, 13])
+    assert service.get(rid)["targets"][0]["metrics"]["status"] == "needs_ai"
+    assert service.judge(rid)["judged"][0]["status"] == "triggered"
+    market["000001"] = bars([10, 11, 13, 14])
+    assert service.judge(rid)["skipped"] == ["000001"] and len(model.calls) == 2
+    assert service.get(rid)["targets"][0]["metrics"]["windows"]["1d"] == round(14 / 13 - 1, 6)
+    market["000001"][1]["volume"] = 999
+    assert service.get(rid)["targets"][0]["metrics"]["status"] == "needs_ai"
+    result = service.judge(rid)
+    assert result["judged"] == [] and len(result["errors"]) == 1
+    assert service.get(rid)["targets"][0]["metrics"]["status"] == "needs_ai"
+
+
+def test_ai_rejects_hindsight_only_claim_and_judge_skips_simple_rules(build):
+    model = FakeModel(['{"status":"triggered","trigger_date":"2026-01-06"}', '{"status":"not_triggered"}'])
+    service = build({"000001": bars([10, 11, 13]), "000002": bars([10, 11, 12])},
+                    [pick("000001", note="等待形态确认"), pick("000002", 11, "above")], model=model)
+    rid = service.archive("job-1")["id"]
+    result = service.judge(rid)
+    assert result["skipped"] == ["000002"]
+    assert result["judged"][0]["status"] == "ambiguous"
+    assert service.get(rid)["targets"][0]["metrics"]["windows"] == {}
+
+
+def test_history_cutoff_reads_only_persisted_state_without_backdating(build, monkeypatch):
+    series = {"000001": bars([10, 13, 12, 14, 15, 16, 17, 18])}
+    service = build(series, [pick("000001", 12, "above")])
+    service.jobs.jobs["job-1"]["result"]["expert_results"][0]["expert"]["tag"] = "原始标签"
+    day = START.replace(hour=16)
+    monkeypatch.setattr(service, "_now", lambda: day)
+    review = service.archive("job-1")
+    initial = service.history_context(["000001.SZ"], expert_id="price_action")[0]
+    assert initial["status"] == "pending" and initial["as_of"] is None and initial["windows"] == {}
+    assert initial["expert_tag"] == "原始标签" and initial["thesis"] == "证据符合理念"
+    assert initial["entry_price"] == 12 and service.market.calls == []
+    assert service.history_context(["000001"], as_of="2026-01-05T07:59:59Z") == []
+    assert service.history_context([], expert_tag="原始标签") == []
+    day += timedelta(days=8)
+    service.get(review["id"])
+    assert len(service.market.calls) == 1
+    latest = service.history_context(["000001"], limit=1)[0]
+    assert latest["status"] == "triggered" and latest["windows"]["5d"] == round(17 / 13 - 1, 6)
+    assert latest["source"] == "selection_review" and latest["trigger"]["is_fill"] is False
+    assert service.history_context(["000001"], as_of="2026-01-12") == [initial]
+    assert service.history_context(["000001"], as_of="bad") == []
+    assert service.history_context([], expert_tag="原始标签") == [latest]
+    assert service.history_context(["000001"], expert_id="buffett") == []
+    assert len(service.market.calls) == 1
+    day += timedelta(days=1)
+    series["000001"] = bars([10] * 8)  # corrected input revokes current maturity, not past knowledge
+    service.get(review["id"])
+    assert service.history_context([], expert_tag="原始标签") == []
+    assert service.history_context([], expert_tag="原始标签", as_of="2026-01-13") == [latest]
+    service.delete(review["id"])
+    assert service.history_context(["000001"]) == []
+
+
+def test_sync_prioritizes_qualifying_jobs_and_tolerates_malformed_old_results(build):
+    service = build({}, [])
+    for i, result in enumerate([
+        json.dumps(job([pick("000001", confidence="medium")])["result"]),
+        json.dumps(job([pick("000001", confidence="low")])["result"]),
+        '{"expert_results":["invalid",{"expert":{"id":"a"},"picks":["invalid"]}]}',
+        '{not json',
+    ]):
+        job_id = f"job-{i+10}"
+        content = job([])
+        if i != 3:
+            content["result"] = json.loads(result)
+        service.jobs.jobs[job_id] = content
+        service.db.execute("INSERT INTO jobs(id,type,status,result,created_at) VALUES(?,?,?,?,?)",
+                           (job_id, "expert_selection", "done", result, f"2026-01-{i+5:02}"))
+    archived = service.sync(limit=1)
+    assert [r["job_id"] for r in archived["archived"]] == ["job-10"]
+    assert service.sync(limit=1)["archived"] == [] and service.market.calls == []
+
+
+def test_concurrent_sync_reports_single_archive_and_single_frozen_snapshot(build, monkeypatch):
+    service = build({}, [pick("000001")])
+    original = service.jobs.jobs["job-1"]
+    service.db.execute("INSERT INTO jobs(id,type,status,result,created_at) VALUES(?,?,?,?,?)", (
+        "job-1", "expert_selection", "done", json.dumps(original["result"]), original["created_at"]))
+    both = Barrier(2)
+    lookup = service.jobs.get
+
+    def synchronized_lookup(job_id):
+        both.wait(timeout=5)
+        return lookup(job_id)
+
+    monkeypatch.setattr(service.jobs, "get", synchronized_lookup)
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        results = list(workers.map(lambda _: service.sync(limit=1), range(2)))
+    assert sum(len(result["archived"]) for result in results) == 1
+    assert service.count() == 1 and len(service.history_context(["000001"])) == 1
+    assert service.market.calls == []
+
+
+def test_preclose_cached_market_bar_is_not_accepted_after_close(build, monkeypatch):
+    series = {"000001": bars([10, 20])}
+    service = build(series, [pick("000001", 15, "above")])
+    now = START + timedelta(days=1, hours=15, seconds=1)
+    monkeypatch.setattr(service, "_now", lambda: now)
+    monkeypatch.setattr(service.market, "history", lambda code, **_: {
+        "items": series[code], "fetched_at": (now - timedelta(seconds=2)).isoformat(), "cached": True})
+    rid = service.archive("job-1")["id"]
+    assert service.get(rid)["targets"][0]["metrics"]["status"] == "pending"
+
+
+def test_refresh_due_is_bounded_round_robin_and_never_uses_ai(build, monkeypatch):
+    model = FakeModel([])
+    service = build({"000001": bars([10, 13]), "000002": bars([10, 11])},
+                    [pick("000001", 12, "above"), pick("000002", note="等待结构形成")], model=model)
+    monkeypatch.setattr(service, "_now", lambda: START + timedelta(days=1, hours=16))
+    service.archive("job-1")
+    assert service.refresh_due(max_targets=1) == {"refreshed": 1}
+    assert service.history_context(["000001"])[0]["status"] == "triggered"
+    assert service.history_context(["000002"])[0]["status"] == "pending"
+    assert service.refresh_due(max_targets=1) == {"refreshed": 1}
+    assert service.history_context(["000002"])[0]["status"] == "needs_ai"
+    assert service.refresh_due(max_targets=1) == {"refreshed": 0}
+    assert len(service.market.calls) == 2 and model.calls == []
+
+
+def test_auto_judge_runs_once_per_trading_day_after_close(build, monkeypatch):
+    reply = '{"status":"triggered","trigger_date":"2026-01-07","confidence":"medium","reason":"放量站上12.5"}'
+    model = FakeModel([reply, reply])
+    service = build({"000001": bars([10, 11, 13, 14, 15, 16, 17, 18])},
+                    [pick("000001", 12.5, "above", note="放量站上12.5")], model=model)
+    monkeypatch.setattr(service, "_now", lambda: START + timedelta(days=6, hours=15, minutes=6))
+    review = service.archive("job-1")
+    # 2026-01-12 is a Monday; the last fake bar is that day's close.
+    monkeypatch.setattr(service, "_now", lambda: START + timedelta(days=7, hours=15, minutes=6))
+    assert service.refresh_due(max_targets=1)["refreshed"] == 1
+    first = service.auto_judge_due()
+    assert first["judged"] == 1 and first["date"] == "2026-01-12"
+    assert len(model.calls) == 2
+    second = service.auto_judge_due()
+    assert second["judged"] == 0 and len(model.calls) == 2
+    assert service.get(review["id"])["targets"][0]["metrics"]["status"] == "triggered"
+
+
+def test_auto_judge_does_nothing_before_close_or_on_stale_bars(build, monkeypatch):
+    model = FakeModel([])
+    service = build({"000001": bars([10, 11, 13, 14, 15, 16, 17])},
+                    [pick("000001", 12.5, "above", note="放量站上12.5")], model=model)
+    monkeypatch.setattr(service, "_now", lambda: START + timedelta(days=6, hours=15, minutes=6))
+    service.archive("job-1")
+    service.refresh_due(max_targets=1)
+    monkeypatch.setattr(service, "_now", lambda: START + timedelta(days=7, hours=14, minutes=30))
+    assert service.auto_judge_due()["skipped"] == "before_close"
+    # After close, but the latest completed bar is still yesterday's.
+    monkeypatch.setattr(service, "_now", lambda: START + timedelta(days=7, hours=15, minutes=6))
+    service.refresh_due(max_targets=1)
+    assert service.auto_judge_due()["judged"] == 0
+    assert model.calls == []
+
+
+def test_auto_judge_skips_without_a_configured_model(build, monkeypatch):
+    service = build({"000001": bars([10, 11, 13])}, [pick("000001", note="放量站上")],
+                    model=FakeModel([], configured=False))
+    monkeypatch.setattr(service, "_now", lambda: START + timedelta(days=7, hours=15, minutes=6))
+    assert service.auto_judge_due()["skipped"] == "model_not_configured"

@@ -78,7 +78,8 @@ export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, ex
         }
         res.end();
       } else {
-        const data = await manager.request(req.method,path,body,{signal:cancel.signal,timeoutMs:180000});
+        const isReviewJudge = req.method === 'POST' && /^\/api\/reviews\/[^/]+\/judge(?:\?|$)/.test(path);
+        const data = await manager.request(req.method,path,body,{signal:cancel.signal,timeoutMs:isReviewJudge?260000:180000});
         sendJson(res,200,data);
       }
     } catch (error) {

@@ -228,8 +228,22 @@ def _factor_payload(identity: dict, timeframe: str, rule: dict, metrics: dict,
 
 
 def create_app(services: Services | None = None) -> FastAPI:
-    app = FastAPI(title="Super Agent 投研工作台", version="1.0")
+    from contextlib import asynccontextmanager
+    from fastapi.concurrency import run_in_threadpool
+
     svc = services or Services()
+
+    @asynccontextmanager
+    async def lifespan(app):
+        if services is None:
+            svc.start_review_maintenance()
+        try:
+            yield
+        finally:
+            if services is None:
+                await run_in_threadpool(svc.close)
+
+    app = FastAPI(title="Super Agent 投研工作台", version="1.0", lifespan=lifespan)
     app.state.services = svc
 
     @app.middleware("http")
@@ -546,8 +560,13 @@ def create_app(services: Services | None = None) -> FastAPI:
     def judge_review(review_id: str, body: dict | None = None):
         try:
             body = body or {}
-            codes = body.get("codes") if isinstance(body.get("codes"), list) else None
-            return svc.review.judge(review_id, codes=codes, force=body.get("force") is True)
+            codes = body.get("codes")
+            plan_ids = body.get("plan_ids")
+            for name, values in (("codes", codes), ("plan_ids", plan_ids)):
+                if name in body and (not isinstance(values, list) or not values or len(values) > 200
+                                     or any(not isinstance(value, str) or not value or len(value) > 160 for value in values)):
+                    raise ReviewError(f"{name} 须为非空字符串数组（最多 200 项）")
+            return svc.review.judge(review_id, codes=codes, force=body.get("force") is True, plan_ids=plan_ids)
         except ReviewError as exc:
             raise HTTPException(status_code=exc.status, detail=str(exc)) from None
 

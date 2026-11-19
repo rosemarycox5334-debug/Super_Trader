@@ -51,6 +51,7 @@ class JobManager:
         self._pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="job")
         self._cancels: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
+        self.on_completed: Callable[[str, str], None] | None = None
         self._mark_orphans()
 
     def _mark_orphans(self) -> None:
@@ -77,10 +78,10 @@ class JobManager:
             (job_id, job_type, "queued", 0, total, dumps(payload), None, None, utc_iso()),
         )
         self._cancel_event(job_id)
-        self._pool.submit(self._run, job_id, payload, fn, total)
+        self._pool.submit(self._run, job_id, job_type, payload, fn, total)
         return job_id
 
-    def _run(self, job_id: str, payload: dict, fn: JobFn, total: int) -> None:
+    def _run(self, job_id: str, job_type: str, payload: dict, fn: JobFn, total: int) -> None:
         self.db.execute("UPDATE jobs SET status='running' WHERE id=?", (job_id,))
         handle = JobHandle(job_id, self, total, payload)
         try:
@@ -93,6 +94,13 @@ class JobManager:
                 self.db.execute(
                     "UPDATE jobs SET status='done', progress=total, result=?, finished_at=? WHERE id=?",
                     (dumps(result), utc_iso(), job_id))
+                if self.on_completed is not None:
+                    try:
+                        self.on_completed(job_type, job_id)
+                    except Exception:
+                        # Derived archival can be recovered by review sync; never
+                        # change an already completed research job into a failure.
+                        pass
         except Exception as exc:  # noqa: BLE001  任务异常落库，不吞
             self.db.execute(
                 "UPDATE jobs SET status='error', error=?, finished_at=? WHERE id=?",

@@ -144,8 +144,9 @@ class ResearchService:
     CACHE_TTL = 30
     CACHE_MAX = 128
 
-    def __init__(self, engine, market, experts, jobs, watchlist, factor_provider=None):
+    def __init__(self, engine, market, experts, jobs, watchlist, factor_provider=None, *, review_provider=None):
         self.factor_provider = factor_provider
+        self.review_provider = review_provider
         self.engine = engine
         self.market = market
         self.experts = experts
@@ -619,13 +620,18 @@ class ResearchService:
                               "note": "专家独立判断，未看到量化因子；因子只在本层汇总后参与最终判断。"},
                           "consensus": self.experts._consensus([], 0.6, False), "votes": votes,
                           "errors": errors, "created_at": now_iso()}
+                # Keep auxiliary rows out of the shared/report evidence bundle.
+                # Each expert sees only its own scoped, bounded historical context.
+                review_kwargs = ({} if self.review_provider is None else
+                                 {"review_provider": self.review_provider})
                 for i, e in enumerate(experts, 1):
                     if handle.cancelled:
                         break
                     try:
                         if time.monotonic() - started >= 1800:
                             raise ExpertError("研究团队总预算已耗尽，未调用该专家", status=504)
-                        vote = self.experts.analyze_research(e["id"], deepcopy(report), persist=True)
+                        vote = self.experts.analyze_research(e["id"], deepcopy(report),
+                                                            persist=True, **review_kwargs)
                     except Exception as exc:
                         status = exc.status if isinstance(exc, ExpertError) else 502
                         error = {"expert": e["id"], "name": e["name"],

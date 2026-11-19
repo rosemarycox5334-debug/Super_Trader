@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const PACKAGE_ROOT = fileURLToPath(new URL('../', import.meta.url));
 const SOURCE_ROOT = resolve(PACKAGE_ROOT, '..');
 export const RUNTIME_FILES = Object.freeze({
-  backend: ['__init__.py', 'agent.py', 'app.py', 'db.py', 'etf_evidence.py', 'experts.py', 'jobs.py', 'journal.py', 'market.py', 'memory.py', 'model_gateway.py', 'plugins.py', 'quant.py', 'research.py', 'review.py', 'selection.py', 'seeds.py', 'serve.py', 'services.py', 'settings.py', 'watchlist.py'],
+  backend: ['__init__.py', 'agent.py', 'app.py', 'db.py', 'etf_evidence.py', 'experts.py', 'jobs.py', 'journal.py', 'market.py', 'memory.py', 'model_gateway.py', 'plugins.py', 'quant.py', 'research.py', 'review.py', 'review_context.py', 'selection.py', 'seeds.py', 'serve.py', 'services.py', 'settings.py', 'watchlist.py'],
   'backend/factors': ['__init__.py', 'dataset.py', 'targets.py', 'dsl.py', 'evaluate.py', 'seed_pool.py', 'sandbox.py', 'service.py', 'cli.py', 'batch.py', 'research.py'],
   super_trader: ['__init__.py', '__main__.py', 'accuracy.py', 'accuracy_ranking.py', 'accuracy_report.py', 'cli.py', 'config.py', 'crosssection.py', 'crosssection_report.py', 'data.py', 'diagnose.py', 'evaluate.py', 'features.py', 'fullfit.py', 'fullfit_report.py', 'fullfit_table.py', 'personal_report.py', 'personalize.py', 'predict.py', 'report.py', 'rules.py', 'scan.py', 'stats.py', 'universe.py'],
 });

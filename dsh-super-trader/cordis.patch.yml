@@ -12,3 +12,14 @@
           projectionBytes: 600
         evolution:
           enabled: false
+    - id: mcp-connector
+      name: dsh-mcp-connector
+      config:
+        catalogUrl: 'https://cdn.jsdelivr.net/gh/duhu2000/dsh-mcp-connector-registry@main/catalog.json'
+        persistSecrets: true
+        entryPrefix: mcp
+        refreshSkewMs: 300000
+        openBrowser: true
+        showSidebarEntry: false
+        compactManagementTools: false
+        frameAncestors: [self]

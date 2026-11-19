@@ -36,7 +36,15 @@ async function bodyJson(req) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw Object.assign(new Error('请求体必须是JSON'), {status:400}); }
 }
-export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, expertCreation, sectorAnalysis, stockAnalysis, watchlistAnalysis, selectionAnalysis) {
+export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, expertCreation, sectorAnalysis, stockAnalysis, watchlistAnalysis, selectionAnalysis, integrationStatus) {
+  const integration = async (req,res) => {
+    if (!trusted(req,origin())) return sendJson(res,403,{error:'请求来源不同源，已拒绝'});
+    if (req.method !== 'GET') return sendJson(res,405,{error:'GET required'});
+    let data;
+    try { data = typeof integrationStatus === 'function' ? integrationStatus() : {available:false,servers:[],preset:[]}; }
+    catch (error) { data = {available:false,servers:[],preset:[],error:String(error?.message||error)}; }
+    return sendJson(res,200,data);
+  };
   const base = async (req,res) => {
     if (!trusted(req,origin())) return sendJson(res,403,{error:'仅允许宿主同源请求'});
     if (req.method !== 'GET') return sendJson(res,405,{error:'GET required'});
@@ -155,5 +163,5 @@ export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, ex
     }catch(error){sendJson(res,error.status||503,error.body??{error:error.message||'AI 专家选股未启动'});}
     finally{res.off('close',close);}
   };
-  return {base,proxy,retry,createExpert,createSector,createStock,createWatchlist,createSelection};
+  return {base,proxy,retry,integration,createExpert,createSector,createStock,createWatchlist,createSelection};
 }

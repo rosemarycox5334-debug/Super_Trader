@@ -24,7 +24,7 @@ test('mount registers exactly twenty-eight tools and eight routes without awaiti
   const manager={getState:()=>({phase:'idle'}),ensureBackend(){starts++;return new Promise(()=>{});},dispose:async()=>{disposed++;}};
   const services={tools:{register(t){registered.push(t);return ()=>{};}},webServer:{register(r){routes.push(r);return ()=>{};},getOrigin:()=> 'http://127.0.0.1:57621'}};
   mount({get:k=>services[k],effect(fn){const d=fn();if(d)cleanup.push(d);}},()=>manager);
-  assert.equal(registered.length,28);assert.equal(routes.length,8);
+  assert.equal(registered.length,28);assert.equal(routes.length,9);
   // Host WebServer.match appends '/' itself; a trailing slash never matches descendants.
   const proxy=routes.find(r=>r.kind==='prefix');
   assert.equal(proxy.path,'/dsh-super-trader/backend');

@@ -7,7 +7,7 @@ import {pathToFileURL} from 'node:url';
 import {createServer} from 'node:net';
 import assert from 'node:assert/strict';
 
-const archive=resolve(process.argv[2] || '.out/dsh-super-trader-0.29.1.tgz');
+const archive=resolve(process.argv[2] || '.out/dsh-super-trader-0.30.0.tgz');
 const root=await mkdtemp(join(tmpdir(),'st packed 中文 '));
 let manager;
 try{
@@ -15,7 +15,7 @@ try{
   assert.equal(result.status,0,'extract real tgz');
   const packageRoot=join(root,'package');
   const manifest=JSON.parse(await readFile(join(packageRoot,'package.json'),'utf8'));
-  assert.equal(manifest.version,'0.29.1');
+  assert.equal(manifest.version,'0.30.0');
   const server=createServer();
   await new Promise((yes,no)=>server.once('error',no).listen(0,'127.0.0.1',yes));
   const port=server.address().port;await new Promise(yes=>server.close(yes));

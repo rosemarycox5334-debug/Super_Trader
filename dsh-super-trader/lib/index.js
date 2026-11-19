@@ -60,7 +60,19 @@ export function mount(ctx, createManager = () => new BackendManager()) {
           try { disposers.push(tools.register(definition)); }
           catch (error) { console.warn('[super-trader] tool registration failed:',definition.name,error.message); }
         }
-        const handlers = createHandlers(manager,() => web.getOrigin(),undefined,expertCreation,sectorAnalysis,stockAnalysis,watchlistAnalysis,selectionAnalysis);
+        const thsStatus = () => {
+          let names = [];
+          try { names = (typeof tools.schemas === 'function' ? tools.schemas() : []).map(schema => schema.name); }
+          catch {}
+          const servers = [...new Set(names.filter(name => name.startsWith('mcp__hithink-finance')).map(name => name.slice(5).split('__')[0]))];
+          return {available: names.some(name => name.startsWith('mcp__hithink-finance')), servers,
+            transport: 'streamable-http', auth: 'api-key',
+            preset: [
+              {id: 'hithink-finance-a-share', name: '同花顺 A股行情', url: 'https://fuyao.aicubes.cn/mcp/a-share'},
+              {id: 'hithink-finance-meta', name: '同花顺 股票搜索', url: 'https://fuyao.aicubes.cn/mcp/meta'}
+            ]};
+        };
+        const handlers = createHandlers(manager,() => web.getOrigin(),undefined,expertCreation,sectorAnalysis,stockAnalysis,watchlistAnalysis,selectionAnalysis,thsStatus);
         disposers.push(web.register({kind:'exact',path:ROOT+'/base',handler:handlers.base}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/retry',handler:handlers.retry}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/expert-creation',handler:handlers.createExpert}));
@@ -68,6 +80,7 @@ export function mount(ctx, createManager = () => new BackendManager()) {
         disposers.push(web.register({kind:'exact',path:ROOT+'/stock-analysis',handler:handlers.createStock}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/watchlist-analysis',handler:handlers.createWatchlist}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/selection-analysis',handler:handlers.createSelection}));
+        disposers.push(web.register({kind:'exact',path:ROOT+'/integration',handler:handlers.integration}));
         disposers.push(web.register({kind:'prefix',path:ROOT+'/backend',handler:handlers.proxy}));
         // Crucially not awaited by Cordis apply/effect: slow Python/data load cannot block DSH boot.
         void Promise.resolve().then(() => manager.ensureBackend()).catch(() => {});

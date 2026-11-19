@@ -1,3 +1,12 @@
+## 内嵌 MCP 连接器与首次接入引导（0.30.0）
+
+- 安装 Super Trader 会一并安装 `dsh-mcp-connector`（0.2.102+），由 bundle patch 自动挂载，无需另装。
+- 行情、选股、复盘依赖同花顺 MCP：首次使用若检测不到 `mcp__hithink-finance-*` 工具，页面顶部会出现「首次使用：先连接同花顺」卡片，给出两条地址与步骤，并可直接复制：
+  - `https://fuyao.aicubes.cn/mcp/a-share`（A股行情）
+  - `https://fuyao.aicubes.cn/mcp/meta`（股票搜索）
+- 配置位置：设置 → MCP 连接器（侧栏入口不再占用左侧菜单）；传输选 streamable-http，鉴权选 API Key（X-Api-Key）。
+- 状态探测：`GET /dsh-super-trader/integration` 返回 `available` 与已注册的 server 名；页面「重新检测」即调用它。
+
 # Super Trader 0.29 · AI 投研工作台
 
 ## 内嵌 DSH Soul 记忆（0.29.0）

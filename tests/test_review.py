@@ -125,7 +125,7 @@ def test_expert_ranking_requires_ten_triggered_picks(build):
     service = build({"000001": bars([10, 11, 13, 14, 15, 16])},
                     [pick("000001", entry_price=12.5, direction="above")])
     review = service.archive("job-1")
-    expert = [row for row in service.get(review["id"])["experts"] if row["expert"] == "price_action"][0]
+    expert = [row for row in service.get(review["id"])["experts"] if row["expert"] == "价格行为派"][0]
     assert expert["triggered"] == 1 and expert["ranked"] is False and "rank" not in expert
     assert expert["trigger_rate"] == 1.0
 

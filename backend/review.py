@@ -181,7 +181,8 @@ class ReviewService:
         for row in expert_results:
             if not isinstance(row, dict):
                 continue
-            expert = (row.get("expert") or {}).get("id")
+            expert_meta = row.get("expert") or {}
+            expert = expert_meta.get("name") or expert_meta.get("id")
             for pick in row.get("picks") or []:
                 if not isinstance(pick, dict):
                     continue

@@ -2212,6 +2212,8 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
   function Review({t}) {
     const s=useStore(),list=s.reviews.data?.items||[],detail=s.reviewDetail.data;
     React.useEffect(()=>{if(s.connection.ready&&s.reviews.phase==='idle')void store.loadReviews();},[s.connection.ready,s.reviews.phase]);
+    const confLabels={high:t('confidenceHigh'),medium:t('confidenceMedium'),low:t('confidenceLow')};
+    const confLabel=value=>confLabels[value]||investText(value||'');
     const labels={triggered:t('reviewTriggered'),reference:t('reviewReference'),not_triggered:t('reviewNotTriggered'),
       invalidated:t('reviewInvalidated'),pending:t('reviewPending'),unavailable:t('reviewUnavailable')};
     const statusLabel=status=>labels[status]||status||'—';
@@ -2221,7 +2223,7 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
         return h('tr',{key:item.code+'|'+index},
           h('td',null,item.name||'',h('small',null,item.code),m.ai?h('small',null,'AI: '+(labels[m.ai.status]||m.ai.status)+(m.ai.reason?' · '+investText(m.ai.reason,80):'')):null),
           h('td',null,(item.experts||[]).join(' / ')),
-          h('td',null,investText(item.confidence||'')),
+          h('td',null,confLabel(item.confidence)),
           h('td',null,statusLabel(m.status),m.days_waited!=null&&m.status==='pending'?h('small',null,'（已等待 '+num(m.days_waited)+' 个交易日）'):null),
           h('td',null,m.trigger?.entry_price!=null?((m.trigger.entry_direction==='below'?t('reviewAtOrBelow'):t('reviewAtOrAbove'))+' '+num(m.trigger.entry_price)+(m.trigger.invalidation_price!=null?' · '+t('reviewInvalidAt')+' '+num(m.trigger.invalidation_price):'')):(m.status==='reference'?t('reviewReference'):'—'),
             m.trigger?.entry_note?h('small',null,investText(m.trigger.entry_note,60)):null),
@@ -2252,7 +2254,7 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
     function confidenceTable(rows){
       return h(Table,{heads:[t('reviewConfidence'),t('reviewPicks'),t('reviewReferenceCount'),t('reviewTriggerRate'),'5d',t('reviewWinRate')],
         rows:rows.map((row,index)=>h('tr',{key:row.confidence+'|'+index},
-          h('td',null,investText(row.confidence)),
+          h('td',null,confLabel(row.confidence)),
           h('td',null,num(row.picks)),
           h('td',null,num(row.reference)),
           h('td',null,row.trigger_rate!=null?pct(row.trigger_rate):'—'),

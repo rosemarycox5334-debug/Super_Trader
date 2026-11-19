@@ -2,3 +2,13 @@
 - insert:
     - id: super-trader
       name: dsh-super-trader
+    - id: dsh-soul
+      name: dsh-soul
+      inject: [tools, systemPrompt, commands]
+      config:
+        memory:
+          enabled: true
+          maxNodes: 5000
+          projectionBytes: 600
+        evolution:
+          enabled: false

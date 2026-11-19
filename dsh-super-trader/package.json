@@ -1,6 +1,6 @@
 {
   "name": "dsh-super-trader",
-  "version": "0.28.7",
+  "version": "0.29.0",
   "private": true,
   "type": "module",
   "description": "DSH 原生 AI 投研系统：专家自主选股、个股与板块趋势、量化因子预测（1–20根日K方向、支持模型自写因子代码）及专家团队，可移植插件。",
@@ -13,17 +13,47 @@
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
-  "files": ["lib", "assets", "locale", "runtime", "icon.svg", "cordis.patch.yml", "README.md", "PORTABLE.md", "VERIFICATION.md"],
-  "engines": {"node": ">=22"},
-  "peerDependencies": {"@deepseek-ai/dsh-tools": ">=0.2.0-rc.1 <0.3.0-0"},
-  "devDependencies": {"js-yaml": "^4.1.0"},
+  "files": [
+    "lib",
+    "assets",
+    "locale",
+    "runtime",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "PORTABLE.md",
+    "VERIFICATION.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.1 <0.3.0-0"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.1.0"
+  },
   "dsh": {
-    "bundle": {"patch": "./cordis.patch.yml"},
-    "client": {"platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-ui-layout", "@deepseek-ai/dsh-client-ui-session", "@deepseek-ai/dsh-client-ui-conversation", "@deepseek-ai/dsh-client-ui-workspace"]}
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
   },
   "scripts": {
     "build": "node tools/build-runtime.mjs && node tools/build-pages.mjs && node tools/build-client.mjs",
     "check": "node --check lib/index.js && node --check lib/client.js",
     "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "dsh-soul": "https://github.com/icyaaaww/dsh-soul/releases/download/v2.2.0/dsh-soul-2.2.0.tgz"
   }
 }

@@ -1,4 +1,11 @@
-# Super Trader 0.28 · AI 投研工作台
+# Super Trader 0.29 · AI 投研工作台
+
+## 内嵌 DSH Soul 记忆（0.29.0）
+
+- 安装 Super Trader 会一起安装 DSH Soul 2.2.0（package.json 依赖 GitHub Release 包），并由本包的 bundle patch 自动挂载，无需单独安装或改 profile 配置。
+- 默认配置：记忆开启、演化关闭、maxNodes 5000、每轮投影 600 字节。覆盖 profile 的 cordis.patch.yml 可继续调（例如把 projectionBytes 提到 900）。
+- 若某个 profile 里已经单独启用过 dsh-soul bundle，请先移除它再装 Super Trader，避免同一插件被挂载两次。
+- 记忆库位置：`DSH_HOME/dsh-soul/<profile>/evolve.sqlite`，按项目 cwd 分 scope，互不串味。
 
 ## 复盘全中文（0.28.6 → 0.28.7）
 

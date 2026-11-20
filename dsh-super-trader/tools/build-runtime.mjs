@@ -6,11 +6,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const PACKAGE_ROOT = fileURLToPath(new URL('../', import.meta.url));
 const SOURCE_ROOT = resolve(PACKAGE_ROOT, '..');
 export const RUNTIME_FILES = Object.freeze({
-  backend: ['__init__.py', 'agent.py', 'app.py', 'db.py', 'etf_evidence.py', 'experts.py', 'jobs.py', 'journal.py', 'market.py', 'memory.py', 'model_gateway.py', 'plugins.py', 'portfolio.py', 'quant.py', 'research.py', 'review.py', 'review_context.py', 'selection.py', 'seeds.py', 'serve.py', 'services.py', 'settings.py', 'watchlist.py'],
+  backend: ['__init__.py', 'agent.py', 'app.py', 'db.py', 'etf_evidence.py', 'experts.py', 'jobs.py', 'journal.py', 'market.py', 'memory.py', 'minute.py', 'model_gateway.py', 'plugins.py', 'portfolio.py', 'quant.py', 'research.py', 'review.py', 'review_context.py', 'selection.py', 'seeds.py', 'serve.py', 'services.py', 'settings.py', 'watchlist.py'],
   'backend/factors': ['__init__.py', 'dataset.py', 'targets.py', 'dsl.py', 'evaluate.py', 'seed_pool.py', 'sandbox.py', 'service.py', 'cli.py', 'batch.py', 'research.py'],
   super_trader: ['__init__.py', '__main__.py', 'accuracy.py', 'accuracy_ranking.py', 'accuracy_report.py', 'cli.py', 'config.py', 'crosssection.py', 'crosssection_report.py', 'data.py', 'diagnose.py', 'evaluate.py', 'features.py', 'fullfit.py', 'fullfit_report.py', 'fullfit_table.py', 'personal_report.py', 'personalize.py', 'predict.py', 'report.py', 'rules.py', 'scan.py', 'stats.py', 'universe.py'],
 });
-export const REQUIREMENTS = 'numpy>=2.0\npandas>=2.2\npyarrow>=15.0\nscipy>=1.11\nfastapi>=0.110\nuvicorn>=0.27\nhttpx>=0.27\n';
+export const REQUIREMENTS = 'numpy>=2.0\npandas>=2.2\npyarrow>=15.0\nscipy>=1.11\nfastapi>=0.110\nuvicorn>=0.27\nhttpx>=0.27\nopentdx>=0.1\n';
 
 /** Deterministic, explicit source allowlist. Never copies data, keys, DBs or tests. */
 export async function buildRuntime({ sourceRoot = SOURCE_ROOT, outputRoot = join(PACKAGE_ROOT, 'runtime') } = {}) {

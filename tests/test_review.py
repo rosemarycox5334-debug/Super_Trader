@@ -223,6 +223,22 @@ def test_complex_plan_never_reaching_its_price_is_pending_without_a_model_call(b
     assert service.get(rid)["targets"][0]["metrics"]["status"] == "pending"
 
 
+def test_intraday_bars_are_offered_for_daily_unprovable_sequencing(build):
+    model = FakeModel([verified_trigger(), verified_trigger()])
+    service = build({"000001": bars([10, 11, 13])}, [pick("000001", 12.5, "above", note="回踩后放量突破")], model=model)
+    service._minute = SimpleNamespace(bars=lambda code, **kwargs: [
+        {"datetime": "2026-01-07 09:35", "date": "2026-01-07", "open": 12.4, "high": 12.6,
+         "low": 12.3, "close": 12.5, "volume": 1200},
+        {"datetime": "2026-01-07 10:00", "date": "2026-01-07", "open": 12.5, "high": 13.2,
+         "low": 12.5, "close": 13.0, "volume": 2600}])
+    review = service.archive("job-1")
+    result = service.judge(review["id"])
+    assert result["judged"][0]["status"] == "triggered"
+    payload = model.calls[0]["input"]
+    assert payload["intraday_5m"][0]["datetime"] == "2026-01-07 09:35"
+    assert payload["observation_from"] == "2026-01-06"
+
+
 def test_second_judge_skips_already_judged_targets(build):
     model = FakeModel(['{"status":"not_triggered","trigger_date":null,"confidence":"high","reason":"wait"}'])
     service = build({"000001": bars([10, 11, 12])}, [pick("000001", note="放量突破")], model=model)

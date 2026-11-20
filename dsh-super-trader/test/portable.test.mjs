@@ -28,11 +28,11 @@ test('runtime allowlist is deterministic, contains original algorithm bytes, exc
     const manifest1 = await readFile(join(root, 'runtime/manifest.json'), 'utf8');
     const second = await buildRuntime({ outputRoot: join(root, 'runtime') });
     assert.equal(await readFile(join(root, 'runtime/manifest.json'), 'utf8'), manifest1);
-    assert.equal(first.files, 60); assert.deepEqual(first.manifest, second.manifest);
+    assert.equal(first.files, 61); assert.deepEqual(first.manifest, second.manifest);
     assert.deepEqual(await readFile(join(root, 'runtime/backend/review_context.py')), await readFile(resolve(pkg, '../backend/review_context.py')));
     assert.match(await readFile(join(root, 'runtime/LICENSE'), 'utf8'), /MIT License/);
     assert.equal((await readFile(join(root, 'runtime/requirements.txt'), 'utf8')), REQUIREMENTS);
-    assert.equal(REQUIREMENTS.trim().split('\n').length, 7);
+    assert.equal(REQUIREMENTS.trim().split('\n').length, 8);
     for (const name of ['fullfit.py', 'rules.py', 'features.py', 'evaluate.py', 'stats.py', 'data.py', 'scan.py']) {
       assert.deepEqual(await readFile(join(root, 'runtime/super_trader', name)), await readFile(resolve(pkg, '../super_trader', name)));
     }

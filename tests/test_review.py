@@ -198,7 +198,8 @@ def test_ai_judgment_can_trigger_a_complex_condition(build):
     assert metrics["ai"]["reason"] == "放量站上12.5"
     assert metrics["trigger"]["is_fill"] is False and metrics["trigger"]["price"] == 13
     assert model.calls[0]["response_format_json"] is True
-    assert [row["date"] for row in model.calls[1]["input"]["bars"]] == ["2026-01-06", "2026-01-07"]
+    assert [row["date"] for row in model.calls[1]["input"]["bars"]] == ["2026-01-05", "2026-01-06", "2026-01-07"]
+    assert model.calls[1]["input"]["observation_from"] == "2026-01-06"
 
 
 def test_ai_judgment_retries_a_fake_event_date_then_closes_conservatively(build):
@@ -210,6 +211,16 @@ def test_ai_judgment_retries_a_fake_event_date_then_closes_conservatively(build)
     metrics = service.get(review["id"])["targets"][0]["metrics"]
     assert metrics["status"] == "pending" and metrics["windows"] == {}
     assert "没有真实交易日满足" in metrics["ai"]["reason"]
+
+
+def test_complex_plan_never_reaching_its_price_is_pending_without_a_model_call(build):
+    model = FakeModel([])
+    service = build({"000001": bars([10, 11, 12])}, [pick("000001", 30, "above", note="放量突破")], model=model)
+    rid = service.archive("job-1")["id"]
+    assert service.get(rid)["targets"][0]["metrics"]["status"] == "pending"
+    result = service.judge(rid)
+    assert result["judged"] == [] and model.calls == []
+    assert service.get(rid)["targets"][0]["metrics"]["status"] == "pending"
 
 
 def test_second_judge_skips_already_judged_targets(build):
@@ -333,7 +344,7 @@ def test_legacy_migrates_only_from_original_job_and_ignores_merged_judgment(buil
     target = migrated["targets"][0]
     assert not migrated["legacy"] and target["entry_price"] == 20
     assert target["plans"][0]["expert_id"] == "price_action"
-    assert target["metrics"]["status"] == "needs_ai" and target["metrics"]["ai"] is None
+    assert target["metrics"]["status"] == "pending" and target["metrics"]["ai"] is None
 
 
 def test_intraday_selection_waits_for_the_close_then_uses_that_close(build, monkeypatch):

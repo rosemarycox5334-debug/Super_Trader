@@ -205,7 +205,11 @@ class PortfolioService:
                     continue
                 trigger_day = _session(trigger.get("date"))
                 close = _price(trigger.get("price"))
-                if (trigger_day is None or trigger_day <= selected.date() or close is None
+                # A bar counts only if its close came after the plan was produced:
+                # an intraday selection may use that day's close, a post-close one
+                # starts with the next session.
+                if (trigger_day is None or close is None or trigger_day < selected.date()
+                        or (trigger_day == selected.date() and selected.time() >= MARKET_CLOSE)
                         or observed < datetime.combine(trigger_day, MARKET_CLOSE, SHANGHAI)):
                     continue
                 stop = _price(plan.get("invalidation_price"))

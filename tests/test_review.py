@@ -120,6 +120,21 @@ def test_invalidation_before_trigger_voids_the_pick(build):
     assert metrics["windows"] == {}
 
 
+def test_intraday_selection_can_use_that_sessions_close(build):
+    service = build({"000001": bars([10, 13, 14])}, [pick("000001", 10.5, "below")],
+                    finished="2026-01-05T10:26:00+08:00")
+    metrics = service.get(service.archive("job-1")["id"])["targets"][0]["metrics"]
+    assert metrics["status"] == "triggered"
+    assert metrics["base_date"] == "2026-01-05" and metrics["base_price"] == 10
+
+
+def test_selection_after_the_close_starts_with_the_next_session(build):
+    service = build({"000001": bars([10, 13])}, [pick("000001", 10.8, "below")],
+                    finished="2026-01-05T15:30:00+08:00")
+    metrics = service.get(service.archive("job-1")["id"])["targets"][0]["metrics"]
+    assert metrics["status"] == "pending"
+
+
 def test_no_condition_is_reference_only_and_explicitly_labelled(build):
     service = build({"000001": bars([10, 11, 12, 13, 14, 15])}, [pick("000001")])
     review = service.archive("job-1")
@@ -321,21 +336,20 @@ def test_legacy_migrates_only_from_original_job_and_ignores_merged_judgment(buil
     assert target["metrics"]["status"] == "needs_ai" and target["metrics"]["ai"] is None
 
 
-def test_intraday_selection_and_live_or_future_bars_cannot_trigger(build, monkeypatch):
+def test_intraday_selection_waits_for_the_close_then_uses_that_close(build, monkeypatch):
     service = build({"000001": bars([9, 20, 11, 20, 20], start=START - timedelta(days=1))},
                     [pick("000001", 15, "above")], finished="2026-01-05T04:00:00+00:00")
-    monday = START.replace(hour=12)
-    monkeypatch.setattr(service, "_now", lambda: monday)
+    noon = START.replace(hour=12)
+    monkeypatch.setattr(service, "_now", lambda: noon)
     review = service.archive("job-1")
     target = service.get(review["id"])["targets"][0]
     assert target["entry"]["date"] == "2026-01-04" and target["entry"]["price"] == 9
+    # The session is still live: its close is not a fact yet.
     assert target["metrics"]["status"] == "pending"
-    monkeypatch.setattr(service, "_now", lambda: monday + timedelta(days=2))
-    assert service.get(review["id"])["targets"][0]["metrics"]["status"] == "pending"
-    monkeypatch.setattr(service, "_now", lambda: monday + timedelta(days=2, hours=3))
+    monkeypatch.setattr(service, "_now", lambda: noon + timedelta(hours=4))
     metrics = service.get(review["id"])["targets"][0]["metrics"]
-    assert metrics["status"] == "triggered" and metrics["base_date"] == "2026-01-07"
-    assert metrics["windows"]["1d"] is None and metrics["is_fill"] is False
+    assert metrics["status"] == "triggered" and metrics["base_date"] == "2026-01-05"
+    assert metrics["is_fill"] is False
 
 
 def test_hit_after_twenty_session_deadline_cannot_reopen_plan(build):

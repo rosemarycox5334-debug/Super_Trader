@@ -131,6 +131,20 @@ def test_only_new_verified_triggers_and_late_detection_does_not_backdate(tmp_pat
     assert book(service)["nav"] == 106_000
 
 
+def test_intraday_signal_queues_for_the_next_open_not_the_same_open(tmp_path):
+    db, market, _, _, _, service = make(tmp_path)
+    assessment(db, pid="noon", selected=at(17, "10:00:00"), trigger_day=17, recorded=at(17, "16:00:00"))
+    market.bars["600001"] = [bar(16, 12, 12), bar(17, 12, 12), bar(18, 13, 13)]
+    result = service.tick(now=at(17, "17:00:00"))
+    assert result["fills"] == 0
+    order = service.dashboard()["portfolios"][0]["queued_orders"][0]
+    assert order["first_day"] == "2026-11-18"
+    filled = service.tick(now=at(18, "09:31:00"))
+    assert filled["fills"] == 1
+    position = service.dashboard()["portfolios"][0]["open_positions"][0]
+    assert position["entry_date"] == "2026-11-18" and position["entry_price"] == 13
+
+
 def test_missing_bar_blocks_open_until_repaired_and_suspension_defers(tmp_path):
     db, market, _, _, _, service = make(tmp_path)
     assessment(db, pid="candidate")

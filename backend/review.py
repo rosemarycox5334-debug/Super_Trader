@@ -472,11 +472,14 @@ class ReviewService:
         entry = {"date": preceding[-1]["date"], "price": preceding[-1]["close"], "status": "ok",
                  "source": "observed_close", "is_fill": False} if preceding else {
                      "date": day, "price": None, "status": "unavailable", "reason": "未取得任务完成时已知的真实收盘价"}
-        # Do not use selection-day high/low/close to decide a future condition:
-        # the daily bar combines prices from before the expert produced the plan.
-        later = [b for b in bars if b["date"] > day]
+        # A bar is usable only if its close happened after the plan was produced.
+        # A selection made during the session therefore still has that day's close
+        # (and only the close) evaluated; one made after the close starts next day.
+        later = [b for b in bars if b["date"] > day or (b["date"] == day and selected.time() < CLOSE)]
         truncated = bool(capped and bars and bars[0]["date"] > day)
-        reference = [b for b in bars if b["date"] == day and selected.time() >= CLOSE] + later
+        # Reference returns start where the expert's decision was priced: the last
+        # close known then (yesterday for an intraday selection, today after close).
+        reference = ([preceding[-1]] if preceding else []) + later
         return entry, later, reference, truncated
 
     @staticmethod

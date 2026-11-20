@@ -22,7 +22,7 @@ def bars(closes, start=START):
     day = start
     for close in closes:
         rows.append({"date_ms": int(day.timestamp() * 1000), "close_price": close,
-                     "open_price": close, "high_price": close, "low_price": close, "volume": 100})
+                     "open_price": close, "high_price": close, "low_price": close, "volume": 150 if day.day == 7 else 100})
         day += timedelta(days=1)
     return rows
 
@@ -161,8 +161,16 @@ class FakeModel:
         return {"content": self.replies.pop(0)}
 
 
+def verified_trigger():
+    return json.dumps({'status':'triggered','trigger_date':'2026-01-07','trigger_price':999,
+                       'confidence':'medium','reason':'放量站上12.5','all_conditions_verified':True,
+                       'checks':[{'condition':'收盘站上12.5','facts':[{'date':'2026-01-07','field':'close','value':13}]},
+                                 {'condition':'放量','facts':[{'date':'2026-01-06','field':'volume','value':100},
+                                                             {'date':'2026-01-07','field':'volume','value':150}]}]})
+
+
 def test_ai_judgment_can_trigger_a_complex_condition(build):
-    real_trigger = '{"status":"triggered","trigger_date":"2026-01-07","trigger_price":999,"confidence":"medium","reason":"放量站上12.5"}'
+    real_trigger = verified_trigger()
     model = FakeModel([real_trigger, real_trigger])
     service = build({"000001": bars([10, 11, 13, 14, 15, 16])},
                     [pick("000001", 12.5, "above", note="放量站上12.5")], model=model)
@@ -205,6 +213,21 @@ def test_judge_requires_a_configured_model(build):
     review = service.archive("job-1")
     with pytest.raises(ReviewError):
         service.judge(review["id"])
+
+def test_reset_clears_reviews_without_losing_selection_history(build):
+    service = build({}, [pick('000001')])
+    source = job([pick('000001')])
+    service.db.execute("INSERT INTO jobs(id,type,status,payload,result,created_at,finished_at) VALUES(?,?,?,?,?,?,?)",
+                       ('job-1','expert_selection','done',json.dumps(source['payload']),json.dumps(source['result']),source['created_at'],source['finished_at']))
+    rid = service.archive('job-1')['id']
+    with pytest.raises(ReviewError):
+        service.reset_history([])
+    assert service.reset_history([rid]) == {'deleted_reviews':1,'excluded_source_jobs':1}
+    assert service.count() == 0 and service.sync()['archived'] == []
+    assert service.db.query_one("SELECT status FROM jobs WHERE id='job-1'")['status'] == 'done'
+    assert service.recent_expert_picks('price_action')['000001']['times'] == 1
+    assert service.recent_expert_picks('buffett') == {}
+
 
 def test_delete_removes_review_and_judgments(build):
     service = build({"000001": bars([10, 11, 12])}, [pick("000001")])
@@ -323,7 +346,7 @@ def test_hit_after_twenty_session_deadline_cannot_reopen_plan(build):
 
 def test_ai_pending_cache_refreshes_on_new_bars_and_terminal_prefix_is_reusable(build):
     model = FakeModel(['{"status":"not_triggered","reason":"等待"}',
-                       '{"status":"triggered","trigger_date":"2026-01-07","reason":"触发"}'])
+                       verified_trigger()])
     market = {"000001": bars([10, 11])}
     service = build(market, [pick("000001", note="放量且收盘突破")], model=model)
     rid = service.archive("job-1")["id"]
@@ -342,16 +365,16 @@ def test_ai_pending_cache_refreshes_on_new_bars_and_terminal_prefix_is_reusable(
     assert service.get(rid)["targets"][0]["metrics"]["status"] == "needs_ai"
 
 
-def test_ai_prefix_disagreement_keeps_low_confidence_verdict_and_skips_simple_rules(build):
+def test_ai_prefix_disagreement_cannot_enter_portfolio_and_skips_simple_rules(build):
     model = FakeModel(['{"status":"triggered","trigger_date":"2026-01-06"}', '{"status":"not_triggered"}'])
     service = build({"000001": bars([10, 11, 13]), "000002": bars([10, 11, 12])},
                     [pick("000001", note="等待形态确认"), pick("000002", 11, "above")], model=model)
     rid = service.archive("job-1")["id"]
     result = service.judge(rid)
     assert result["skipped"] == ["000002"]
-    assert result["judged"][0]["status"] == "triggered"
-    assert result["judged"][0]["confidence"] == "low"
-    assert "低信心采用" in result["judged"][0]["reason"]
+    assert result["judged"][0]["status"] == "ambiguous"
+    assert 'portfolio_eligible' not in result['judged'][0]
+    assert service.get(rid)['targets'][0]['metrics']['windows'] == {}
 
 
 def test_history_cutoff_reads_only_persisted_state_without_backdating(build, monkeypatch):
@@ -454,7 +477,7 @@ def test_refresh_due_is_bounded_round_robin_and_never_uses_ai(build, monkeypatch
 
 
 def test_auto_judge_runs_once_per_trading_day_after_close(build, monkeypatch):
-    reply = '{"status":"triggered","trigger_date":"2026-01-07","confidence":"medium","reason":"放量站上12.5"}'
+    reply = verified_trigger()
     model = FakeModel([reply, reply])
     service = build({"000001": bars([10, 11, 13, 14, 15, 16, 17, 18])},
                     [pick("000001", 12.5, "above", note="放量站上12.5")], model=model)
@@ -492,3 +515,21 @@ def test_auto_judge_skips_without_a_configured_model(build, monkeypatch):
                     model=FakeModel([], configured=False))
     monkeypatch.setattr(service, "_now", lambda: START + timedelta(days=7, hours=15, minutes=6))
     assert service.auto_judge_due()["skipped"] == "model_not_configured"
+
+
+def test_pending_count_tracks_only_unarchived_qualifying_jobs(build):
+    service = build({}, [pick('000001')])
+    assert service.pending_count() == 0
+    source = job([pick('000001')])
+    for job_id in ('job-2', 'job-3'):
+        service.jobs.jobs[job_id] = {**source, 'id': job_id}
+        service.db.execute("INSERT INTO jobs(id,type,status,payload,result,created_at,finished_at) VALUES(?,?,?,?,?,?,?)",
+                           (job_id, 'expert_selection', 'done', json.dumps(source['payload']),
+                            json.dumps(source['result']), source['created_at'], source['finished_at']))
+    assert service.pending_count() == 2
+    service.sync()
+    assert service.pending_count() == 0 and service.count() == 2
+    service.db.execute("INSERT INTO jobs(id,type,status,payload,result,created_at,finished_at) VALUES(?,?,?,?,?,?,?)",
+                       ('job-4', 'expert_selection', 'done', '{}', json.dumps({'expert_results': []}),
+                        source['created_at'], source['finished_at']))
+    assert service.pending_count() == 0

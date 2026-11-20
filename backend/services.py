@@ -14,6 +14,7 @@ from .memory import MemoryService
 from .market import MarketService
 from .model_gateway import ModelClient
 from .plugins import PluginService
+from .portfolio import PortfolioService
 from .quant import QuantEngine, get_engine
 from .settings import Settings, get_settings
 from .research import ResearchService
@@ -38,6 +39,8 @@ class Services:
         self._review_stop = Event()
         self._review_worker = None
         self.experts = ExpertService(self.db, self.engine, self.model, self.market, review_provider=self.review)
+        self.portfolio = PortfolioService(self.db, self.market, self.review, self.experts, self.model)
+        self._portfolio_worker = None
         self.factor_research = FactorResearchService(self.factors, self.model, self.jobs, self.db)
         self.watchlist = WatchlistService(self.db, self.engine, self.experts, self.jobs, market=self.market, review_provider=self.review)
         self.research = ResearchService(self.engine, self.market, self.experts, self.jobs, self.watchlist,
@@ -71,10 +74,25 @@ class Services:
         self._review_worker = Thread(target=run, name="review-refresh", daemon=True)
         self._review_worker.start()
 
+        def run_portfolio():
+            interval = 20
+            while not self._review_stop.wait(interval):
+                try:
+                    self.portfolio.tick()
+                except Exception:
+                    # A failed observation must not stop future sessions or invent prices.
+                    import logging
+                    logging.getLogger(__name__).warning('Portfolio tick failed; no new model decisions assumed.')
+                interval = 300
+        self._portfolio_worker = Thread(target=run_portfolio, name='portfolio-review', daemon=True)
+        self._portfolio_worker.start()
+
     def close(self) -> None:
         self._review_stop.set()
         if self._review_worker is not None:
             self._review_worker.join()
+        if self._portfolio_worker is not None:
+            self._portfolio_worker.join()
         self.jobs.shutdown()
         self.market.close()
         self.db.close()

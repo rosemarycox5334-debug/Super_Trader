@@ -1210,13 +1210,13 @@ function investBatchMessages(lang) {
   const en={factorLiveOutput:'Live output',factorOutputWaiting:'Waiting for model output',factorOutputNote:'Read-only model output, not accuracy evidence or verified conclusions.',factorOutputLatest:'Back to latest',factorOutputThinking:'Thinking',factorOutputTool:'Tool',factorOutputStatus:'Status',factorOutputSummary:'Live summary (not full output)',factorOutputEnded:'Output ended',factorOutputRetry:'Retry output read',factorBacktestPick:'Backtest the selected rule on a target',factorQueryRule:'Query this rule backtest',factorNoRuleSelected:'Select a mined rule in the factor library first',factorBatch:'Batch mining',factorContractError:'Factor API field mismatch',factorAll:'All local daily targets (stocks / ETFs / indices)',factorBatchIntro:'One LLM researches shared candidates. A fixed number of backend processes evaluate all local targets in shards, retaining each target’s best rule. One daily rule spans h=1–20 per target; rules may differ by target. No cross-sectional ranking.',factorBatchCapacity:'No sampling or first-200 proxy. Shards are processed progressively; no instant completion or all-target memory promise.',factorDirectory:'Local daily directory',factorDirectoryEmpty:'Directory not read; unknown counts are not presented as complete.',factorWorkers:'Evaluation processes',factorBudget:'Advanced budget limits',factorBudgetHint:'“New rules to try” counts evaluations; a full 8,228-target pass takes about 9.5 minutes, so 50 tries usually need hours. Research time is unlimited; the job runs until it finishes or you cancel.',factorTrials:'New rules to try',factorCalls:'Maximum model calls',factorMinutes:'Maximum minutes',factorBrief:'Optional research brief',factorStart:'Start batch mining (model calls may incur cost)',factorCost:'Only explicitly starting may call paid models. Directory and result reads do not call models.',factorResearchInvalid:'Invalid parameters: processes 2/4/8, positive integer budgets, brief up to 1000 characters.',factorBatchPhase:'Current candidate evaluation',factorFinalValidation:'Automatic full validation (local compute, no extra model calls)',factorFinalValidationNote:'After the model stops, the best candidate is evaluated on all targets; no extra model calls, takes a few minutes.',factorPhaseProgress:'This candidate: processed / targets',factorTrialProgress:'Completed trials / new rules to try',factorJobProgress:'Job scheduling progress (not quality completion)',factorProcessed:'Target evaluations',factorFailed:'Failed',factorInsufficient:'Insufficient / skipped',factorImproved:'Best-rule updates',factorModelCalls:'Model calls',factorRulesWritten:'Candidate rules written',factorTrialsDone:'Completed trials',factorPartial:'Partial verified results are retained. Budget exhaustion or job termination does not imply every target was evaluated.',factorPollPaused:'Automatic checks paused (network or API error). The job keeps running; continue manually without resubmitting.',factorResults:'Evaluation and results by target',factorResultsNote:'Paged by category / code, never cross-target accuracy or return rankings. Pending, failed and insufficient-data targets are not verified results. Nulls stay null.',factorNoResults:'No verified results yet; seed references never masquerade as LLM results.',factorResultQuery:'Filter by code',factorCategory:'Target category',factorOpen:'Query this target',factorSourceLLM:'LLM batch result',factorSourceAdHoc:'Ad-hoc code backtest (not LLM batch)',factorSourceSeed:'Seed reference (not LLM batch)',factorSourceUnknown:'Rule source not supplied',factorActivity:'Recent research steps',factorErrors:'Bounded error summary',factorRestore:'Read recent batch job',factorRestoreNote:'Read-only recovery from factor_research jobs among the latest 10; never auto-submit.',factorNoHistory:'No batch research job among the latest 10.',factorPhaseUnknown:'Awaiting phase summary',factorCandidates:'Candidate rules',factorCreated:'Job created',factorTaskSubset:'This job: explicit subset',factorTaskLocalTotal:'Local total',factorTaskAll:'This job: all local targets',factorTaskScopeNote:'This is the submitted job scope. The start form creates all-target jobs only; it never inherits a subset.',factorResultStatus:'Evaluation status',factorPendingResult:'Pending mining (no verified rule)',factorFailedResult:'Evaluation failed',factorInsufficientResult:'Insufficient data / skipped',factorCompletedResult:'Evaluation completed',factorVerifiedResult:'Verified rule available'};
   Object.assign(zh,{selectionWatchHint:'自选股范围会把自选的每一只（个股/ETF/LOF）都逐一深度分析并给结论，不是挑选名单。',watchAddEmptyStock:'没有匹配的股票。',watchAddEmptyFund:'没有匹配的基金（ETF/LOF）。',stockSearchEmptyFund:'没有匹配的基金（ETF/LOF）。',selectionAllExperts:'本次使用全部已启用的专家（与专家团队一致），无需在此勾选。',selectionSector:'选择板块',selectionOpenSession:'打开专家选股会话',watchAiStart:'专家团队分析选中的自选股',watchAiHelp:'会为每只选中标的调用全部启用专家并可能产生较多费用；只数越多耗时越长，串行执行。',watchAiOpen:'打开自选股分析会话',watchSelectAll:'全选',watchSelectNone:'取消全选',watchChoose:'选择',watchAddTitle:'添加自选股',watchAddLabel:'股票/ETF名称或代码',watchAddHint:'输入名称或 6 位代码，选择“查找股票”或“查找基金”（含 ETF/LOF），再从结果里加入自选。',watchAddEmpty:'没有匹配的股票或 ETF。',watchInList:'已在自选',watchAdded:'已加入自选',removeWatch:'移除'});
   Object.assign(en,{selectionWatchHint:'The watchlist scope evaluates every saved target one by one (stocks, ETFs, LOFs) instead of picking a list.',watchAddEmptyStock:'No matching stock.',watchAddEmptyFund:'No matching fund (ETF/LOF).',stockSearchEmptyFund:'No matching fund (ETF/LOF).',selectionAllExperts:'This run uses every enabled expert, the same set as the expert team.',selectionSector:'Sector',selectionOpenSession:'Open selection session',watchAiStart:'Analyze selected with the expert team',watchAiHelp:'Runs every enabled expert for each selected target and may cost more; up to 10 targets per run, executed sequentially.',watchAiOpen:'Open watchlist analysis session',watchSelectAll:'Select all',watchSelectNone:'Clear selection',watchChoose:'Select',watchAddTitle:'Add to watchlist',watchAddLabel:'Stock/ETF name or code',watchAddHint:'Enter a name or 6-digit code, choose Stock or ETF, then add it from the results.',watchAddEmpty:'No matching stock or ETF.',watchInList:'already watched',watchAdded:'Added to watchlist',removeWatch:'Remove'});
-  Object.assign(zh,{reviews:'AI 专家复盘',reviewScopeSector:'板块',reviewCondition:'触发条件',reviewAtOrBelow:'≤',reviewAtOrAbove:'≥',reviewInvalidAt:'失效',reviewDelete:'删除这条复盘',reviewRule:'这个页面只做一件事：验证“选中之后到底有没有按专家说的条件买入、买入之后表现如何”，并据此统计专家与信心度的真实成绩；所有数字来自真实行情。',reviewLegend:'状态含义：已触发＝买入条件成立，收益从触发日算；未触发＝观察期内没到条件，视为没买，不计收益；参考＝专家没给触发条件，只能按入选价参考跟踪，不算已买入；已失效＝先跌破失效价；跟踪中＝还没有足够的后续交易日。窗口里的“—”表示还没走够对应交易日。',reviewReferenceCount:'无触发条件',reviewJudge:'AI 判定触发',reviewJudgeHelp:'让模型逐只阅读入选理由与触发条件，再对照入选后的真实行情判断是否真的触发；会调用模型并可能计费。',reviewJudgeDone:'已判定',reviewJudgeSkipped:'跳过',reviewHelp:'把每次选股的名单冻结下来，按真实行情跟踪是否触发买入条件、触发后的表现；未触发的不计收益。复杂条件会在每个交易日收盘后自动判定一次，不必手动点。',reviewSync:'归档已完成选股',reviewOpen:'查看',reviewEmpty:'还没有可复盘的选股记录。先完成一次选股，或点“归档已完成选股”。',reviewDetail:'复盘详情',reviewTime:'归档时间',reviewScope:'范围',reviewTargets:'候选数',reviewName:'名称',reviewExperts:'推荐专家',reviewConfidence:'信心度',reviewStatus:'状态',reviewBaseDate:'触发/起算日',reviewBasePrice:'起算价',reviewNow:'当前',reviewDrawdown:'最大回撤',reviewEntered:'已入场 / 候选',reviewBench5:'候选等权5日',reviewBench20:'候选等权20日',reviewByExpert:'按专家',reviewByConfidence:'按信心度',reviewExpert:'专家',reviewPicks:'入选',reviewTriggeredCount:'已触发',reviewNotTriggeredCount:'未触发',reviewTriggerRate:'触发率',reviewWinRate:'胜率',reviewRank:'名次',reviewNotRanked:'样本不足',reviewTriggered:'已触发',reviewReference:'参考(未给条件)',reviewNotTriggered:'未触发(未入场)',reviewInvalidated:'已失效',reviewPending:'跟踪中',reviewUnavailable:'不可计算'});
-  Object.assign(en,{reviews:'AI selection review',reviewScopeSector:'Sector',reviewCondition:'Trigger',reviewAtOrBelow:'≤',reviewAtOrAbove:'≥',reviewInvalidAt:'Invalid at',reviewDelete:'Delete this review',reviewRule:'This page verifies whether each pick actually met its entry condition and how it performed afterwards. Every number comes from real prices.',reviewLegend:'Status: triggered = the entry condition was met and returns start at that bar; not triggered = the condition never hit, treated as no position; reference = the expert gave no condition, tracked from the pick price only; invalidated = the stop level broke first; pending = not enough sessions yet. A dash in a window means that many sessions have not elapsed.',reviewReferenceCount:'No condition',reviewJudge:'Let AI judge triggers',reviewJudgeHelp:'The model reads each pick condition against real post-selection bars to decide whether it actually triggered. Calls the model and may cost.',reviewJudgeDone:'Judged',reviewJudgeSkipped:'Skipped',reviewHelp:'Freezes every pick and tracks real prices: whether the entry condition triggered and what happened after. Untriggered picks earn no return. Complex conditions are assessed once after each trading close without a click.',reviewSync:'Archive finished selections',reviewOpen:'Open',reviewEmpty:'No reviewable selections yet.',reviewDetail:'Review detail',reviewTime:'Archived',reviewScope:'Scope',reviewTargets:'Picks',reviewName:'Name',reviewExperts:'Experts',reviewConfidence:'Confidence',reviewStatus:'Status',reviewBaseDate:'Trigger/base date',reviewBasePrice:'Base price',reviewNow:'Now',reviewDrawdown:'Max drawdown',reviewEntered:'Entered / picks',reviewBench5:'Equal-weight 5d',reviewBench20:'Equal-weight 20d',reviewByExpert:'By expert',reviewByConfidence:'By confidence',reviewExpert:'Expert',reviewPicks:'Picks',reviewTriggeredCount:'Triggered',reviewNotTriggeredCount:'Not triggered',reviewTriggerRate:'Trigger rate',reviewWinRate:'Win rate',reviewRank:'Rank',reviewNotRanked:'sample too small',reviewTriggered:'Triggered',reviewReference:'Reference (no condition)',reviewNotTriggered:'Not entered',reviewInvalidated:'Invalidated',reviewPending:'Tracking',reviewUnavailable:'Unavailable'});
+  Object.assign(zh,{reviews:'AI 专家复盘',reviewScopeSector:'板块',reviewCondition:'触发条件',reviewAtOrBelow:'≤',reviewAtOrAbove:'≥',reviewInvalidAt:'失效',reviewDelete:'删除这条复盘',reviewRule:'这个页面只做一件事：验证“选中之后到底有没有按专家说的条件买入、买入之后表现如何”，并据此统计专家与信心度的真实成绩；所有数字来自真实行情。',reviewLegend:'状态含义：已触发＝买入条件成立，收益从触发日算；未触发＝观察期内没到条件，视为没买，不计收益；参考＝专家没给触发条件，只能按入选价参考跟踪，不算已买入；已失效＝先跌破失效价；跟踪中＝还没有足够的后续交易日。窗口里的“—”表示还没走够对应交易日。',reviewReferenceCount:'无触发条件',reviewJudge:'AI 判定触发',reviewJudgeHelp:'让模型逐只阅读入选理由与触发条件，再对照入选后的真实行情判断是否真的触发；会调用模型并可能计费。',reviewJudgeDone:'已判定',reviewJudgeSkipped:'跳过',reviewHelp:'把每次选股的名单冻结下来，按真实行情跟踪是否触发买入条件、触发后的表现；未触发的不计收益。复杂条件会在每个交易日收盘后自动判定一次，不必手动点。',reviewSyncPending:'{n} 个已完成选股尚未归档',reviewSync:'归档已完成选股',reviewOpen:'查看',reviewEmpty:'还没有可复盘的选股记录。先完成一次选股，或点“归档已完成选股”。',reviewDetail:'复盘详情',reviewTime:'归档时间',reviewScope:'范围',reviewTargets:'候选数',reviewName:'名称',reviewExperts:'推荐专家',reviewConfidence:'信心度',reviewStatus:'状态',reviewBaseDate:'触发/起算日',reviewBasePrice:'起算价',reviewNow:'当前',reviewDrawdown:'最大回撤',reviewEntered:'已入场 / 候选',reviewBench5:'候选等权5日',reviewBench20:'候选等权20日',reviewByExpert:'按专家',reviewByConfidence:'按信心度',reviewExpert:'专家',reviewPicks:'入选',reviewTriggeredCount:'已触发',reviewNotTriggeredCount:'未触发',reviewTriggerRate:'触发率',reviewWinRate:'胜率',reviewRank:'名次',reviewNotRanked:'样本不足',reviewTriggered:'已触发',reviewReference:'参考(未给条件)',reviewNotTriggered:'未触发(未入场)',reviewInvalidated:'已失效',reviewPending:'跟踪中',reviewUnavailable:'不可计算'});
+  Object.assign(en,{reviews:'AI selection review',reviewScopeSector:'Sector',reviewCondition:'Trigger',reviewAtOrBelow:'≤',reviewAtOrAbove:'≥',reviewInvalidAt:'Invalid at',reviewDelete:'Delete this review',reviewRule:'This page verifies whether each pick actually met its entry condition and how it performed afterwards. Every number comes from real prices.',reviewLegend:'Status: triggered = the entry condition was met and returns start at that bar; not triggered = the condition never hit, treated as no position; reference = the expert gave no condition, tracked from the pick price only; invalidated = the stop level broke first; pending = not enough sessions yet. A dash in a window means that many sessions have not elapsed.',reviewReferenceCount:'No condition',reviewJudge:'Let AI judge triggers',reviewJudgeHelp:'The model reads each pick condition against real post-selection bars to decide whether it actually triggered. Calls the model and may cost.',reviewJudgeDone:'Judged',reviewJudgeSkipped:'Skipped',reviewHelp:'Freezes every pick and tracks real prices: whether the entry condition triggered and what happened after. Untriggered picks earn no return. Complex conditions are assessed once after each trading close without a click.',reviewSyncPending:'{n} finished selections are not archived yet',reviewSync:'Archive finished selections',reviewOpen:'Open',reviewEmpty:'No reviewable selections yet.',reviewDetail:'Review detail',reviewTime:'Archived',reviewScope:'Scope',reviewTargets:'Picks',reviewName:'Name',reviewExperts:'Experts',reviewConfidence:'Confidence',reviewStatus:'Status',reviewBaseDate:'Trigger/base date',reviewBasePrice:'Base price',reviewNow:'Now',reviewDrawdown:'Max drawdown',reviewEntered:'Entered / picks',reviewBench5:'Equal-weight 5d',reviewBench20:'Equal-weight 20d',reviewByExpert:'By expert',reviewByConfidence:'By confidence',reviewExpert:'Expert',reviewPicks:'Picks',reviewTriggeredCount:'Triggered',reviewNotTriggeredCount:'Not triggered',reviewTriggerRate:'Trigger rate',reviewWinRate:'Win rate',reviewRank:'Rank',reviewNotRanked:'sample too small',reviewTriggered:'Triggered',reviewReference:'Reference (no condition)',reviewNotTriggered:'Not entered',reviewInvalidated:'Invalidated',reviewPending:'Tracking',reviewUnavailable:'Unavailable'});
   Object.assign(zh,{integrationTitle:'首次使用：先连接同花顺',integrationBody:'Super Trader 的行情、选股、复盘都依赖同花顺 MCP；未连接时页面能打开，但取不到真实数据。',integrationStep1:'打开「设置 → MCP 连接器」（侧栏入口已移入设置，不再占用左侧菜单）。',integrationStep2:'新增两个自定义连接：传输 streamable-http、鉴权 API Key（X-Api-Key），地址分别为 a-share 与 meta 两条。',integrationStep3:'保存后回到本页点「重新检测」；显示已连接即可使用。',integrationCopied:'地址已复制',integrationRecheck:'重新检测'});
   Object.assign(en,{integrationTitle:'First run: connect Hithink (THS) first',integrationBody:'Quotes, screening and review all rely on the Hithink MCP servers. Without them the page opens but shows no real data.',integrationStep1:'Open Settings → MCP Connector (its sidebar entry now lives in Settings).',integrationStep2:'Add two custom connections: transport streamable-http, auth API Key (X-Api-Key), using the a-share and meta URLs below.',integrationStep3:'Save, then press Recheck here; connected means you are ready.',integrationCopied:'URL copied',integrationRecheck:'Recheck'});
   Object.assign(zh,{
     reviewRefresh:'刷新复盘',reviewHistory:'历史批次',reviewLatest:'最新批次',reviewHistoryBatch:'历史批次',reviewRecordId:'复盘编号',reviewSource:'判定来源',reviewNext:'下一步',reviewAnswers:'本批结论',reviewPlans:'专家计划',reviewPlanUnit:'项',reviewStockUnit:'只',reviewStockPlans:'逐股查看独立计划',reviewStats:'专家与信心度统计',reviewNotes:'口径与数据说明',
-    reviewScopeMarket:'全 A 股',reviewScopeWatch:'自选股',reviewBatchSource:'已归档的选股计划；行情随刷新更新。',reviewLegacyBatch:'旧版归档只保留了合并后的股票记录，不能归因到各专家，也不纳入独立计划统计。',reviewLegacyPlan:'旧版合并记录',reviewLegacy:'历史合并记录',reviewMultiple:'按专家计划分别判定',reviewNeedsAi:'待判定（复杂条件）',reviewAmbiguous:'证据不足，未确认触发',reviewPending:'仍需等待',reviewReference:'仅参考（无触发条件）',reviewUnavailable:'缺少可用行情',reviewNotTriggered:'观察期结束，未入场',reviewTriggered:'已触发',reviewInvalidated:'先失效，未入场',
+    reviewScopeMarket:'全 A 股',reviewScopeWatch:'自选股',reviewBatchSource:'已归档的选股计划；行情随刷新更新。',reviewLegacyBatch:'旧版归档只保留了合并后的股票记录，不能归因到各专家，也不纳入独立计划统计。',reviewLegacyPlan:'旧版合并记录',reviewLegacy:'历史合并记录',reviewMultiple:'按专家计划分别判定',reviewNeedsAi:'待判定（复杂条件）',reviewAmbiguous:'待补证（不计模拟入场）',reviewSummaryAmbiguous:'{n} 项待补证（不计模拟入场）',reviewPending:'仍需等待',reviewReference:'仅参考（无触发条件）',reviewUnavailable:'缺少可用行情',reviewNotTriggered:'观察期结束，未入场',reviewTriggered:'已触发',reviewInvalidated:'先失效，未入场',
     reviewSummaryWaiting:'{n} 项还在等触发',reviewSummaryTriggered:'{n} 项已触发',reviewSummaryResolved:'{n} 项已满 20 个交易日，可回看完整窗口',reviewSummaryClosed:'{n} 项未入场，观察已结束',reviewSummaryComplex:'{n} 项复杂条件等待 AI 判定',reviewSummaryReference:'{n} 项仅作参考',reviewSummaryUnavailable:'{n} 项暂缺行情',reviewNoneTriggered:'暂未确认有计划触发',reviewSummaryLegacy:'仅保留旧版跟踪数据，无法还原独立计划结论。',reviewSummaryEmpty:'没有可评估的独立计划。',reviewSentenceEnd:'。',reviewSentenceJoin:'；',
     reviewNextPending:'等待后续交易日，再刷新复盘',reviewNextTriggered:'按已触发后的交易日观察表现，未满的窗口继续等',reviewNextComplete:'查看已完成的观察结果，无需再判定入场',reviewNextClosed:'该计划不计入场收益，无需继续等触发',reviewNextReference:'只看参考走势，不计入场表现',reviewNextComplex:'展开对应股票，可手动发起 AI 判定',reviewNextAmbiguous:'暂不算入场；查看证据后再核对',reviewNextUnavailable:'行情可用后手动刷新复盘',reviewNextLegacy:'仅供回看；无法重建独立计划',reviewNextMultiple:'展开股票，分别核对各专家的状态和下一步',reviewUnknownSource:'当前没有可核实的判定来源',
     reviewSourceRule:'日线收盘价规则',reviewSourceAi:'手动发起的 AI 判定（基于真实行情）',reviewSourceArchive:'冻结的选股计划',reviewSourceLegacy:'旧版归档',reviewSourceReference:'入选价参考，不是入场',reviewSelectionEntry:'入选参考日 / 价',reviewAsOf:'行情截至',reviewWaited:'已等待交易日',reviewAfterEntry:'触发后交易日',reviewAwaitingWindows:'未到期窗口',reviewWindows:'触发后收益',reviewRefWindows:'参考价走势',reviewAiEvidence:'AI 判定依据',reviewPlanMissing:'未保存可展开的计划。',reviewNoCondition:'未给可执行条件',reviewNoWindows:'暂无可计入的入场收益。',reviewMissingEvidence:'本记录未保存额外证据。',reviewArchiveDetails:'归档信息',
@@ -1224,13 +1224,28 @@ function investBatchMessages(lang) {
   });
   Object.assign(en,{
     reviewRefresh:'Refresh review',reviewHistory:'Batch history',reviewLatest:'Latest batch',reviewHistoryBatch:'Past batch',reviewRecordId:'Review ID',reviewSource:'Assessment source',reviewNext:'Next step',reviewAnswers:'Batch assessment',reviewPlans:'Expert plans',reviewPlanUnit:'plans',reviewStockUnit:'stocks',reviewStockPlans:'Independent plans by stock',reviewStats:'Expert and confidence statistics',reviewNotes:'Method and data notes',
-    reviewScopeMarket:'All A-shares',reviewScopeWatch:'Watchlist',reviewBatchSource:'Archived selection plans; prices update on refresh.',reviewLegacyBatch:'Older archives merged picks by stock. They cannot be attributed to individual experts and are excluded from independent-plan statistics.',reviewLegacyPlan:'Legacy merged record',reviewLegacy:'Legacy merged record',reviewMultiple:'Assessed separately by plan',reviewNeedsAi:'Manual assessment needed (complex condition)',reviewAmbiguous:'Evidence inconclusive; no confirmed entry',reviewPending:'Still waiting',reviewReference:'Reference only (no trigger)',reviewUnavailable:'Price history unavailable',reviewNotTriggered:'Window closed without entry',reviewTriggered:'Triggered',reviewInvalidated:'Invalidated before entry',
+    reviewScopeMarket:'All A-shares',reviewScopeWatch:'Watchlist',reviewBatchSource:'Archived selection plans; prices update on refresh.',reviewLegacyBatch:'Older archives merged picks by stock. They cannot be attributed to individual experts and are excluded from independent-plan statistics.',reviewLegacyPlan:'Legacy merged record',reviewLegacy:'Legacy merged record',reviewMultiple:'Assessed separately by plan',reviewNeedsAi:'Manual assessment needed (complex condition)',reviewAmbiguous:'More evidence needed (not a simulated entry)',reviewSummaryAmbiguous:'{n} need more evidence (not simulated entries)',reviewPending:'Still waiting',reviewReference:'Reference only (no trigger)',reviewUnavailable:'Price history unavailable',reviewNotTriggered:'Window closed without entry',reviewTriggered:'Triggered',reviewInvalidated:'Invalidated before entry',
     reviewSummaryWaiting:'{n} still waiting for their triggers',reviewSummaryTriggered:'{n} triggered',reviewSummaryResolved:'{n} have a complete 20-session return window',reviewSummaryClosed:'{n} finished without entering',reviewSummaryComplex:'{n} complex conditions awaiting AI assessment',reviewSummaryReference:'{n} are references only',reviewSummaryUnavailable:'{n} lack price history',reviewNoneTriggered:'No trigger has been confirmed yet',reviewSummaryLegacy:'Only legacy tracking data was saved; no independent assessments can be recovered.',reviewSummaryEmpty:'No independent plans to assess.',reviewSentenceEnd:'.',reviewSentenceJoin:'; ',
     reviewNextPending:'Wait for more trading sessions, then refresh',reviewNextTriggered:'Track returns from the trigger date and wait for incomplete windows',reviewNextComplete:'Review the completed windows; no entry judgment needed',reviewNextClosed:'No entry return applies and no trigger remains to wait for',reviewNextReference:'Reference movement only; do not count it as an entry',reviewNextComplex:'Expand the stock to run an optional manual AI assessment',reviewNextAmbiguous:'Do not count an entry; check the evidence',reviewNextUnavailable:'Refresh when price history is available',reviewNextLegacy:'For reference only; individual plans cannot be reconstructed',reviewNextMultiple:'Expand the stock to check each expert’s status and next step',reviewUnknownSource:'No verifiable assessment source is available',
     reviewSourceRule:'Daily close price rule',reviewSourceAi:'Manually started AI assessment (from observed prices)',reviewSourceArchive:'Frozen selection plan',reviewSourceLegacy:'Legacy archive',reviewSourceReference:'Selection price reference, not an entry',reviewSelectionEntry:'Selection reference date / price',reviewAsOf:'Prices through',reviewWaited:'Trading sessions waited',reviewAfterEntry:'Trading sessions since trigger',reviewAwaitingWindows:'Incomplete windows',reviewWindows:'Returns after trigger',reviewRefWindows:'Movement from reference price',reviewAiEvidence:'AI assessment basis',reviewPlanMissing:'No plan details were saved.',reviewNoCondition:'No actionable trigger supplied',reviewNoWindows:'No entry return is available.',reviewMissingEvidence:'No additional evidence was saved.',reviewArchiveDetails:'Archive information',
     reviewJudgeBatch:'Re-assess the batch (may incur fees)',reviewJudgeBatchConfirm:'Re-assess {n} complex plans in this batch. The model is called and may cost money. Continue?',reviewJudgeBatchRunning:'Assessing the batch…',reviewJudgeBatchResult:'Re-assessed {judged}, skipped {skipped}, failed {errors}.',reviewJudgeBatchEmpty:'This batch has no complex plans to assess.',reviewJudge:'Run AI assessment now (may incur fees)',reviewJudgeHelp:'Complex conditions only. It runs automatically once after each close (from 15:05 Shanghai); this button checks immediately and may cost.',reviewJudgeRunning:'Assessing this plan…',reviewJudgeUnavailable:'The model already assessed this plan. See the evidence.',reviewJudgeResult:'{judged} assessed, {skipped} skipped, {errors} failed.',reviewComparison:'Prior review comparison',reviewOpenSource:'Open source review',reviewPerformance:'Post-trigger performance',reviewDays:'{n}d',reviewFailedPlan:'Plan assessment failed',reviewSelectedAt:'Selection finished',reviewInvalidationObserved:'Invalidation date / observed close',reviewTriggerObserved:'Trigger date / observed close',reviewNotFill:'Observed price, not a trade fill.',reviewAiThrough:'Prices used by the model through',reviewSummaryOutcome:'20-session results: {up} up, {down} down, {flat} unchanged',reviewNextNone:'No plans to track; refresh after another selection is archived',reviewBaseline:'The benchmark includes reference moves and is not a portfolio return.',
   });
-  return lang==='zh'?zh:en;
+  return {...(lang==='zh'?zh:en),...investPortfolioMessages(lang)};
+}
+function investPortfolioMessages(lang) {
+  return lang==='zh'?{
+    portfolioTitle:'专家模拟组合',portfolioCny:'元',portfolioReselection:'同一专家再次选中',portfolioReselectionCount:'累计入选次数',portfolioReselectionPrevious:'上次选中时间',portfolioReselectionReason:'再次选中原因',portfolioIntro:'每位专家独立管理模拟账户；净值按市场实际交易日期对比，不代表真实交易或未来收益。',portfolioStart:'模拟起始日',portfolioInitial:'每位专家初始资金',portfolioMaxPositions:'最多持仓',portfolioWeight:'目标单股仓位',portfolioRefresh:'刷新模拟组合',
+    portfolioReturns:'累计收益率',portfolioNav:'组合净值（元）',portfolioMode:'图表指标',portfolioShowSeries:'显示曲线',portfolioBenchmark:'沪深300',portfolioBenchmarkMissing:'暂无可用沪深300基准',portfolioBenchmarkOnly:'沪深300仅在收益率视图中显示',portfolioChartNote:'横轴为日历日期；只绘制有数据的点，缺失值不补零。',portfolioDate:'日期',portfolioLatest:'最新图表值',portfolioChartEmpty:'暂无可绘制的模拟净值或收益数据。',portfolioChartHidden:'当前没有可绘制的可见曲线。可在上方启用其他曲线。',
+    portfolioEmpty:'暂无模拟组合。完成一批新的专家选股后，再回来查看模拟组合。',portfolioGoSelect:'去发起新一批选股',portfolioExpert:'查看专家组合',portfolioTotalReturn:'累计收益率',portfolioDrawdown:'最大回撤',portfolioRealized:'已实现盈亏',portfolioUnrealized:'持仓浮动盈亏',portfolioCash:'可用现金',portfolioWinRate:'平仓胜率（盈利 / 已平仓）',portfolioAsOf:'净值估值截至',portfolioOrderWait:'等待原因',portfolioNoCosts:'模拟不计手续费和公司行动。开盘价仅用于模拟成交，不保证真实市场可执行。',
+    portfolioOpen:'当前持仓',portfolioQueued:'待执行订单',portfolioClosed:'已平仓',portfolioContributions:'逐股盈亏贡献',portfolioStock:'证券',portfolioEntry:'模拟买入日 / 价',portfolioExit:'模拟卖出日 / 价',portfolioQuantity:'股数',portfolioClose:'估值收盘价',portfolioStop:'止损价',portfolioPnl:'盈亏贡献（元）',portfolioTradeReturn:'个股收益率',portfolioDirection:'方向',portfolioBuy:'买入',portfolioSell:'卖出',portfolioDecision:'决策日',portfolioReason:'原因',portfolioNoOpen:'没有当前持仓。',portfolioNoQueued:'没有待执行订单。',portfolioNoClosed:'没有已平仓记录。',portfolioNoContributions:'暂无可归属的持仓或平仓盈亏。',portfolioContributionNote:'按证券汇总本专家的持仓浮盈与平仓盈亏。待执行订单不计盈亏，缺少估值的项目留空。',
+    reviewSignalTitle:'选股批次复盘 · 信号跟踪',reviewSignalNote:'以下检验选股信号的触发与后续走势，不是上方模拟组合的持仓、盈亏或胜率。',
+  }:{
+    portfolioTitle:'Simulated expert portfolios',portfolioCny:'CNY',portfolioReselection:'Selected again by this expert',portfolioReselectionCount:'Times selected',portfolioReselectionPrevious:'Previously selected at',portfolioReselectionReason:'Why it was selected again',portfolioIntro:'Each expert manages a separate simulated account. Values follow actual market dates; they are not live trades or a promise of returns.',portfolioStart:'Simulation start',portfolioInitial:'Initial cash per expert',portfolioMaxPositions:'Position limit',portfolioWeight:'Target weight per stock',portfolioRefresh:'Refresh portfolios',
+    portfolioReturns:'Cumulative return',portfolioNav:'Portfolio NAV (CNY)',portfolioMode:'Chart metric',portfolioShowSeries:'Visible series',portfolioBenchmark:'CSI 300',portfolioBenchmarkMissing:'CSI 300 benchmark is unavailable',portfolioBenchmarkOnly:'CSI 300 is shown only in the return view',portfolioChartNote:'The x-axis follows calendar dates. Only observed values are plotted; missing values are not set to zero.',portfolioDate:'Date',portfolioLatest:'Latest chart values',portfolioChartEmpty:'There are no simulated NAV or return observations to plot.',portfolioChartHidden:'No visible series can be plotted. Enable another series above.',
+    portfolioEmpty:'No simulated portfolios yet. Complete a new expert selection batch, then return here to view the portfolios.',portfolioGoSelect:'Start a new selection batch',portfolioExpert:'Inspect an expert portfolio',portfolioTotalReturn:'Total return',portfolioDrawdown:'Maximum drawdown',portfolioRealized:'Realized P&L',portfolioUnrealized:'Open P&L',portfolioCash:'Cash available',portfolioWinRate:'Closed win rate (wins / closes)',portfolioAsOf:'NAV valuation through',portfolioOrderWait:'Why still queued',portfolioNoCosts:'Simulation excludes fees and corporate actions. Opening prices are used for simulated fills; real execution is not assured.',
+    portfolioOpen:'Open holdings',portfolioQueued:'Queued orders',portfolioClosed:'Closed trades',portfolioContributions:'P&L contribution by stock',portfolioStock:'Security',portfolioEntry:'Simulated entry date / price',portfolioExit:'Simulated exit date / price',portfolioQuantity:'Shares',portfolioClose:'Valuation close',portfolioStop:'Stop price',portfolioPnl:'P&L contribution (CNY)',portfolioTradeReturn:'Stock return',portfolioDirection:'Side',portfolioBuy:'Buy',portfolioSell:'Sell',portfolioDecision:'Decision date',portfolioReason:'Reason',portfolioNoOpen:'No open holdings.',portfolioNoQueued:'No queued orders.',portfolioNoClosed:'No closed trades.',portfolioNoContributions:'No open or closed P&L to attribute.',portfolioContributionNote:'Aggregates this expert’s open and realized P&L by security. Queued orders do not contribute, and figures with missing valuations are left blank.',
+    reviewSignalTitle:'Selection batch review · Signal tracking',reviewSignalNote:'The entry triggers and subsequent price moves below are separate from simulated portfolio holdings, P&L and win rates.',
+  };
 }
 function investText(value,limit) { return cockpitSafeText(typeof value==='string' ? value : value == null ? '' : typeof value==='object' ? JSON.stringify(value) : String(value),limit || 1800); }
 function investIdle() { return {phase:'idle',data:null,error:null}; }
@@ -1321,6 +1336,64 @@ function investFactorReport(raw,target,ruleId) {
   return {...raw,metrics:{...m,per_horizon:[...m.per_horizon].sort((a,b)=>a.h-b.h)}};
 }
 function investReviewItems(value) {return Array.isArray(value)?value.filter(row=>row&&typeof row==='object'):[];}
+function investPortfolioDate(value) {
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
+  const stamp=Date.parse(value+'T00:00:00Z');
+  return Number.isFinite(stamp)&&new Date(stamp).toISOString().slice(0,10)===value?stamp:null;
+}
+function investPortfolioReturn(row,initial) {
+  if(Object.hasOwn(row,'return'))return cockpitNumber(row.return);
+  const nav=cockpitNumber(row.nav);
+  return initial>0&&nav!==null?cockpitNumber(nav/initial-1):null;
+}
+function investPortfolioModel(raw) {
+  const rows=raw?.portfolios??raw?.items;
+  if(!Array.isArray(rows))throw cockpitError('invalidResponse');
+  const seen=new Set();
+  const position=(row,closed)=>{
+    const pnl=cockpitNumber(Object.hasOwn(row,'pnl')?row.pnl:closed?row.realized_pnl:row.unrealized_pnl);
+    const cost=cockpitNumber(row.entry_cost);
+    const ret=Object.hasOwn(row,'return')?cockpitNumber(row.return):pnl!==null&&cost>0?cockpitNumber(pnl/cost):null;
+    return {...row,pnl,return:ret,close_price:row.close_price??row.mark_price,stop_price:row.stop_price??row.invalidation_price,
+      reason:row.reason??(closed?row.exit_reason:row.entry_reason)};
+  };
+  const entries=rows.map(row=>{
+    if(typeof row?.expert_id!=='string'||!row.expert_id.trim()||seen.has(row.expert_id))throw cockpitError('invalidResponse');
+    seen.add(row.expert_id);
+    const initial=cockpitNumber(row.initial_cash??raw.initial_cash);
+    const curve=investReviewItems(row.nav_history??row.curve).map(item=>({...item,date:item.date??item.session,return:investPortfolioReturn(item,initial)}));
+    const positions=investReviewItems(row.open_positions??row.positions).map(item=>position(item,false));
+    const closed=investReviewItems(row.closed_positions??row.closed).map(item=>position(item,true));
+    const pending=investReviewItems(row.queued_orders??row.pending);
+    const valued=curve.some(item=>cockpitNumber(item.nav)!==null||item.return!==null);
+    return {...row,curve,positions,closed,pending,
+      total_return:Object.hasOwn(row,'total_return')?cockpitNumber(row.total_return):valued?investPortfolioReturn(row,initial):null,
+      max_drawdown:valued?row.max_drawdown:null,wins:row.closed_wins??row.wins,win_rate:row.closed_win_rate??row.win_rate};
+  });
+  return {...raw,items:entries,started_on:raw.started_on??raw.started_at,position_weight:raw.target_weight??raw.position_weight};
+}
+function investPortfolioPoints(rows,metric,startedOn) {
+  const earliest=investPortfolioDate(startedOn),points=new Map();
+  for(const row of investReviewItems(rows)){
+    const stamp=investPortfolioDate(row.date);
+    if(stamp===null||earliest!==null&&stamp<earliest)continue;
+    points.set(stamp,{stamp,date:row.date,value:cockpitNumber(row[metric])});
+  }
+  return [...points.values()].sort((a,b)=>a.stamp-b.stamp);
+}
+function investPortfolioContributions(expert) {
+  const stocks=new Map();
+  for(const [rows,key] of [[expert.positions,'open'],[expert.closed,'closed']])for(const row of rows){
+    if(typeof row.code!=='string'||!row.code)continue;
+    if(!stocks.has(row.code))stocks.set(row.code,{code:row.code,name:row.name,open:{count:0,sum:0,missing:false},closed:{count:0,sum:0,missing:false}});
+    const stock=stocks.get(row.code),entry=stock[key],value=cockpitNumber(row.pnl);
+    if(!stock.name&&row.name)stock.name=row.name;
+    entry.count++;
+    if(value===null)entry.missing=true;else entry.sum+=value;
+  }
+  return [...stocks.values()].map(({code,name,open,closed})=>({code,name,open:open.count&&!open.missing?open.sum:null,
+    closed:closed.count&&!closed.missing?closed.sum:null,total:open.missing||closed.missing?null:open.sum+closed.sum})).sort((a,b)=>a.code.localeCompare(b.code));
+}
 function investReviewId(value) {return typeof value==='string'&&value.trim()===value&&value.length>0&&value.length<=128&&!/[\\/?#\u0000-\u001f]/.test(value)&&value!=='.'&&value!=='..';}
 function investReviewLegacy(detail) {const targets=investReviewItems(detail?.targets);return detail?.legacy===true||(targets.length>0&&targets.every(item=>!Array.isArray(item.plans)));}
 function investReviewCanJudge(plan) {return investReviewId(plan?.plan_id)&&plan.plan_kind==='complex'&&plan.metrics?.status==='needs_ai'&&!plan.metrics.ai;}
@@ -1332,7 +1405,7 @@ function createInvestStore(options) {
   let selectionTimer,selectionStarted=0,selectionCount=0,selectionPolling=false,expertsInitialized=false;
   let factorTimer,factorStarted=0,factorCount=0,factorPolling=false,factorVisible=false,transcriptTimer;
   const selectionActiveStatuses=['queued','pending','running','cancelling'];
-  let state={tab:'screen',target:null,stockCode:'',stockAsset:'个股',stockSearch:{...investIdle(),q:''},connection:{phase:'idle',ready:false,apiBase:'/dsh-super-trader/backend',error:null},status:null,factors:{code:'601088',category:'个股',timeframe:'1d',tab:'batch',ruleId:'',initialized:false,report:investIdle(),backtest:investIdle(),rules:investIdle()},factorResearch:{scope:'all',timeframe:'1d',workers:4,max_trials:5,brief:''},factorUniverse:investIdle(),factorResearchJob:{...investIdle(),submitting:false,cancelling:false,paused:false},factorResults:{...investIdle(),offset:0,limit:50,q:'',jobId:''},factorHistory:{...investIdle(),initialized:false},factorTranscript:{jobId:'',items:[],seq:0,phase:'idle',error:null,following:true,finalRead:false},report:investIdle(),screen:{scope:'market',sector:'',brief:''},selectionExpertIds:[],selectionAi:{phase:'idle',sessionId:null,requestId:null,error:null},selectionJob:{...investIdle(),params:null,paused:false,submitting:false,cancelling:false},sectors:{...investIdle(),tag:'industry',q:'',offset:0},selectedSector:null,experts:investIdle(),expertIds:[],expertEdit:null,expertCreating:false,expertSaving:false,expertDraft:null,expertError:null,expertDelete:{id:null,name:'',submitting:false,error:null},expertResearch:{phase:'idle',requirement:'',requestId:null,data:null,error:null},sectorAi:{phase:'idle',sessionId:null,requestId:null,error:null},stockAi:{phase:'idle',sessionId:null,requestId:null,error:null},watch:investIdle(),watchSearch:{...investIdle(),q:'',asset:'个股'},watchAi:{phase:'idle',sessionId:null,requestId:null,error:null},integration:investIdle(),reviews:investIdle(),reviewDetail:investIdle(),reviewJudge:investIdle(),reviewJudgeBatch:investIdle(),reviewId:'',reviewFocusPlanId:'',reviewSyncing:false,watchDeselected:[],add:investIdle(),draft:investIdle(),job:{...investIdle(),target:null,paused:false,submitting:false,cancelling:false},notice:null};
+  let state={tab:'screen',target:null,stockCode:'',stockAsset:'个股',stockSearch:{...investIdle(),q:''},connection:{phase:'idle',ready:false,apiBase:'/dsh-super-trader/backend',error:null},status:null,factors:{code:'601088',category:'个股',timeframe:'1d',tab:'batch',ruleId:'',initialized:false,report:investIdle(),backtest:investIdle(),rules:investIdle()},factorResearch:{scope:'all',timeframe:'1d',workers:4,max_trials:5,brief:''},factorUniverse:investIdle(),factorResearchJob:{...investIdle(),submitting:false,cancelling:false,paused:false},factorResults:{...investIdle(),offset:0,limit:50,q:'',jobId:''},factorHistory:{...investIdle(),initialized:false},factorTranscript:{jobId:'',items:[],seq:0,phase:'idle',error:null,following:true,finalRead:false},report:investIdle(),screen:{scope:'market',sector:'',brief:''},selectionExpertIds:[],selectionAi:{phase:'idle',sessionId:null,requestId:null,error:null},selectionJob:{...investIdle(),params:null,paused:false,submitting:false,cancelling:false},sectors:{...investIdle(),tag:'industry',q:'',offset:0},selectedSector:null,experts:investIdle(),expertIds:[],expertEdit:null,expertCreating:false,expertSaving:false,expertDraft:null,expertError:null,expertDelete:{id:null,name:'',submitting:false,error:null},expertResearch:{phase:'idle',requirement:'',requestId:null,data:null,error:null},sectorAi:{phase:'idle',sessionId:null,requestId:null,error:null},stockAi:{phase:'idle',sessionId:null,requestId:null,error:null},watch:investIdle(),watchSearch:{...investIdle(),q:'',asset:'个股'},watchAi:{phase:'idle',sessionId:null,requestId:null,error:null},integration:investIdle(),portfolios:investIdle(),portfolioView:{expertId:'',hiddenExperts:[],benchmark:true,mode:'return'},reviews:investIdle(),reviewDetail:investIdle(),reviewJudge:investIdle(),reviewJudgeBatch:investIdle(),reviewId:'',reviewFocusPlanId:'',reviewSyncing:false,watchDeselected:[],add:investIdle(),draft:investIdle(),job:{...investIdle(),target:null,paused:false,submitting:false,cancelling:false},notice:null};
   function publish(patch) {if(disposed)return;state={...state,...patch};for(const fn of listeners)fn();}
   function abort(key) {requests.get(key)?.abort();requests.delete(key);versions.set(key,(versions.get(key)||0)+1);}
   function token(key) {abort(key);const c=new AbortController();requests.set(key,c);return {c,v:versions.get(key)};}
@@ -1644,6 +1717,24 @@ function createInvestStore(options) {
       publish({integration:{phase:'error',data:null,error:cockpitFailure(error)}});
     }
   }
+  function loadPortfolios() {
+    if(state.portfolios.phase==='loading')return;
+    return resource('portfolios','/portfolios',investPortfolioModel);
+  }
+  function portfolioMode(mode) {
+    if(['return','nav'].includes(mode))publish({portfolioView:{...state.portfolioView,mode}});
+  }
+  function portfolioExpert(id) {
+    if(state.portfolios.data?.items.some(row=>row.expert_id===id))publish({portfolioView:{...state.portfolioView,expertId:id}});
+  }
+  function togglePortfolioSeries(id) {
+    if(!state.portfolios.data?.items.some(row=>row.expert_id===id))return;
+    const v=state.portfolioView;
+    publish({portfolioView:{...v,hiddenExperts:v.hiddenExperts.includes(id)?v.hiddenExperts.filter(expertId=>expertId!==id):[...v.hiddenExperts,id]}});
+  }
+  function togglePortfolioBenchmark() {
+    publish({portfolioView:{...state.portfolioView,benchmark:!state.portfolioView.benchmark}});
+  }
   let followLatestReview=true;
   async function loadReviews({refresh=false}={}) {
     const data=await resource('reviews','/reviews',raw=>{
@@ -1943,7 +2034,7 @@ function createInvestStore(options) {
   async function retryConnection() {try {const res=await fetcher('/dsh-super-trader/retry',{method:'POST',signal:AbortSignal.timeout(30000)});if(!res.ok)throw Error('HTTP '+res.status);if(connectionTimer!==undefined)unschedule(connectionTimer);await checkConnection();}catch(error){publish({connection:{...state.connection,error:cockpitFailure(error)}});}}
   function subscribe(fn) {listeners.add(fn);if(listeners.size===1&&options.autoConnect!==false)void checkConnection();return()=>{listeners.delete(fn);if(!listeners.size){if(connectionTimer!==undefined)unschedule(connectionTimer);abort('connection');stopPolling();stopSelectionPolling();stopFactors();}};}
   function dispose() {stopFactorTranscript();stopFactorResearchPolling();factorVisible=false;disposed=true;if(connectionTimer!==undefined)unschedule(connectionTimer);stopPolling();stopSelectionPolling();for(const c of requests.values())c.abort();requests.clear();listeners.clear();}
-  return {subscribe,getSnapshot:()=>state,navigate,setCode,setSearch,searchStocks,queryStock,openStock,querySector,selectSector,screenOptions,screen,screenSector,sectorOptions,loadSectors,loadExperts,toggleExpert,toggleSelectionExpert,loadReviews,refreshReviews,syncReviews,openReview,openReviewReference,judgeReview,judgeBatch,deleteReview,loadIntegration,startSelectionAnalysis,openSelectionAnalysisSession,editExpert,cancelExpertEdit,newExpert,cancelNewExpert,expertRequirement,startExpertCreation,openExpertCreationSession,startSectorAnalysis,openSectorAnalysisSession,startStockAnalysis,openStockAnalysisSession,updateExpertDraft,saveExpert,requestExpertDelete,cancelExpertDelete,confirmExpertDelete,startSelection,cancelSelection,resumeSelectionPolling,stopSelectionPolling,loadWatch,addWatch,removeWatch,searchWatch,setWatchQuery,toggleWatchSelected,selectAllWatch,startWatchlistAnalysis,openWatchlistAnalysisSession,startTeam,cancelJob,resumePolling,stopPolling,checkConnection,retryConnection,draft,factorInput,queryFactor,ensureFactors,loadFactorRules,selectFactorRule,factorTab,stopFactors,factorResearchOptions,activeFactorResearch,loadFactorUniverse,startFactorResearch,cancelFactorResearch,resumeFactorResearchPolling,stopFactorResearchPolling,restoreFactorResearch,loadFactorResults,factorResultsQuery,openFactorResult,factorTranscriptFollowing,retryFactorTranscript,dispose};
+  return {subscribe,getSnapshot:()=>state,navigate,setCode,setSearch,searchStocks,queryStock,openStock,querySector,selectSector,screenOptions,screen,screenSector,sectorOptions,loadSectors,loadExperts,toggleExpert,toggleSelectionExpert,loadPortfolios,portfolioMode,portfolioExpert,togglePortfolioSeries,togglePortfolioBenchmark,loadReviews,refreshReviews,syncReviews,openReview,openReviewReference,judgeReview,judgeBatch,deleteReview,loadIntegration,startSelectionAnalysis,openSelectionAnalysisSession,editExpert,cancelExpertEdit,newExpert,cancelNewExpert,expertRequirement,startExpertCreation,openExpertCreationSession,startSectorAnalysis,openSectorAnalysisSession,startStockAnalysis,openStockAnalysisSession,updateExpertDraft,saveExpert,requestExpertDelete,cancelExpertDelete,confirmExpertDelete,startSelection,cancelSelection,resumeSelectionPolling,stopSelectionPolling,loadWatch,addWatch,removeWatch,searchWatch,setWatchQuery,toggleWatchSelected,selectAllWatch,startWatchlistAnalysis,openWatchlistAnalysisSession,startTeam,cancelJob,resumePolling,stopPolling,checkConnection,retryConnection,draft,factorInput,queryFactor,ensureFactors,loadFactorRules,selectFactorRule,factorTab,stopFactors,factorResearchOptions,activeFactorResearch,loadFactorUniverse,startFactorResearch,cancelFactorResearch,resumeFactorResearchPolling,stopFactorResearchPolling,restoreFactorResearch,loadFactorResults,factorResultsQuery,openFactorResult,factorTranscriptFollowing,retryFactorTranscript,dispose};
 }
 // Resolve only factual leaves in the exact saved source, never executable paths.
 function investEvidenceReference(source,pointer) {
@@ -1976,7 +2067,7 @@ function createInvestComponents(React,store) {
   function Card({title,children,className=''}) {return h('section',{className:'sti-card '+className},h('h2',null,title),children);}
   function Metric({label,value}) {return h('div',{className:'sti-metric'},h('dt',null,label),h('dd',null,value));}
   function Status({resource,t}) {return resource.phase==='loading'?h('p',{role:'status'},t('loading')):h(ErrorView,{error:resource.error,t});}
-  function Table({heads,rows}) {return h('div',{className:'sti-table-scroll'},h('table',null,h('thead',null,h('tr',null,...heads.map((s,i)=>h('th',{key:i,scope:'col'},s)))),h('tbody',null,...rows)));}
+  function Table({heads,rows,minWidth}) {return h('div',{className:'sti-table-scroll'},h('table',minWidth?{style:{minWidth}}:null,h('thead',null,h('tr',null,...heads.map((s,i)=>h('th',{key:i,scope:'col'},s)))),h('tbody',null,...rows)));}
   function StockActions({item,t}) {return h('div',{className:'sti-actions'},h(Button,{primary:true,onClick:()=>store.openStock(item.code,item.name)},t('research')),h(Button,{onClick:()=>store.addWatch(item.code)},t('addWatch')));}
   function SelectionData({value,depth=0}) {
     if(value===null||value===undefined)return h('span',null,'—');
@@ -2006,7 +2097,12 @@ function createInvestComponents(React,store) {
     })):h('p',{className:'sti-warning'},t('noEvidence')));
   }
   function SelectionPick({pick,sources,t}) {
+    const again=pick.reselection;
     return h('article',{className:'sti-selection-pick'},h('h4',null,(pick.name || '')+' '+pick.code),h('strong',null,t('reason')),h('p',null,investText(pick.reason)),pick.why_fit?h('p',null,t('selectionFit')+': '+investText(pick.why_fit)):null,
+      again&&typeof again==='object'?h('div',{className:'sti-scope-note'},h('strong',null,t('portfolioReselection')),
+        investFactorCount(again.times)?h('p',null,t('portfolioReselectionCount')+': '+num(again.times)):null,
+        again.last_selected_at?h('p',null,t('portfolioReselectionPrevious')+': '+investOutputTime(again.last_selected_at)):null,
+        again.reason?h('p',null,t('portfolioReselectionReason')+': '+investText(again.reason)):null):null,
       h('p',{className:'sti-muted'},t('confidence')+': '+t(({low:'confidenceLow',medium:'confidenceMedium',high:'confidenceHigh'})[pick.confidence] || 'unknown')),
       h('h4',null,t('risks')),pick.risks?.length?h(Warnings,{items:pick.risks}):h('p',{className:'sti-muted'},t('selectionNoRisks')),
       h('h4',null,t('selectionMissing')),pick.missing_evidence?.length?h(Warnings,{items:pick.missing_evidence}):h('p',{className:'sti-muted'},'—'),
@@ -2322,9 +2418,11 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
   function reviewSummary(t,plans) {
     if(!plans.length)return t('reviewSummaryEmpty');
     const count=(...statuses)=>plans.filter(plan=>statuses.includes(plan.metrics?.status)).length;
-    const waiting=count('pending'),triggered=count('triggered'),closed=count('not_triggered','invalidated'),complex=count('needs_ai','ambiguous');
+    const waiting=count('pending'),triggered=count('triggered'),closed=count('not_triggered','invalidated');
+    const complex=plans.filter(plan=>plan.metrics?.status==='needs_ai'&&!plan.metrics.ai).length;
+    const ambiguous=count('ambiguous')+count('needs_ai')-complex;
     const completed=plans.filter(plan=>reviewComplete(plan.metrics)).map(plan=>plan.metrics.windows['20d']);
-    const parts=[['reviewSummaryWaiting',waiting],['reviewSummaryTriggered',triggered],['reviewSummaryResolved',completed.length],['reviewSummaryClosed',closed],['reviewSummaryComplex',complex],['reviewSummaryReference',count('reference')],['reviewSummaryUnavailable',count('unavailable')]]
+    const parts=[['reviewSummaryWaiting',waiting],['reviewSummaryTriggered',triggered],['reviewSummaryResolved',completed.length],['reviewSummaryClosed',closed],['reviewSummaryComplex',complex],['reviewSummaryAmbiguous',ambiguous],['reviewSummaryReference',count('reference')],['reviewSummaryUnavailable',count('unavailable')]]
       .filter(([,n])=>n).map(([key,n])=>reviewCopy(t,key,{n:num(n)}));
     if(completed.length)parts.push(reviewCopy(t,'reviewSummaryOutcome',{up:num(completed.filter(v=>v>0).length),down:num(completed.filter(v=>v<0).length),flat:num(completed.filter(v=>v===0).length)}));
     if(!triggered)parts.push(t('reviewNoneTriggered'));
@@ -2416,11 +2514,131 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
       confidence.length?h(React.Fragment,null,h('h3',null,t('reviewByConfidence')),h(Table,{heads:[t('reviewConfidence'),...heads],rows:rows(confidence,false)})):null,
       benchmark?.windows?h('p',{className:'sti-muted'},t('reviewBench5')+' '+pct(benchmark.windows['5d']?.equal_weight)+' · '+t('reviewBench20')+' '+pct(benchmark.windows['20d']?.equal_weight)):null);
   }
-  function Review({t}) {
+  const portfolioColors=['#3786d8','#cd5778','#14a68a','#b28024','#9066ce','#ce7143','#218ba1','#768641'];
+  const portfolioDashes=['','8 4','3 4','12 4 3 4'];
+  function portfolioLabel(row) {return investText(row.expert_name||row.expert_id,120);}
+  function PortfolioChart({t,series,mode,hasPoints,selectedId}) {
+    const visible=series.filter(line=>line.visible&&line.points.some(point=>point.value!==null));
+    if(!visible.length)return h(Empty,null,t(hasPoints?'portfolioChartHidden':'portfolioChartEmpty'));
+    const W=760,H=244,left=76,right=728,top=16,bottom=210,dayMs=86400000;
+    let first=Infinity,last=-Infinity,min=mode==='return'?0:Infinity,max=mode==='return'?0:-Infinity;
+    for(const line of visible)for(const point of line.points)if(point.value!==null){
+      first=Math.min(first,point.stamp);last=Math.max(last,point.stamp);min=Math.min(min,point.value);max=Math.max(max,point.value);
+    }
+    const pad=min===max?Math.max(mode==='return'?.001:1,Math.abs(min)*.005):(max-min)*.07;
+    min-=pad;max+=pad;
+    const x=stamp=>first===last?(left+right)/2:left+(stamp-first)/(last-first)*(right-left);
+    const y=value=>bottom-(value-min)/(max-min)*(bottom-top);
+    const dates=Array.from(new Set(Array.from({length:5},(_,i)=>first+Math.round((last-first)/dayMs*i/4)*dayMs)));
+    const values=[0,1,2,3,4].map(i=>min+(max-min)*i/4);
+    const fmt=mode==='return'?pct:value=>value.toLocaleString(undefined,{maximumFractionDigits:2});
+    const title=t(mode==='return'?'portfolioReturns':'portfolioNav')+' · '+t('portfolioDate');
+    return h('figure',{className:'sti-chart'},
+      h('div',{className:'sti-table-scroll'},h('svg',{viewBox:`0 0 ${W} ${H}`,role:'img','aria-label':title,style:{minWidth:480,maxHeight:320}},
+        h('title',null,title),
+        ...values.map((value,i)=>h('g',{key:i},
+          h('line',{className:'sti-gridline',x1:left,y1:y(value),x2:right,y2:y(value)}),
+          h('text',{className:'sti-chart-label',x:left-8,y:y(value)+4,textAnchor:'end'},fmt(value)))),
+        ...dates.map(stamp=>h('g',{key:stamp},
+          h('line',{className:'sti-gridline',x1:x(stamp),y1:top,x2:x(stamp),y2:bottom}),
+          h('text',{className:'sti-chart-label',x:x(stamp),y:bottom+20,textAnchor:stamp===first&&first!==last?'start':stamp===last&&last!==first?'end':'middle'},new Date(stamp).toISOString().slice(0,10)))),
+        mode==='return'?h('line',{stroke:'var(--dsw-alias-label-secondary)',strokeDasharray:'3 5',opacity:.65,x1:left,y1:y(0),x2:right,y2:y(0)}):null,
+        ...[...visible].sort((a,b)=>Number(a.id===selectedId)-Number(b.id===selectedId)).map(line=>{
+          const selected=line.id===selectedId;
+          const runs=[];let run=[];
+          for(const point of line.points){if(point.value===null){if(run.length)runs.push(run);run=[];}else run.push(point);}
+          if(run.length)runs.push(run);
+          return h('g',{key:line.id===null?'benchmark':'expert:'+line.id,'data-series':line.id??'csi300'},
+            h('title',null,line.name),
+            ...runs.map((group,i)=>{
+              const lastPoint=group.at(-1),marker=point=>h('circle',{cx:x(point.stamp),cy:y(point.value),r:selected?3.7:2.8,fill:line.color},
+                h('title',null,line.name+' · '+point.date+' · '+fmt(point.value)));
+              return h('g',{key:i},group.length>1?h('path',{d:group.map((point,j)=>(j?'L':'M')+x(point.stamp).toFixed(2)+' '+y(point.value).toFixed(2)).join(' '),fill:'none',stroke:line.color,strokeWidth:selected?2.8:1.8,strokeDasharray:line.dash||undefined,strokeLinecap:'round',strokeLinejoin:'round',vectorEffect:'non-scaling-stroke'}):null,marker(lastPoint));
+            }));
+        }))),
+      h('figcaption',null,t('portfolioChartNote'),h('p',null,t('portfolioLatest')+': '+visible.map(line=>{const p=line.points.findLast(point=>point.value!==null);return line.name+' '+fmt(p.value)+' ('+p.date+')';}).join(' · '))));
+  }
+  function portfolioTradeDate(date,price) {return (investText(date)||'—')+' / '+num(price);}
+  function portfolioStock(row) {return [investText(row.name,100),investText(row.code,32)].filter(Boolean).join(' · ')||'—';}
+  function portfolioSignedPercent(value) {return (cockpitNumber(value)!==null&&value>0?'+':'')+pct(value);}
+  function portfolioMoney(t,value,signed=false) {
+    const n=cockpitNumber(value);if(n===null)return '—';
+    return (signed&&n>0?'+':'')+num(n)+' '+t('portfolioCny');
+  }
+  function PortfolioStockDetails({t,expert}) {
+    const stock='portfolioStock',entry='portfolioEntry',reason='portfolioReason',pnl='portfolioPnl',ret='portfolioTradeReturn';
+    const groups=[
+      ['portfolioOpen','portfolioNoOpen',expert.positions,[stock,entry,'portfolioQuantity','portfolioClose','portfolioStop',pnl,ret,reason],row=>[portfolioStock(row),portfolioTradeDate(row.entry_date,row.entry_price),num(row.quantity),num(row.close_price),num(row.stop_price),portfolioMoney(t,row.pnl,true),portfolioSignedPercent(row.return),investText(row.reason)||'—']],
+      ['portfolioQueued','portfolioNoQueued',expert.pending,[stock,'portfolioDirection','portfolioDecision',reason,'portfolioOrderWait'],row=>[portfolioStock(row),['buy','sell'].includes(row.side)?t(row.side==='buy'?'portfolioBuy':'portfolioSell'):investText(row.side)||'—',row.decision_date?investText(row.decision_date):investOutputTime(row.decision_at),investText(row.reason)||'—',investText(row.status_reason)||'—']],
+      ['portfolioClosed','portfolioNoClosed',expert.closed,[stock,entry,'portfolioExit',pnl,ret,reason],row=>[portfolioStock(row),portfolioTradeDate(row.entry_date,row.entry_price),portfolioTradeDate(row.exit_date,row.exit_price),portfolioMoney(t,row.pnl,true),portfolioSignedPercent(row.return),investText(row.reason)||'—']],
+      ['portfolioContributions','portfolioNoContributions',investPortfolioContributions(expert),[stock,'portfolioUnrealized','portfolioRealized',pnl],row=>[portfolioStock(row),portfolioMoney(t,row.open,true),portfolioMoney(t,row.closed,true),portfolioMoney(t,row.total,true)]],
+    ];
+    return groups.map(([title,empty,items,heads,cells])=>h('details',{key:expert.expert_id+'|'+title,open:title==='portfolioOpen'?true:undefined,className:'sti-selection-evidence'},
+      h('summary',null,t(title)+' · '+num(items.length)),
+      title==='portfolioContributions'?h('p',{className:'sti-muted'},t('portfolioContributionNote')):null,
+      items.length?h(Table,{heads:heads.map(t),minWidth:heads.length*101,rows:items.map((row,i)=>h('tr',{key:row.id||i},...cells(row).map((value,j)=>h('td',{key:j},value))))}):h('p',{className:'sti-muted'},t(empty))));
+  }
+  function PortfolioDashboard({t}) {
+    const s=useStore(),current=s.portfolios,view=s.portfolioView;
+    const loadedBase=React.useRef(null);
+    React.useEffect(()=>{
+      if(s.connection.ready&&loadedBase.current!==s.connection.apiBase){loadedBase.current=s.connection.apiBase;void store.loadPortfolios();}
+    },[s.connection.ready,s.connection.apiBase]);
+    const refresh=h(Button,{onClick:()=>store.loadPortfolios(),disabled:!s.connection.ready||current.phase==='loading'},t('portfolioRefresh'));
+    const head=children=>h(Card,{title:t('portfolioTitle'),className:'sti-portfolio'},h('p',{className:'sti-muted'},t('portfolioIntro')),children);
+    if(current.phase!=='ready')return head(h(React.Fragment,null,h('div',{className:'sti-actions'},refresh),h(Status,{resource:current,t}),!s.connection.ready&&current.phase==='idle'?h(Empty,null,t('offline')):null));
+    const data=current.data,items=data.items,mode=view.mode,start=typeof data.started_on==='string'?data.started_on.slice(0,10):null;
+    if(!items.some(row=>row.curve.length||row.positions.length||row.closed.length||row.pending.length))return head(h(React.Fragment,null,h(Empty,null,t('portfolioEmpty')),h('div',{className:'sti-actions'},h(Button,{primary:true,onClick:()=>store.navigate('screen')},t('portfolioGoSelect')),refresh)));
+    const selection=items.find(row=>row.expert_id===view.expertId)||items[0];
+    const series=items.map((row,i)=>({id:row.expert_id,name:portfolioLabel(row),points:investPortfolioPoints(row.curve,mode,start),
+      color:portfolioColors[i%portfolioColors.length],dash:portfolioDashes[Math.floor(i/portfolioColors.length)%portfolioDashes.length],visible:!view.hiddenExperts.includes(row.expert_id)}));
+    const benchmarkHistory=data.benchmark?.available===false?[]:(data.benchmark?.history??data.benchmark?.points);
+    const benchmarkPoints=investPortfolioPoints(benchmarkHistory,mode,start);
+    const hasValues=points=>points.some(point=>point.value!==null);
+    const benchmarkVisibleValues=hasValues(benchmarkPoints),hasPoints=series.some(line=>hasValues(line.points));
+    const benchmarkReturnAvailable=mode==='return'?benchmarkVisibleValues:hasValues(investPortfolioPoints(benchmarkHistory,'return',start));
+    const benchmarkName=!data.benchmark?.name||['沪深300','CSI 300','CSI300'].includes(data.benchmark.name)?t('portfolioBenchmark'):investText(data.benchmark.name,90);
+    const showBenchmark=benchmarkVisibleValues&&hasPoints;
+    // The benchmark is never substituted with the old review's equal-weight stock returns.
+    const benchmark={id:null,name:benchmarkName,points:benchmarkPoints,color:'var(--dsw-alias-label-secondary)',dash:'7 5',visible:view.benchmark};
+    const active=showBenchmark?[...series,benchmark]:series;
+    const wins=investFactorCount(selection.wins)?num(selection.wins):'—',closes=investFactorCount(selection.closed_count)?num(selection.closed_count):'—';
+    const winRate=selection.closed_count>0?pct(selection.win_rate):'—';
+    const ruleInfo=[investPortfolioDate(start)!==null?t('portfolioStart')+': '+start:null,
+      cockpitNumber(data.initial_cash)!==null?t('portfolioInitial')+': '+portfolioMoney(t,data.initial_cash):null,
+      investFactorCount(data.max_positions)?t('portfolioMaxPositions')+': '+num(data.max_positions):null,
+      cockpitNumber(data.position_weight)!==null?t('portfolioWeight')+': '+pct(data.position_weight):null].filter(Boolean);
+    return head(h(React.Fragment,null,
+      ruleInfo.length?h('p',{className:'sti-muted'},ruleInfo.join(' · ')):null,
+      h('div',{className:'sti-actions',style:{justifyContent:'space-between',marginTop:12}},
+        h('div',{className:'sti-actions',role:'group','aria-label':t('portfolioMode')},...['return','nav'].map(key=>h(Button,{key,'aria-pressed':mode===key,onClick:()=>store.portfolioMode(key)},t(key==='return'?'portfolioReturns':'portfolioNav')))),refresh),
+      h('div',{className:'sti-actions',role:'group','aria-label':t('portfolioShowSeries'),style:{margin:'10px 0 6px'}},
+        ...series.map(line=>h(Button,{key:line.id,'aria-pressed':line.visible,onClick:()=>store.togglePortfolioSeries(line.id)},h('span',{style:{color:line.color},'aria-hidden':'true'},line.dash?'┄ ':'━ '),line.name)),
+        showBenchmark?h(Button,{'aria-pressed':view.benchmark,onClick:()=>store.togglePortfolioBenchmark()},h('span',{'aria-hidden':'true'},'┄ '),benchmarkName):null),
+      !benchmarkVisibleValues?h('p',{className:'sti-muted'},t(benchmarkReturnAvailable?'portfolioBenchmarkOnly':'portfolioBenchmarkMissing')):null,
+      h(PortfolioChart,{t,series:active,mode,hasPoints,selectedId:selection.expert_id}),
+      h('div',{className:'sti-controls'},h('label',null,t('portfolioExpert'),h('select',{value:selection.expert_id,onChange:event=>store.portfolioExpert(event.target.value)},...items.map(row=>h('option',{key:row.expert_id,value:row.expert_id},portfolioLabel(row)))))),
+      investPortfolioDate(selection.as_of)!==null?h('p',{className:'sti-muted'},t('portfolioAsOf')+': '+selection.as_of):null,
+      h('dl',{className:'sti-metrics',style:{gridTemplateColumns:'repeat(auto-fit,minmax(min(145px, 100%),1fr))'}},
+        h(Metric,{label:t('portfolioTotalReturn'),value:portfolioSignedPercent(selection.total_return)}),
+        h(Metric,{label:t('portfolioNav'),value:portfolioMoney(t,selection.nav)}),
+        h(Metric,{label:t('portfolioDrawdown'),value:pct(selection.max_drawdown)}),
+        h(Metric,{label:t('portfolioCash'),value:portfolioMoney(t,selection.cash)}),
+        h(Metric,{label:t('portfolioRealized'),value:portfolioMoney(t,selection.realized_pnl,true)}),
+        h(Metric,{label:t('portfolioUnrealized'),value:portfolioMoney(t,selection.unrealized_pnl,true)}),
+        h(Metric,{label:t('portfolioWinRate'),value:winRate+' · '+wins+' / '+closes})),
+      h(Warnings,{items:Array.isArray(selection.warnings)?selection.warnings:[]}),
+      h(PortfolioStockDetails,{t,expert:selection}),
+      data.assumptions?.fees_included===false&&data.assumptions?.corporate_actions_included===false?h('p',{className:'sti-muted'},t('portfolioNoCosts')):null));
+  }
+  function Review({t}) {return h(React.Fragment,null,h(PortfolioDashboard,{t}),
+    h('section',{'aria-label':t('reviewSignalTitle')},h('h2',null,t('reviewSignalTitle')),h('p',{className:'sti-muted'},t('reviewSignalNote')),h(SignalReview,{t})));}
+  function SignalReview({t}) {
     const s=useStore(),list=s.reviews.data?.items||[],detail=s.reviewDetail.data;
     React.useEffect(()=>{if(s.connection.ready)void store.refreshReviews();},[s.connection.ready]);
     const targets=investReviewItems(detail?.targets),plans=targets.flatMap(item=>investReviewItems(item.plans)),legacy=investReviewLegacy(detail);
     const complexIds=legacy?[]:[...new Set(plans.filter(plan=>investReviewCanJudge(plan)).map(plan=>plan.plan_id))];
+    const pendingArchive=Math.max(0,Number(s.reviews.data?.pending_archive)||0);
     const opened=list.find(row=>row.id===s.reviewId)||detail,loading=s.reviews.phase==='loading'||s.reviewDetail.phase==='loading'||s.reviewSyncing;
     const currentIsLatest=list[0]?.id===s.reviewId;
     const next=[...new Set(legacy?['reviewNextLegacy']:plans.map(plan=>reviewNext(plan.metrics)))];
@@ -2457,7 +2675,9 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
           h('p',{className:'sti-muted'},t('reviewHelp')),h(Warnings,{items:detail.warnings}))):null,
       !detail&&s.reviews.phase==='ready'&&list.length===0&&!s.reviewId?h(Empty,null,t('reviewEmpty')):null,
       h('details',null,h('summary',null,t('reviewHistory')+(list.length?' · '+num(list.length):'')),
-        h('div',{className:'sti-actions'},h(Button,{onClick:()=>store.syncReviews(),disabled:loading||!s.connection.ready},t('reviewSync'))),
+        pendingArchive?h('div',{className:'sti-actions'},
+          h(Button,{onClick:()=>store.syncReviews(),disabled:loading||!s.connection.ready},t('reviewSync')),
+          h('small',{className:'sti-muted'},reviewCopy(t,'reviewSyncPending',{n:num(pendingArchive)}))):null,
         list.length?h(Table,{heads:[t('reviewTime'),t('reviewScope'),t('reviewTargets'),''],rows:list.map(row=>h('tr',{key:row.id},
           h('td',null,investOutputTime(row.archived_at)),h('td',null,reviewScope(t,row)),h('td',null,num(row.target_count)),h('td',null,h(Button,{onClick:()=>store.openReview(row.id),'aria-pressed':s.reviewId===row.id},t('reviewOpen')))))}):null));
   }

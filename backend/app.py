@@ -540,10 +540,14 @@ def create_app(services: Services | None = None) -> FastAPI:
         return {"items": svc.experts.recent_analyses(code, limit)}
 
     # -------------------------------------------------------------- 自选
+    @app.get("/api/portfolios")
+    def list_expert_portfolios():
+        return svc.portfolio.dashboard()
+
     @app.get("/api/reviews")
     def list_reviews():
         svc.review.sync(limit=8)
-        return {"items": svc.review.list()}
+        return {"items": svc.review.list(), "pending_archive": svc.review.pending_count()}
 
     @app.post("/api/reviews/sync")
     def sync_reviews():

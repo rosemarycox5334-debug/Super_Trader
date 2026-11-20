@@ -7,7 +7,7 @@ import {pathToFileURL} from 'node:url';
 import {createServer} from 'node:net';
 import assert from 'node:assert/strict';
 
-const archive=resolve(process.argv[2] || '.out/dsh-super-trader-0.33.0.tgz');
+const archive=resolve(process.argv[2] || '.out/dsh-super-trader-0.34.1.tgz');
 const root=await mkdtemp(join(tmpdir(),'st packed 中文 '));
 let manager;
 try{
@@ -15,7 +15,7 @@ try{
   assert.equal(result.status,0,'extract real tgz');
   const packageRoot=join(root,'package');
   const manifest=JSON.parse(await readFile(join(packageRoot,'package.json'),'utf8'));
-  assert.equal(manifest.version,'0.33.0');
+  assert.equal(manifest.version,'0.34.1');
   const server=createServer();
   await new Promise((yes,no)=>server.once('error',no).listen(0,'127.0.0.1',yes));
   const port=server.address().port;await new Promise(yes=>server.close(yes));
@@ -35,6 +35,10 @@ try{
   await assert.rejects(manager.request('GET','/api/quant/probability?code=601088&horizon=10'),e=>e.status===503);
   await assert.rejects(manager.request('GET','/api/market/history?code=601088&limit=5'),e=>e.status===503 && e.body.code==='market_not_configured');
   assert.ok((await manager.request('GET','/api/experts')).items.length);
+  const portfolios=await manager.request('GET','/api/portfolios');
+  assert.equal(portfolios.simulation_only,true);
+  assert.equal(portfolios.initial_cash,100000);
+  assert.ok(portfolios.portfolios.every(book=>book.nav_history.length===0));
   assert.ok((await stat(join(root,'user state/state.db'))).isFile());
   assert.equal((await manager.retryBackend()).pid,start.pid,'healthy explicit retry must not restart');
   await manager.dispose();assert.equal(manager.getState().pid,null);

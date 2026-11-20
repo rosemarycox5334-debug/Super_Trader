@@ -25,7 +25,8 @@ function harness(custom) {
   const base=async(url,init={})=>{
     if(url.endsWith('/base'))return reply({phase:'running',apiBase:'/dsh-super-trader/backend'});
     if(url.endsWith('/status'))return reply({ok:true});
-    if(url.endsWith('/reviews'))return reply({items:summaries});
+    if(url.endsWith('/portfolios'))return reply({portfolios:[]});
+    if(url.endsWith('/reviews'))return reply({items:summaries,pending_archive:1});
     if(url.endsWith('/reviews/R-latest')&&init.method==='GET')return reply(detail);
     if(url.endsWith('/reviews/R-older')&&init.method==='GET')return reply(older);
     if(url.endsWith('/reviews/sync'))return reply({archived:[],total:2});
@@ -41,9 +42,10 @@ function harness(custom) {
     return {...element,props:{...element.props,children:element.props.children.map(render)}};
   }
   function ui(name='Review',props={},effects=[]) {
-    const React={Fragment:'fragment',createElement:(type,props,...children)=>({type,props:{...props,children}}),useSyncExternalStore:(_,get)=>get(),useEffect:fn=>effects.push(fn)};
-    const dict={...vm.runInContext('cockpitMessages().zh',context),...api.investMessages().zh};
-    return render(api.createInvestComponents(React,store)[name]({t:key=>dict[key]||key,...props}));
+    const React={Fragment:'fragment',createElement:(type,props,...children)=>({type,props:{...props,children}}),useSyncExternalStore:(_,get)=>get(),useEffect:fn=>effects.push(fn),useRef:current=>({current})};
+    const {lang='zh',...viewProps}=props;
+    const dict={...vm.runInContext('cockpitMessages()',context)[lang],...api.investMessages()[lang]};
+    return render(api.createInvestComponents(React,store)[name]({t:key=>dict[key]||key,...viewProps}));
   }
   return {store,requests,entered,ui,dialogs};
 }
@@ -115,6 +117,8 @@ test('only an explicit click can send one exact complex plan, advertises cost, a
   assert.deepEqual(requestsOf(h).slice(-2),[['POST','/reviews/R-latest/judge'],['GET','/reviews/R-latest']]);
   const updated=h.ui();assert.match(text(updated),/已返回判定 1 项/);assert.match(text(updated),/真实量能证据不足/);
   assert.match(text(updated),/AI 所用行情截至.*2026-11-18/s);assert.ok(!button(updated,manual));
+  assert.match(text(updated),/1 项待补证（不计模拟入场）/);
+  assert.doesNotMatch(text(updated),/复杂条件等待 AI 判定/);
   h.store.dispose();
 });
 
@@ -161,5 +165,100 @@ test('batch re-assessment confirms once and sends every complex plan with force'
   assert.equal(posts.length,1);
   assert.deepEqual(requestsOf(h).slice(-2),[['POST','/reviews/R-latest/judge'],['GET','/reviews/R-latest']]);
   assert.match(text(h.ui()),/已重新判定 1 项/);
+  h.store.dispose();
+});
+
+const portfolioPayload={started_at:'2026-11-13T09:00:00+08:00',initial_cash:100000,max_positions:5,target_weight:.2,
+  benchmark:{name:'沪深300',history:[{date:'2026-11-13',nav:100000,return:0},{date:'2026-11-20',nav:102000,return:.02}]},
+  portfolios:[
+    {expert_id:'E1',expert_name:'价值专家',cash:83000,nav:103100,max_drawdown:-.0275,realized_pnl:400,unrealized_pnl:1200,closed_count:2,closed_wins:1,closed_win_rate:.5,as_of:'2026-11-20',
+      nav_history:[{date:'2026-11-20',nav:103100},{date:'2026-11-13',nav:100000},{date:'2026-11-16',nav:101000},{date:'2026-11-17',nav:null},{date:'2026-11-18',nav:102500}],
+      open_positions:[{code:'601088',name:'中国神华',entry_date:'2026-11-16',entry_price:30,entry_cost:18000,mark_price:32,quantity:600,unrealized_pnl:1200,invalidation_price:27,entry_reason:'已验证买入条件'},{code:'600000',name:'浦发银行',entry_cost:1000,unrealized_pnl:null}],
+      closed_positions:[{code:'601088',name:'中国神华',entry_date:'2026-11-13',entry_cost:1500,exit_date:'2026-11-16',exit_price:34,realized_pnl:600,exit_reason:'估值达到目标'},{code:'000001',name:'平安银行',entry_cost:1500,realized_pnl:-200,exit_reason:'硬止损'}],
+      queued_orders:[{code:'600519',name:'贵州茅台',side:'buy',decision_at:'2026-11-20T15:06:00+08:00',reason:'突破已验证',status_reason:'等待后续开盘'}]},
+    {expert_id:'E2',expert_name:'趋势专家',cash:100000,nav:99600,max_drawdown:-.004,unrealized_pnl:null,realized_pnl:0,closed_count:0,closed_wins:0,closed_win_rate:null,
+      nav_history:[{date:'2026-11-20',nav:99600}]},
+  ]};
+const dashboard=tree=>nodes(tree).find(n=>n.type==='section'&&n.props.className?.includes('sti-portfolio'));
+const series=(tree,id)=>nodes(dashboard(tree)).find(n=>n.props['data-series']===id);
+const plot=tree=>nodes(dashboard(tree)).find(n=>n.type==='svg');
+function metric(tree,label){return text(nodes(dashboard(tree)).find(n=>n.props.className==='sti-metric'&&text(n.props.children[0])===label)?.props.children[1]);}
+
+test('portfolio is first, fetches read-only data and toggles dated NAV/return series without requests',async()=>{
+  const h=harness((url,init,base)=>url.endsWith('/portfolios')?reply(portfolioPayload):base(url,init));
+  await enter(h);
+  const apiCalls=()=>h.requests.filter(r=>r.url.includes('/api/')).map(r=>[r.init.method,r.url.split('/api')[1]]);
+  const mounted=[['GET','/status'],['GET','/portfolios'],['GET','/reviews'],['GET','/reviews/R-latest']];
+  assert.deepEqual(apiCalls(),mounted);
+  let tree=h.ui('Review',{lang:'en'});
+  assert.ok(text(tree).indexOf('Simulated expert portfolios')<text(tree).indexOf('Selection batch review'));
+  assert.match(plot(tree).props['aria-label'],/Cumulative return .* Date/);
+  assert.ok(series(tree,'E1')&&series(tree,'E2')&&series(tree,'csi300'));
+  const strokes=nodes(series(tree,'E1')).filter(n=>n.type==='path');
+  assert.equal(strokes.length,2,'an explicit missing NAV splits the path');
+  const dx=d=>{const [x1,x2]=d.match(/[ML]\d+(?:\.\d+)?/g).map(s=>Number(s.slice(1)));return x2-x1;};
+  assert.ok(Math.abs(dx(strokes[0].props.d)/dx(strokes[1].props.d)-1.5)<.001,'Fri–Mon uses three calendar days, Wed–Fri two');
+  assert.equal(nodes(series(tree,'E2')).filter(n=>n.type==='path').length,0);
+  assert.equal(nodes(series(tree,'E2')).filter(n=>n.type==='circle').length,1);
+  const legend=label=>nodes(dashboard(tree)).find(n=>n.type==='button'&&text(n).trim().endsWith(label));
+  legend('价值专家').props.onClick();tree=h.ui('Review',{lang:'en'});
+  assert.equal(legend('价值专家').props['aria-pressed'],false);assert.equal(series(tree,'E1'),undefined);
+  legend('CSI 300').props.onClick();tree=h.ui('Review',{lang:'en'});assert.equal(series(tree,'csi300'),undefined);
+  button(tree,'Portfolio NAV (CNY)').props.onClick();tree=h.ui('Review',{lang:'en'});
+  assert.match(plot(tree).props['aria-label'],/Portfolio NAV/);
+  legend('CSI 300').props.onClick();tree=h.ui('Review',{lang:'en'});assert.ok(series(tree,'csi300'),'backend supplies rebased NAV');
+  legend('CSI 300').props.onClick();legend('趋势专家').props.onClick();tree=h.ui('Review',{lang:'en'});
+  assert.equal(plot(tree),undefined);assert.match(text(dashboard(tree)),/No visible series/);
+  assert.deepEqual(apiCalls(),mounted,'display controls are local only');
+  await button(tree,'Refresh portfolios').props.onClick();assert.deepEqual(apiCalls().at(-1),['GET','/portfolios']);
+  h.store.dispose();
+});
+
+test('selected expert metrics, execution reasons and stock attribution use portfolio figures',async()=>{
+  const h=harness((url,init,base)=>url.endsWith('/portfolios')?reply(portfolioPayload):base(url,init));await enter(h);
+  let tree=h.ui('Review',{lang:'en'});
+  assert.equal(metric(tree,'Total return'),'+3.1%');assert.equal(metric(tree,'Maximum drawdown'),'-2.75%');
+  assert.equal(metric(tree,'Realized P&L'),'+400 CNY');assert.equal(metric(tree,'Open P&L'),'+1,200 CNY');
+  assert.equal(metric(tree,'Closed win rate (wins / closes)'),'50% · 1 / 2');
+  assert.match(text(summary(tree,'Open holdings')),/中国神华.*32.*27.*\+1,200 CNY.*已验证买入条件/s);
+  assert.match(text(summary(tree,'Queued orders')),/贵州茅台.*Buy.*突破已验证.*等待后续开盘/s);
+  assert.match(text(summary(tree,'Closed trades')),/中国神华.*\+600 CNY.*估值达到目标.*平安银行.*-200 CNY.*硬止损/s);
+  const contribution=summary(tree,'P&L contribution by stock');
+  assert.match(text(contribution),/中国神华.*\+1,200 CNY.*\+600 CNY.*\+1,800 CNY/s);
+  assert.match(text(contribution),/浦发银行[^+]*—.*—.*—/s);assert.doesNotMatch(text(contribution),/贵州茅台/);
+  nodes(dashboard(tree)).find(n=>n.type==='select').props.onChange({target:{value:'E2'}});
+  tree=h.ui('Review',{lang:'en'});
+  assert.equal(metric(tree,'Total return'),'-0.4%');assert.equal(metric(tree,'Open P&L'),'—');
+  assert.equal(metric(tree,'Closed win rate (wins / closes)'),'— · 0 / 0');
+  assert.doesNotMatch(text(dashboard(tree)),/中国神华/);assert.match(text(dashboard(tree)),/No open holdings|No closed trades/);
+  h.store.dispose();
+});
+
+test('unstarted experts and missing marks show guidance or gaps, not an invented history or benchmark',async()=>{
+  const blank=harness((url,init,base)=>url.endsWith('/portfolios')?reply({initial_cash:100000,portfolios:[{expert_id:'E1',cash:100000,nav:100000,nav_history:[],max_drawdown:0}],benchmark:portfolioPayload.benchmark}):base(url,init));
+  await enter(blank);
+  const view=blank.ui('Review',{lang:'en'});assert.match(text(dashboard(view)),/No simulated portfolios yet/);assert.equal(plot(view),undefined);
+  assert.doesNotMatch(text(dashboard(view)),/Maximum drawdown/);
+  button(view,'Start a new selection batch').props.onClick();assert.deepEqual(blank.entered,['screen']);blank.store.dispose();
+  const points=harness((url,init,base)=>url.endsWith('/portfolios')?reply({started_on:'2026-11-13',initial_cash:100000,items:[{expert_id:'E1',curve:[{date:'2026-11-13',nav:null,return:null}],total_return:null}],benchmark:null}):base(url,init));
+  await enter(points);const tree=points.ui('Review',{lang:'en'});
+  assert.match(text(dashboard(tree)),/CSI 300 benchmark is unavailable.*There are no simulated NAV or return observations/s);
+  assert.equal(plot(tree),undefined);assert.equal(metric(tree,'Total return'),'—');assert.equal(metric(tree,'Maximum drawdown'),'—');
+  assert.equal(points.requests.some(r=>r.init.method==='POST'),false);points.store.dispose();
+});
+
+test('selection repeats explain the prior selection and authorization reason only when present',()=>{
+  const h=harness();
+  const tree=h.ui('SelectionResult',{lang:'en',result:{expert_results:[{expert:{id:'E1',name:'Value'},picks:[{code:'601088',name:'Example',reselection:{times:2,last_selected_at:'2026-11-19T16:00:00+08:00',reason:'New valuation evidence'}}]}]}});
+  assert.match(text(tree),/Selected again by this expert.*Times selected: 2.*Previously selected at.*Why it was selected again: New valuation evidence/s);
+  h.store.dispose();
+});
+
+test('manual archive stays hidden unless the API reports unarchived selections',async()=>{
+  const h=harness((url,init,next)=>url.endsWith('/reviews')?reply({items:summaries,pending_archive:0}):next(url,init));
+  await enter(h);
+  const history=summary(h.ui(),'历史批次');
+  assert.ok(history);
+  assert.equal(nodes(history).filter(n=>n.type==='button'&&text(n).trim()==='归档已完成选股').length,0);
   h.store.dispose();
 });

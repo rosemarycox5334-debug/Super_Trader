@@ -172,6 +172,27 @@ def run(svc, scripts, ids=None, **kwargs):
     return svc.jobs.run(job["id"])
 
 
+def test_expert_repeat_requires_new_comparison_but_other_experts_can_pick_same(svc):
+    svc.review_provider = SimpleNamespace(recent_expert_picks=lambda expert: {
+        '000001': {'name':'熟悉股票','times':3,'last_selected_at':'2026-11-18T20:00:00+08:00'}
+    } if expert == 'price_action' else {})
+    result = run(svc, [script_pick(), script_pick()], ids=['price_action','buffett'])['result']
+    first, other = result['expert_results']
+    assert first['picks'] == [] and '近期已选过' in first['rejected'][0]['reason']
+    assert other['picks'][0]['code'] == '000001'
+
+    def compare(tools, before):
+        def get(code):
+            tools['candidate_directory']({'q':code})
+            return tools['read_stock']({'code':code,'sections':['quote']})['sources'][0]['id']
+        old, new = get('000001'), get('000002')
+        return final([pick('000001',old,'/data/items/0/last_price',reselection_reason='新行情触及原确认位；与新候选比较后保留。'),
+                      pick('000002',new,'/data/items/0/last_price')])
+    accepted = run(svc, [compare], limit_per_expert=2)['result']['expert_results'][0]['picks']
+    assert [item['code'] for item in accepted] == ['000002','000001']
+    assert accepted[1]['reselection']['times'] == 3
+
+
 def test_no_quant_coverage_still_selected_from_full_paginated_metadata(svc):
     row = run(svc, [script_pick("000004", ["quote", "quant"])])
     assert row["status"] == "done"

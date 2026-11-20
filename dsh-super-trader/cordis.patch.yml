@@ -20,6 +20,6 @@
         entryPrefix: mcp
         refreshSkewMs: 300000
         openBrowser: true
-        showSidebarEntry: false
+        showSidebarEntry: true
         compactManagementTools: false
         frameAncestors: [self]

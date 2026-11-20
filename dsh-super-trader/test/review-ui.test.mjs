@@ -20,7 +20,7 @@ const detail={...summaries[0],legacy:false,plan_count:4,targets:[
 const older={...summaries[1],targets:[{code:'000002',name:'历史股票',experts:['旧专家'],confidence:'high',reason:'旧版共同理由',metrics:{status:'triggered',windows:{'5d':.01}}}],experts:[{expert:'不能归因的旧统计',picks:1}]};
 function harness(custom) {
   const requests=[],entered=[];
-  const context=vm.createContext({AbortSignal,AbortController,URLSearchParams,setTimeout,clearTimeout});
+  const dialogs=[];const context=vm.createContext({AbortSignal,AbortController,URLSearchParams,setTimeout,clearTimeout,confirm:message=>{dialogs.push(message);return true;}});
   const api=vm.runInContext(cockpit+'\n'+source+'\n({createInvestStore,createInvestComponents,investMessages})',context);
   const base=async(url,init={})=>{
     if(url.endsWith('/base'))return reply({phase:'running',apiBase:'/dsh-super-trader/backend'});
@@ -45,7 +45,7 @@ function harness(custom) {
     const dict={...vm.runInContext('cockpitMessages().zh',context),...api.investMessages().zh};
     return render(api.createInvestComponents(React,store)[name]({t:key=>dict[key]||key,...props}));
   }
-  return {store,requests,entered,ui};
+  return {store,requests,entered,ui,dialogs};
 }
 function nodes(e){return Array.isArray(e)?e.flatMap(nodes):!e||typeof e!=='object'?[]:[e,...nodes(e.props.children)];}
 function text(e){return Array.isArray(e)?e.map(text).join(' '):e&&typeof e==='object'?text(e.props.children):String(e??'');}
@@ -135,4 +135,31 @@ test('report references use exact review and plan identities, even if the latest
   assert.deepEqual(requestsOf(h),[['GET','/reviews'],['GET','/reviews/R-latest']]);
   const pick=h.ui('SelectionResult',{result:{expert_results:[{expert:{id:'E3',name:'量价研究者'},picks:[{code:'601088',history_comparison:comparison}]}]}});
   assert.ok(button(pick,'打开来源复盘'));h.store.dispose();
+});
+
+test('batch re-assessment confirms once and sends every complex plan with force',async()=>{
+  let judged=false;
+  const h=harness((url,init,base)=>{
+    if(url.endsWith('/judge')){
+      judged=true;
+      assert.deepEqual(JSON.parse(init.body),{plan_ids:['P-complex'],force:true});
+      return reply({review_id:'R-latest',judged:[{plan_id:'P-complex'}],skipped:[],errors:[]});
+    }
+    if(judged&&url.endsWith('/reviews/R-latest')){
+      const next=structuredClone(detail);
+      next.targets[0].plans[2].metrics={status:'not_triggered',windows:{}};
+      return reply(next);
+    }
+    return base(url,init);
+  });
+  await enter(h);
+  const button=label=>nodes(h.ui()).find(n=>n.type==='button'&&text(n).trim()===label);
+  await button('批量重新判定（可能计费）').props.onClick();
+  await tick();
+  assert.equal(h.dialogs.length,1);assert.match(h.dialogs[0],/1 条复杂条件/);
+  const posts=h.requests.filter(r=>r.url.endsWith('/judge'));
+  assert.equal(posts.length,1);
+  assert.deepEqual(requestsOf(h).slice(-2),[['POST','/reviews/R-latest/judge'],['GET','/reviews/R-latest']]);
+  assert.match(text(h.ui()),/已重新判定 1 项/);
+  h.store.dispose();
 });

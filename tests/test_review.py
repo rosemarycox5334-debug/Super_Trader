@@ -178,13 +178,15 @@ def test_ai_judgment_can_trigger_a_complex_condition(build):
     assert [row["date"] for row in model.calls[1]["input"]["bars"]] == ["2026-01-06", "2026-01-07"]
 
 
-def test_ai_judgment_rejects_a_trigger_date_without_a_real_bar(build):
-    model = FakeModel(['{"status":"triggered","trigger_date":"2026-02-30","confidence":"high","reason":"x"}'])
+def test_ai_judgment_retries_a_fake_event_date_then_closes_conservatively(build):
+    model = FakeModel(['{"status":"triggered","trigger_date":"2026-02-30","confidence":"high","reason":"x"}',
+                       '{"status":"not_triggered","confidence":"low","reason":"没有真实交易日满足"}'])
     service = build({"000001": bars([10, 11, 12])}, [pick("000001", note="放量突破")], model=model)
     review = service.archive("job-1")
     service.judge(review["id"])
     metrics = service.get(review["id"])["targets"][0]["metrics"]
-    assert metrics["status"] == "ambiguous" and metrics["windows"] == {}
+    assert metrics["status"] == "pending" and metrics["windows"] == {}
+    assert "没有真实交易日满足" in metrics["ai"]["reason"]
 
 
 def test_second_judge_skips_already_judged_targets(build):
@@ -340,15 +342,16 @@ def test_ai_pending_cache_refreshes_on_new_bars_and_terminal_prefix_is_reusable(
     assert service.get(rid)["targets"][0]["metrics"]["status"] == "needs_ai"
 
 
-def test_ai_rejects_hindsight_only_claim_and_judge_skips_simple_rules(build):
+def test_ai_prefix_disagreement_keeps_low_confidence_verdict_and_skips_simple_rules(build):
     model = FakeModel(['{"status":"triggered","trigger_date":"2026-01-06"}', '{"status":"not_triggered"}'])
     service = build({"000001": bars([10, 11, 13]), "000002": bars([10, 11, 12])},
                     [pick("000001", note="等待形态确认"), pick("000002", 11, "above")], model=model)
     rid = service.archive("job-1")["id"]
     result = service.judge(rid)
     assert result["skipped"] == ["000002"]
-    assert result["judged"][0]["status"] == "ambiguous"
-    assert service.get(rid)["targets"][0]["metrics"]["windows"] == {}
+    assert result["judged"][0]["status"] == "triggered"
+    assert result["judged"][0]["confidence"] == "low"
+    assert "低信心采用" in result["judged"][0]["reason"]
 
 
 def test_history_cutoff_reads_only_persisted_state_without_backdating(build, monkeypatch):

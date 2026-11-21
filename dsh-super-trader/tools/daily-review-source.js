@@ -102,8 +102,11 @@ function investDailyReviewReport(date, portfolios, details, {partial=false,histo
           const value=investDailyReviewNumber(metrics.windows?.[name]);
           if(value!==null)windows[name]=value;
         }
+        // Return since a trigger is measured from the condition price that was hit,
+        // not from that day's close: marking at the close would report exactly 0.
         result.signals.push({...item,expertId:id,expertName:investDailyReviewText(plan.expert_name,id),
-          triggerDate,triggerPrice:positivePrice(metrics.base_price??metrics.trigger?.price),
+          triggerDate,triggerPrice:positivePrice(plan.entry_price??metrics.trigger?.price??metrics.base_price),
+          triggerClose:positivePrice(metrics.base_price??metrics.trigger?.price),
           current:investDailyReviewNumber(metrics.current),
           maxDrawdown:investDailyReviewNumber(metrics.max_drawdown),
           windows,reviewId,planId});
@@ -177,7 +180,7 @@ function investDailyReviewHtml(report,lang='zh',commentary=null,options=null) {
     nav:'Settled NAV (CNY)',day:'Daily return',total:'Cumulative return',drawdown:'Max. observed drawdown',plans:'Plan signals',buy:'Buy',sell:'Sell',
     empty:'No matching records in available data.',missingReason:'No frozen reason supplied.',noExperts:'No expert data available.',
     capital:'Initial capital per expert',signals:'Triggered signals (observation only, not portfolio P&L)',signalCode:'Signal',
-    triggerDay:'Trigger date / price',signalNow:'Return since trigger',signalDrawdown:'Drawdown since trigger',
+    triggerDay:'Trigger date · condition / close',signalNow:'Return since trigger',signalDrawdown:'Drawdown since trigger',
     matureWindows:'Matured windows',noSignal:'No plan was triggered on or before this cutoff.',
     noMature:'Triggered today: the return starts from the trigger close and no session has matured yet.',
     signalChart:'Triggered signals: equal-weight return by window',
@@ -193,7 +196,7 @@ function investDailyReviewHtml(report,lang='zh',commentary=null,options=null) {
     nav:'已结算净值（元）',day:'单日收益',total:'累计收益',drawdown:'可观测最大回撤',plans:'计划信号',buy:'买',sell:'卖',
     empty:'可用数据中没有符合条件的记录。',missingReason:'未提供冻结理由。',noExperts:'暂无专家数据。',
     capital:'每位专家本金',signals:'已触发信号跟踪（观察口径，不是组合盈亏）',signalCode:'信号',
-    triggerDay:'触发日 / 价',signalNow:'触发以来收益',signalDrawdown:'触发以来回撤',
+    triggerDay:'触发日 · 条件价 / 收盘',signalNow:'触发以来收益',signalDrawdown:'触发以来回撤',
     matureWindows:'已成熟窗口',noSignal:'截至该截点没有已触发的计划。',
     noMature:'当日触发：收益自触发日收盘起算，尚无已走完的交易日。',
     signalChart:'已触发信号：按窗口的等权收益',
@@ -248,7 +251,7 @@ function investDailyReviewHtml(report,lang='zh',commentary=null,options=null) {
     const quote=live?.quotes?.[signal.code], livePrice=Number(quote);
     const price=Number.isFinite(livePrice)&&livePrice>0?livePrice:null;
     const nowReturn=price!==null&&signal.triggerPrice>0?price/signal.triggerPrice-1:signal.current;
-    return `<tr><td>${e([signal.code,signal.name===signal.code?'':signal.name].filter(Boolean).join(' '))}<br><small>${e(investDailyReviewText(signal.expertName,signal.expertId))}</small></td><td>${e(investDailyReviewText(signal.triggerDate)||na)}<br><small>${e(money(signal.triggerPrice))}</small></td><td>${e(price===null?na:money(price))}</td><td>${e(percent(nowReturn))}</td><td>${e(percent(signal.maxDrawdown))}</td><td>${e(windowNames.filter(name=>investDailyReviewNumber(signal.windows?.[name])!==null).map(name=>`${name} ${percent(signal.windows[name])}`).join(' · ')||na)}</td></tr>`;
+    return `<tr><td>${e([signal.code,signal.name===signal.code?'':signal.name].filter(Boolean).join(' '))}<br><small>${e(investDailyReviewText(signal.expertName,signal.expertId))}</small></td><td>${e(investDailyReviewText(signal.triggerDate)||na)}<br><small>${e(money(signal.triggerPrice))}${signal.triggerClose!==null&&signal.triggerClose!==undefined&&Number(signal.triggerClose)!==Number(signal.triggerPrice)?` / ${e(money(signal.triggerClose))}`:''}</small></td><td>${e(price===null?na:money(price))}</td><td>${e(percent(nowReturn))}</td><td>${e(percent(signal.maxDrawdown))}</td><td>${e(windowNames.filter(name=>investDailyReviewNumber(signal.windows?.[name])!==null).map(name=>`${name} ${percent(signal.windows[name])}`).join(' · ')||na)}</td></tr>`;
   }).join('');
   const mature=windowNames.filter(name=>investDailyReviewNumber(signalSummary.windows?.[name])!==null);
   const signalBars=mature.length?`<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${e(words.signalChart)}" viewBox="0 0 750 170">${(()=>{
@@ -261,7 +264,7 @@ function investDailyReviewHtml(report,lang='zh',commentary=null,options=null) {
       return `<rect x="${(x-width/2).toFixed(1)}" y="${y.toFixed(1)}" width="${width.toFixed(1)}" height="${height.toFixed(1)}" fill="${value<0?'#9c3500':'#1558a5'}"><title>${e(`${name} ${percent(value)}`)}</title></rect><text x="${x.toFixed(1)}" y="160" text-anchor="middle" fill="currentColor" font-size="12">${e(name)}</text><text x="${x.toFixed(1)}" y="${(value<0?zero+14:zero-height-6).toFixed(1)}" text-anchor="middle" fill="currentColor" font-size="11">${e(percent(value))}</text>`;
     }).join('');
   })()}</svg>`:'';
-  const signalSection=`<figure><h2>${e(words.signals)}</h2><p class="muted">${e(words.simulation)}</p>${signals.length?`<p class="muted">${e(live?`${words.liveNote} ${liveTime}`:words.liveFailed)}</p><div class="table-scroll"><table><thead><tr><th>${e(words.signalCode)}</th><th>${e(words.triggerDay)}</th><th>${e(words.livePrice)}</th><th>${e(words.signalNow)}</th><th>${e(words.signalDrawdown)}</th><th>${e(words.matureWindows)}</th></tr></thead><tbody>${signalRows}</tbody></table></div>${liveChart}${mature.length?signalBars:`<p class="notice">${e(words.noMature)}</p>`}`:`<p class="muted">${e(words.noSignal)}</p>`}</figure>`;
+  const signalSection=`<figure><h2>${e(words.signals)}</h2><p class="muted">${e(words.simulation)}</p>${signals.length?`<p class="muted">${e(live?`${words.liveNote} ${liveTime}`:words.liveFailed)}</p><div class="table-scroll"><table><thead><tr><th>${e(words.signalCode)}</th><th>${e(words.triggerDay)}</th><th>${e(words.livePrice)}</th><th>${e(words.signalNow)}</th><th>${e(words.signalDrawdown)}</th><th>${e(words.matureWindows)}</th></tr></thead><tbody>${signalRows}</tbody></table></div>${liveChart}${mature.length?signalBars:live?'':`<p class="notice">${e(words.noMature)}</p>`}`:`<p class="muted">${e(words.noSignal)}</p>`}</figure>`;
   const cards=experts.map(expert=>{
     const navDate=investDailyReviewStamp(expert.navDate)===null?'':expert.navDate;
     const warnings=Array.isArray(expert.warnings)?expert.warnings.map(w=>investDailyReviewText(w)).filter(Boolean):[];

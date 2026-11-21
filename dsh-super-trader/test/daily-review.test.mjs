@@ -40,7 +40,9 @@ test('triggered signals carry observation returns and capital, never as portfoli
     curve:[{date:prev,value:0},{date:day,value:0.1}]}});
   assert.match(livePage,/最新行情截至/);
   assert.match(livePage,/22\.00/);
-  assert.match(livePage,/10%/);
+  // The condition price (entry_price 10) is the reference, never that day's close.
+  assert.match(livePage,/120%/);
+  assert.equal(report.signals[0].triggerPrice,10);
   assert.match(livePage,/自触发日累计收益/);
 });
 

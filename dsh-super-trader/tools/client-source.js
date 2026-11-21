@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
         const onAnalyze=createAnalysisBridge(ctx,props);
         const onOpenExpertSession=createExpertSessionBridge(ctx);
         return h('section',{className:'st-native-panel','aria-label':t(tab)},h('style',null,CSS),
-          h('div',{className:'st-native-top'},h('div',{className:'st-native-status',role:'status','data-ready':state.connection.ready?'true':'false'},t(state.connection.ready?'connected':'offline')),h('div',{className:'st-native-modes'},h('button',{type:'button',onClick:()=>ctx.layout.selectPanel(null)},t('backChat')),!state.connection.ready?h('button',{type:'button',onClick:()=>store.retryConnection()},t('retryStart')):null)),
+          tab==='review'&&state.connection.ready?null:h('div',{className:'st-native-top'},h('div',{className:'st-native-status',role:'status','data-ready':state.connection.ready?'true':'false'},t(state.connection.ready?'connected':'offline')),h('div',{className:'st-native-modes'},h('button',{type:'button',onClick:()=>ctx.layout.selectPanel(null)},t('backChat')),!state.connection.ready?h('button',{type:'button',onClick:()=>store.retryConnection()},t('retryStart')):null)),
           state.connection.error?h('p',{className:'st-native-error',role:'alert'},t(state.connection.error.key)+': '+state.connection.error.detail):null,
           ['journal','settings'].includes(tab)?h(Legacy,{tab}):h(Invest,{tab,t,onAnalyze,onOpenExpertSession}));
       }

@@ -48,6 +48,23 @@ function nodes(node){return Array.isArray(node)?node.flatMap(nodes):!node||typeo
 function text(node){return Array.isArray(node)?node.map(text).join(' '):node&&typeof node==='object'?text(node.props?.children):String(node ?? '');}
 function ui(h,component,props={}){const R=fakeReact(),c=h.api.createInvestComponents(R,h.store),t=k=>h.api.investMessages().zh[k] || k;return render(c[component]({t,...props}));}
 
+test('daily review page has only start and date navigation; history never starts AI',async()=>{
+  const opened=[],rows=[{date:'2026-11-20',sessionId:'session-a'},{date:'2026-11-19',sessionId:'session-b'}];
+  const h=setup({fetch:(url,init,base)=>url.endsWith('/daily-review')?Promise.resolve(reply(init.method==='POST'?rows[0]:{items:rows})):base(url,init)});
+  await h.store.loadDailyHistory();
+  const node=ui(h,'Invest',{tab:'review',onOpenExpertSession:id=>opened.push(id)});
+  assert.match(text(node),/立即进行 AI 复盘/);
+  assert.equal(nodes(node).filter(n=>n.type==='button').length,1);
+  assert.equal(nodes(node).filter(n=>n.type==='select').length,1);
+  assert.doesNotMatch(text(node),/专家模拟组合|选股批次复盘/);
+  nodes(node).find(n=>n.type==='select').props.onChange({target:{value:'2026-11-19'}});
+  assert.deepEqual(opened,['session-b']);
+  assert.equal(h.requests.filter(r=>r.init.method==='POST').length,0);
+  await h.store.startDailyReview(id=>opened.push(id));
+  assert.deepEqual(opened,['session-b','session-a']);
+  assert.equal(h.requests.filter(r=>r.init.method==='POST').length,1);
+});
+
 test('watchlist page searches stocks and listed funds (ETF/LOF) from the page itself',async()=>{
   const h=setup({fetch:(url,init,base)=>{
     const u=new URL('http://local'+url);

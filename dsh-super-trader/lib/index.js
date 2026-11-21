@@ -6,6 +6,9 @@ import { SectorAnalysisService } from './sector-analysis.js';
 import { StockAnalysisService } from './stock-analysis.js';
 import { WatchlistAnalysisService } from './watchlist-analysis.js';
 import { SelectionAnalysisService } from './selection-analysis.js';
+import { DailyReviewService } from './daily-review-service.js';
+import { loadDailyReviewData } from './daily-review-data.js';
+import { investDailyReviewHtml } from './daily-review-template.js';
 
 export const name = 'super-trader';
 export const inject = ['tools', 'webServer'];
@@ -56,7 +59,8 @@ export function mount(ctx, createManager = () => new BackendManager()) {
         const stockAnalysis = new StockAnalysisService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),applyPermission});
         const watchlistAnalysis = new WatchlistAnalysisService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),applyPermission});
         const selectionAnalysis = new SelectionAnalysisService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),applyPermission});
-        for (const definition of createTools(manager,{expertCreation})) {
+        const dailyReview = new DailyReviewService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),loadReport:()=>loadDailyReviewData(manager),renderHtml:investDailyReviewHtml,reportOrigin:()=>web.getOrigin()});
+        for (const definition of createTools(manager,{expertCreation,dailyReview})) {
           try { disposers.push(tools.register(definition)); }
           catch (error) { console.warn('[super-trader] tool registration failed:',definition.name,error.message); }
         }
@@ -72,7 +76,9 @@ export function mount(ctx, createManager = () => new BackendManager()) {
               {id: 'hithink-finance-meta', name: '同花顺 股票搜索', url: 'https://fuyao.aicubes.cn/mcp/meta'}
             ]};
         };
-        const handlers = createHandlers(manager,() => web.getOrigin(),undefined,expertCreation,sectorAnalysis,stockAnalysis,watchlistAnalysis,selectionAnalysis,thsStatus);
+        const handlers = createHandlers(manager,() => web.getOrigin(),undefined,expertCreation,sectorAnalysis,stockAnalysis,watchlistAnalysis,selectionAnalysis,thsStatus,dailyReview);
+        disposers.push(web.register({kind:'exact',path:ROOT+'/daily-review',handler:handlers.dailyReviewIndex}));
+        disposers.push(web.register({kind:'prefix',path:ROOT+'/daily-review/report',handler:handlers.dailyReviewReport}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/base',handler:handlers.base}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/retry',handler:handlers.retry}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/expert-creation',handler:handlers.createExpert}));

@@ -36,7 +36,7 @@ async function bodyJson(req) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw Object.assign(new Error('请求体必须是JSON'), {status:400}); }
 }
-export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, expertCreation, sectorAnalysis, stockAnalysis, watchlistAnalysis, selectionAnalysis, integrationStatus) {
+export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, expertCreation, sectorAnalysis, stockAnalysis, watchlistAnalysis, selectionAnalysis, integrationStatus, dailyReview) {
   const integration = async (req,res) => {
     if (!trusted(req,origin())) return sendJson(res,403,{error:'请求来源不同源，已拒绝'});
     if (req.method !== 'GET') return sendJson(res,405,{error:'GET required'});
@@ -164,5 +164,28 @@ export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, ex
     }catch(error){sendJson(res,error.status||503,error.body??{error:error.message||'AI 专家选股未启动'});}
     finally{res.off('close',close);}
   };
-  return {base,proxy,retry,integration,createExpert,createSector,createStock,createWatchlist,createSelection};
+  const dailyReviewIndex = async (req,res) => {
+    if(!trusted(req,origin()))return sendJson(res,403,{error:'仅允许宿主同源请求'});
+    if(!['GET','POST'].includes(req.method))return sendJson(res,405,{error:'GET or POST required'});
+    if(!dailyReview)return sendJson(res,503,{error:'当前 DSH 未提供日复盘会话服务'});
+    try {
+      if(req.method==='GET')return sendJson(res,200,await dailyReview.history());
+      const body=await bodyJson(req);
+      if(body!==undefined&&(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).length))return sendJson(res,400,{error:'立即复盘不接受日期或其他参数'});
+      return sendJson(res,200,await dailyReview.start());
+    } catch(error) {return sendJson(res,error.status||503,error.body??{error:error.message||'无法访问复盘会话'});}
+  };
+  const dailyReviewReport = async (req,res) => {
+    if(!trusted(req,origin()))return sendJson(res,403,{error:'仅允许宿主同源请求'});
+    if(req.method!=='GET')return sendJson(res,405,{error:'GET required'});
+    const date=new URL(req.url,origin()).pathname.slice((ROOT+'/daily-review/report/').length);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return sendJson(res,404,{error:'日报不存在'});
+    try {
+      if(!dailyReview)return sendJson(res,503,{error:'当前 DSH 未提供日复盘会话服务'});
+      const html=await dailyReview.html(date);
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; sandbox"});
+      res.end(html);
+    } catch(error) {return sendJson(res,error.status||503,{error:error.message||'无法打开日报'});}
+  };
+  return {base,proxy,retry,integration,createExpert,createSector,createStock,createWatchlist,createSelection,dailyReviewIndex,dailyReviewReport};
 }

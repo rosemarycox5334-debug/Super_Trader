@@ -126,6 +126,11 @@
 .sti-factor-output-tool { padding:10px 12px; border:1px solid var(--dsw-alias-border-l1); border-radius:8px; background:var(--dsw-alias-bg-layer-1); }
 .sti-factor-tool-chip { display:inline-block; padding:2px 9px; margin-bottom:6px; border-radius:12px; background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-secondary); font-size:12px; font-weight:600; }
 .sti-factor-output-end { white-space:pre-wrap; overflow-wrap:anywhere; border-top:1px solid var(--dsw-alias-border-l1); padding-top:12px; }
+.sti-invest.sti-daily-review { max-width:780px; }
+.sti-daily-controls { display:grid; gap:20px; }
+.sti-daily-controls > div + div { padding-top:18px; border-top:1px solid var(--dsw-alias-border-l1); }
+.sti-daily-controls label { max-width:420px; }
+.sti-daily-controls .sti-primary { min-height:43px; }
 @media (max-width:900px) { .sti-signal-grid,.sti-expert-grid,.sti-sector-list { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:680px) { .sti-invest { padding:16px; } .sti-evidence-grid,.sti-signal-grid,.sti-expert-grid { grid-template-columns:minmax(0,1fr); } .sti-wide { grid-column:auto; } .sti-invest table { table-layout:auto; } .sti-invest td,.sti-invest th { padding:10px 6px; } .sti-invest th:last-child { width:auto; } }
 @media (max-width:420px) { .sti-invest { padding:12px; } .sti-card { padding:14px; } .sti-sector-list { grid-template-columns:minmax(0,1fr); } .sti-controls > * { flex:1 1 100%; } .sti-actions .sti-btn { flex:1 1 130px; } .sti-invest h1 { font-size:24px; } }

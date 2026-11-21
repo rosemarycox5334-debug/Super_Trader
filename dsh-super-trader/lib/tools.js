@@ -140,7 +140,7 @@ function failure(error) {
 /** Returns real ctx.tools.register definitions. No host-package imports or fabricated data.
  * Optional timing overrides are intended for deterministic/offline tests.
  */
-export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 400, teamPollMs = 3000, expertCreation } = {}) {
+export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 400, teamPollMs = 3000, expertCreation, dailyReview } = {}) {
   const request = (method, path, body, exec, timeoutMs) => manager.request(method, path, body, { signal: exec?.signal, ...(timeoutMs === undefined ? {} : { timeoutMs }) });
   const tool = (name, description, properties, required, run, timeoutMs = 200000) => {
     const parameters = { type: 'object', properties, required, additionalProperties: false };
@@ -161,6 +161,10 @@ export function createTools(manager, { pollTimeoutMs = 30000, pollIntervalMs = 4
     };
   };
   return [
+    ...(dailyReview ? [tool('st_daily_review_publish', '把本日复盘的点评填入固定 HTML 日报。只在对应复盘会话内可用；不改净值、成交或信号。返回日报链接。', {
+      summary:str('当天概览，最多1200字；仅据当日快照。'),
+      experts:{type:'array',items:{type:'object',additionalProperties:false,required:['id','comment'],properties:{id:str('快照中的专家 ID'),comment:str('当日点评，最多600字'),watch:str('可选，下个交易日需核对的事项，最多400字')}}},
+    }, ['summary','experts'], (body, exec) => dailyReview.publish(exec.agent?.id,body))] : []),
     tool('st_market_quotes', '查询同花顺真实 A 股行情快照，返回来源、接口快照时间和缓存状态；不是逐笔成交时间，不修改历史量化概率。',
       { codes: str('1–50个A股代码，英文逗号分隔，例如601088,000001；也支持601088.SH。裸代码由后端核实交易所。') }, ['codes'],
       (args, exec) => {

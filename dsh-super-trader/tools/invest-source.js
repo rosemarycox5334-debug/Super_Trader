@@ -30,7 +30,10 @@ function investBatchMessages(lang) {
     reviewSourceRule:'Daily close price rule',reviewSourceAi:'Manually started AI assessment (from observed prices)',reviewSourceArchive:'Frozen selection plan',reviewSourceLegacy:'Legacy archive',reviewSourceReference:'Selection price reference, not an entry',reviewSelectionEntry:'Selection reference date / price',reviewAsOf:'Prices through',reviewWaited:'Trading sessions waited',reviewAfterEntry:'Trading sessions since trigger',reviewAwaitingWindows:'Incomplete windows',reviewWindows:'Returns after trigger',reviewRefWindows:'Movement from reference price',reviewAiEvidence:'AI assessment basis',reviewPlanMissing:'No plan details were saved.',reviewNoCondition:'No actionable trigger supplied',reviewNoWindows:'No entry return is available.',reviewMissingEvidence:'No additional evidence was saved.',reviewArchiveDetails:'Archive information',
     reviewJudgeBatch:'Re-assess the batch (may incur fees)',reviewJudgeBatchConfirm:'Re-assess {n} complex plans in this batch. The model is called and may cost money. Continue?',reviewJudgeBatchRunning:'Assessing the batch…',reviewJudgeBatchResult:'Re-assessed {judged}, skipped {skipped}, failed {errors}.',reviewJudgeBatchEmpty:'This batch has no complex plans to assess.',reviewJudge:'Run AI assessment now (may incur fees)',reviewJudgeHelp:'Complex conditions only. It runs automatically once after each close (from 15:05 Shanghai); this button checks immediately and may cost.',reviewJudgeRunning:'Assessing this plan…',reviewJudgeUnavailable:'The model already assessed this plan. See the evidence.',reviewJudgeResult:'{judged} assessed, {skipped} skipped, {errors} failed.',reviewComparison:'Prior review comparison',reviewOpenSource:'Open source review',reviewPerformance:'Post-trigger performance',reviewDays:'{n}d',reviewFailedPlan:'Plan assessment failed',reviewSelectedAt:'Selection finished',reviewInvalidationObserved:'Invalidation date / observed close',reviewTriggerObserved:'Trigger date / observed close',reviewNotFill:'Observed price, not a trade fill.',reviewAiThrough:'Prices used by the model through',reviewSummaryOutcome:'20-session results: {up} up, {down} down, {flat} unchanged',reviewNextNone:'No plans to track; refresh after another selection is archived',reviewBaseline:'The benchmark includes reference moves and is not a portfolio return.',
   });
-  return {...(lang==='zh'?zh:en),...investPortfolioMessages(lang)};
+  const daily=lang==='zh'?{
+    dailyRun:'立即进行 AI 复盘',dailyStarting:'正在启动复盘…',dailyIntro:'复盘最近一个已有收盘数据的交易日。已有会话会直接打开，不重复执行。',dailyHistory:'历史复盘日期',dailyChoose:'选择日期，直接打开会话',dailyEmpty:'还没有复盘会话。',dailySessionMissing:'当前无法打开会话。',dailyReturn:'返回复盘日期',
+  }:{dailyRun:'Run AI review now',dailyStarting:'Starting review…',dailyIntro:'Review the latest session with closing data. Reopen its existing conversation instead of running twice.',dailyHistory:'Past review dates',dailyChoose:'Choose a date to open its conversation',dailyEmpty:'No review conversations yet.',dailySessionMissing:'Conversation navigation is unavailable.',dailyReturn:'Back to review dates'};
+  return {...(lang==='zh'?zh:en),...investPortfolioMessages(lang),...daily};
 }
 function investPortfolioMessages(lang) {
   return lang==='zh'?{
@@ -206,6 +209,7 @@ function createInvestStore(options) {
   let factorTimer,factorStarted=0,factorCount=0,factorPolling=false,factorVisible=false,transcriptTimer;
   const selectionActiveStatuses=['queued','pending','running','cancelling'];
   let state={tab:'screen',target:null,stockCode:'',stockAsset:'个股',stockSearch:{...investIdle(),q:''},connection:{phase:'idle',ready:false,apiBase:'/dsh-super-trader/backend',error:null},status:null,factors:{code:'601088',category:'个股',timeframe:'1d',tab:'batch',ruleId:'',initialized:false,report:investIdle(),backtest:investIdle(),rules:investIdle()},factorResearch:{scope:'all',timeframe:'1d',workers:4,max_trials:5,brief:''},factorUniverse:investIdle(),factorResearchJob:{...investIdle(),submitting:false,cancelling:false,paused:false},factorResults:{...investIdle(),offset:0,limit:50,q:'',jobId:''},factorHistory:{...investIdle(),initialized:false},factorTranscript:{jobId:'',items:[],seq:0,phase:'idle',error:null,following:true,finalRead:false},report:investIdle(),screen:{scope:'market',sector:'',brief:''},selectionExpertIds:[],selectionAi:{phase:'idle',sessionId:null,requestId:null,error:null},selectionJob:{...investIdle(),params:null,paused:false,submitting:false,cancelling:false},sectors:{...investIdle(),tag:'industry',q:'',offset:0},selectedSector:null,experts:investIdle(),expertIds:[],expertEdit:null,expertCreating:false,expertSaving:false,expertDraft:null,expertError:null,expertDelete:{id:null,name:'',submitting:false,error:null},expertResearch:{phase:'idle',requirement:'',requestId:null,data:null,error:null},sectorAi:{phase:'idle',sessionId:null,requestId:null,error:null},stockAi:{phase:'idle',sessionId:null,requestId:null,error:null},watch:investIdle(),watchSearch:{...investIdle(),q:'',asset:'个股'},watchAi:{phase:'idle',sessionId:null,requestId:null,error:null},integration:investIdle(),portfolios:investIdle(),portfolioView:{expertId:'',hiddenExperts:[],benchmark:true,mode:'return'},reviews:investIdle(),reviewDetail:investIdle(),reviewJudge:investIdle(),reviewJudgeBatch:investIdle(),reviewId:'',reviewFocusPlanId:'',reviewSyncing:false,watchDeselected:[],add:investIdle(),draft:investIdle(),job:{...investIdle(),target:null,paused:false,submitting:false,cancelling:false},notice:null};
+  Object.assign(state,{dailyHistory:investIdle(),dailyStart:investIdle(),reviewMode:'daily'});
   function publish(patch) {if(disposed)return;state={...state,...patch};for(const fn of listeners)fn();}
   function abort(key) {requests.get(key)?.abort();requests.delete(key);versions.set(key,(versions.get(key)||0)+1);}
   function token(key) {abort(key);const c=new AbortController();requests.set(key,c);return {c,v:versions.get(key)};}
@@ -535,6 +539,31 @@ function createInvestStore(options) {
   function togglePortfolioBenchmark() {
     publish({portfolioView:{...state.portfolioView,benchmark:!state.portfolioView.benchmark}});
   }
+  const dailyRoute='/dsh-super-trader/daily-review';
+  function dailySessionRow(row){return investPortfolioDate(row?.date)!==null&&investReviewId(row.sessionId);}
+  async function loadDailyHistory(){
+    const t=token('dailyHistory');publish({dailyHistory:{...state.dailyHistory,phase:'loading',error:null}});
+    try{
+      const res=await fetcher(dailyRoute,{signal:AbortSignal.any([t.c.signal,AbortSignal.timeout(15000)])});
+      const data=await res.json();if(!res.ok||!Array.isArray(data?.items))throw Error(investText(data?.error)||'HTTP '+res.status);
+      if(current('dailyHistory',t))publish({dailyHistory:{phase:'ready',error:null,data:data.items.filter(dailySessionRow).sort((a,b)=>b.date.localeCompare(a.date))}});
+    }catch(error){if(current('dailyHistory',t))publish({dailyHistory:{...state.dailyHistory,phase:'error',error:cockpitFailure(error)}});}
+    finally{if(requests.get('dailyHistory')===t.c)requests.delete('dailyHistory');}
+  }
+  async function startDailyReview(open){
+    if(state.dailyStart.phase==='loading'||typeof open!=='function')return;
+    const t=token('dailyStart'), navigation=open.begin?.();publish({dailyStart:{...investIdle(),phase:'loading'}});
+    try{
+      const res=await fetcher(dailyRoute,{method:'POST',signal:AbortSignal.any([t.c.signal,AbortSignal.timeout(110000)])});
+      const data=await res.json();if(!current('dailyStart',t))return;
+      if(!res.ok||!dailySessionRow(data))throw Error(investText(data?.error)||'HTTP '+res.status);
+      if(!navigation?.aborted)open(data.sessionId);
+      publish({dailyStart:{phase:'ready',data,error:null}});void loadDailyHistory();
+    }catch(error){if(current('dailyStart',t)){publish({dailyStart:{...investIdle(),phase:'error',error:cockpitFailure(error)}});void loadDailyHistory();}}
+    finally{if(requests.get('dailyStart')===t.c)requests.delete('dailyStart');}
+  }
+  function openDailyReview(date,open){const row=state.dailyHistory.data?.find(r=>r.date===date);if(row&&typeof open==='function')open(row.sessionId);}
+  function closeReviewReference(){publish({reviewMode:'daily',reviewFocusPlanId:''});}
   let followLatestReview=true;
   async function loadReviews({refresh=false}={}) {
     const data=await resource('reviews','/reviews',raw=>{
@@ -628,7 +657,7 @@ function createInvestStore(options) {
     // Pin the exact linked batch before changing native panels; the list may mount
     // immediately, and must not redirect an explicit reference to the latest batch.
     followLatestReview=false;
-    publish({reviewFocusPlanId:investReviewId(planId)?planId:''});
+    publish({reviewMode:'source',reviewFocusPlanId:investReviewId(planId)?planId:''});
     const detail=fetchReview(id);
     navigate('review');
     return detail;
@@ -834,7 +863,7 @@ function createInvestStore(options) {
   async function retryConnection() {try {const res=await fetcher('/dsh-super-trader/retry',{method:'POST',signal:AbortSignal.timeout(30000)});if(!res.ok)throw Error('HTTP '+res.status);if(connectionTimer!==undefined)unschedule(connectionTimer);await checkConnection();}catch(error){publish({connection:{...state.connection,error:cockpitFailure(error)}});}}
   function subscribe(fn) {listeners.add(fn);if(listeners.size===1&&options.autoConnect!==false)void checkConnection();return()=>{listeners.delete(fn);if(!listeners.size){if(connectionTimer!==undefined)unschedule(connectionTimer);abort('connection');stopPolling();stopSelectionPolling();stopFactors();}};}
   function dispose() {stopFactorTranscript();stopFactorResearchPolling();factorVisible=false;disposed=true;if(connectionTimer!==undefined)unschedule(connectionTimer);stopPolling();stopSelectionPolling();for(const c of requests.values())c.abort();requests.clear();listeners.clear();}
-  return {subscribe,getSnapshot:()=>state,navigate,setCode,setSearch,searchStocks,queryStock,openStock,querySector,selectSector,screenOptions,screen,screenSector,sectorOptions,loadSectors,loadExperts,toggleExpert,toggleSelectionExpert,loadPortfolios,portfolioMode,portfolioExpert,togglePortfolioSeries,togglePortfolioBenchmark,loadReviews,refreshReviews,syncReviews,openReview,openReviewReference,judgeReview,judgeBatch,deleteReview,loadIntegration,startSelectionAnalysis,openSelectionAnalysisSession,editExpert,cancelExpertEdit,newExpert,cancelNewExpert,expertRequirement,startExpertCreation,openExpertCreationSession,startSectorAnalysis,openSectorAnalysisSession,startStockAnalysis,openStockAnalysisSession,updateExpertDraft,saveExpert,requestExpertDelete,cancelExpertDelete,confirmExpertDelete,startSelection,cancelSelection,resumeSelectionPolling,stopSelectionPolling,loadWatch,addWatch,removeWatch,searchWatch,setWatchQuery,toggleWatchSelected,selectAllWatch,startWatchlistAnalysis,openWatchlistAnalysisSession,startTeam,cancelJob,resumePolling,stopPolling,checkConnection,retryConnection,draft,factorInput,queryFactor,ensureFactors,loadFactorRules,selectFactorRule,factorTab,stopFactors,factorResearchOptions,activeFactorResearch,loadFactorUniverse,startFactorResearch,cancelFactorResearch,resumeFactorResearchPolling,stopFactorResearchPolling,restoreFactorResearch,loadFactorResults,factorResultsQuery,openFactorResult,factorTranscriptFollowing,retryFactorTranscript,dispose};
+  return {subscribe,getSnapshot:()=>state,navigate,setCode,setSearch,searchStocks,queryStock,openStock,querySector,selectSector,screenOptions,screen,screenSector,sectorOptions,loadSectors,loadExperts,toggleExpert,toggleSelectionExpert,loadPortfolios,portfolioMode,portfolioExpert,togglePortfolioSeries,togglePortfolioBenchmark,loadDailyHistory,startDailyReview,openDailyReview,closeReviewReference,loadReviews,refreshReviews,syncReviews,openReview,openReviewReference,judgeReview,judgeBatch,deleteReview,loadIntegration,startSelectionAnalysis,openSelectionAnalysisSession,editExpert,cancelExpertEdit,newExpert,cancelNewExpert,expertRequirement,startExpertCreation,openExpertCreationSession,startSectorAnalysis,openSectorAnalysisSession,startStockAnalysis,openStockAnalysisSession,updateExpertDraft,saveExpert,requestExpertDelete,cancelExpertDelete,confirmExpertDelete,startSelection,cancelSelection,resumeSelectionPolling,stopSelectionPolling,loadWatch,addWatch,removeWatch,searchWatch,setWatchQuery,toggleWatchSelected,selectAllWatch,startWatchlistAnalysis,openWatchlistAnalysisSession,startTeam,cancelJob,resumePolling,stopPolling,checkConnection,retryConnection,draft,factorInput,queryFactor,ensureFactors,loadFactorRules,selectFactorRule,factorTab,stopFactors,factorResearchOptions,activeFactorResearch,loadFactorUniverse,startFactorResearch,cancelFactorResearch,resumeFactorResearchPolling,stopFactorResearchPolling,restoreFactorResearch,loadFactorResults,factorResultsQuery,openFactorResult,factorTranscriptFollowing,retryFactorTranscript,dispose};
 }
 // Resolve only factual leaves in the exact saved source, never executable paths.
 function investEvidenceReference(source,pointer) {
@@ -1431,6 +1460,19 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
       h(PortfolioStockDetails,{t,expert:selection}),
       data.assumptions?.fees_included===false&&data.assumptions?.corporate_actions_included===false?h('p',{className:'sti-muted'},t('portfolioNoCosts')):null));
   }
+  function DailyReview({t,onOpenExpertSession}) {
+    const s=useStore(),busy=s.dailyStart.phase==='loading',past=s.dailyHistory.data||[];
+    React.useEffect(()=>{void store.loadDailyHistory();},[]);
+    return h('div',{className:'sti-invest sti-daily-review','data-view':'daily-review'},
+      h('header',{className:'sti-heading'},h('h1',null,t('review'))),
+      h('section',{className:'sti-card sti-daily-controls','aria-label':t('review')},
+        h('div',null,h(Button,{primary:true,onClick:()=>store.startDailyReview(onOpenExpertSession),disabled:busy||!s.connection.ready||!onOpenExpertSession},t(busy?'dailyStarting':'dailyRun')),
+          h('p',{className:'sti-muted'},t('dailyIntro')),h(ErrorView,{error:s.dailyStart.error,t})),
+        h('div',null,h('label',null,t('dailyHistory'),h('select',{value:'',disabled:!past.length||!onOpenExpertSession,onChange:e=>store.openDailyReview(e.target.value,onOpenExpertSession)},
+          h('option',{value:'',disabled:true},t('dailyChoose')),...past.map(row=>h('option',{key:row.date,value:row.date},row.date)))),
+          h(Status,{resource:s.dailyHistory,t}),s.dailyHistory.phase==='ready'&&!past.length?h('p',{className:'sti-muted'},t('dailyEmpty')):null)),
+      !onOpenExpertSession?h('p',{role:'status',className:'sti-muted'},t('dailySessionMissing')):null);
+  }
   function Review({t}) {return h(React.Fragment,null,h(PortfolioDashboard,{t}),
     h('section',{'aria-label':t('reviewSignalTitle')},h('h2',null,t('reviewSignalTitle')),h('p',{className:'sti-muted'},t('reviewSignalNote')),h(SignalReview,{t})));}
   function SignalReview({t}) {
@@ -1495,6 +1537,6 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
       h('div',{className:'sti-actions'},h(Button,{onClick:onRecheck},t('integrationRecheck'))));
   }
 
-  function Invest({tab,t,onAnalyze,onOpenExpertSession}) {const s=useStore();React.useEffect(()=>{if(s.connection.ready&&s.integration.phase==='idle')void store.loadIntegration();},[s.connection.ready,s.integration.phase]);return h('div',{className:'sti-invest','data-view':tab},h(IntegrationBanner,{t,integration:s.integration,onRecheck:()=>store.loadIntegration()}),h('header',{className:'sti-heading'},h('p',{className:'sti-eyebrow'},'SUPER TRADER'),h('h1',null,t(tab)),h('p',null,t('workflow'))),h('p',{className:'sti-disclaimer'},t('disclaimer')),h(ErrorView,{error:s.notice,t}),tab==='screen'?h(Screen,{t,onOpenExpertSession}):tab==='stock'?h(Stock,{t,onAnalyze,onOpenExpertSession}):tab==='sectors'?h(Sectors,{t,onAnalyze,onOpenExpertSession}):tab==='experts'?h(Experts,{t,onOpenExpertSession}):tab==='factors'?h(Factors,{t}):tab==='review'?h(Review,{t}):h(Watchlist,{t,onOpenExpertSession}));}
+  function Invest({tab,t,onAnalyze,onOpenExpertSession}) {const s=useStore();React.useEffect(()=>{if(tab!=='review'&&s.connection.ready&&s.integration.phase==='idle')void store.loadIntegration();},[tab,s.connection.ready,s.integration.phase]);if(tab==='review'&&s.reviewMode!=='source')return h(DailyReview,{t,onOpenExpertSession});return h('div',{className:'sti-invest','data-view':tab},h(IntegrationBanner,{t,integration:s.integration,onRecheck:()=>store.loadIntegration()}),h('header',{className:'sti-heading'},h('p',{className:'sti-eyebrow'},'SUPER TRADER'),h('h1',null,t(tab)),h('p',null,t('workflow'))),h('p',{className:'sti-disclaimer'},t('disclaimer')),h(ErrorView,{error:s.notice,t}),tab==='screen'?h(Screen,{t,onOpenExpertSession}):tab==='stock'?h(Stock,{t,onAnalyze,onOpenExpertSession}):tab==='sectors'?h(Sectors,{t,onAnalyze,onOpenExpertSession}):tab==='experts'?h(Experts,{t,onOpenExpertSession}):tab==='factors'?h(Factors,{t}):tab==='review'?h(React.Fragment,null,h(Button,{onClick:store.closeReviewReference},t('dailyReturn')),h(Review,{t})):h(Watchlist,{t,onOpenExpertSession}));}
   return {Invest,Screen,Stock,Sectors,Experts,Watchlist,Review,investFieldLabel,Candles,Quant,Brief,Vote,TeamResult,SelectionResult,SelectionEvidence,Factors,FactorTranscript,FactorCurve,FactorMetrics,FactorSamples};
 }

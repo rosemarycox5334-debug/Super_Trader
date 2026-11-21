@@ -59,7 +59,40 @@ export function mount(ctx, createManager = () => new BackendManager()) {
         const stockAnalysis = new StockAnalysisService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),applyPermission});
         const watchlistAnalysis = new WatchlistAnalysisService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),applyPermission});
         const selectionAnalysis = new SelectionAnalysisService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),applyPermission});
-        const dailyReview = new DailyReviewService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),loadReport:()=>loadDailyReviewData(manager),renderHtml:investDailyReviewHtml,reportOrigin:()=>web.getOrigin()});
+        const dailyReview = new DailyReviewService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),loadReport:()=>loadDailyReviewData(manager),renderHtml:investDailyReviewHtml,reportOrigin:()=>web.getOrigin(),loadLive:async report=>{
+          const signals=(report?.signals??[]).filter(signal=>typeof signal.code==='string'&&/^\d{6}$/.test(signal.code)&&Number(signal.triggerPrice)>0);
+          if(!signals.length)return null;
+          const codes=[...new Set(signals.map(signal=>signal.code))];
+          const [quote, ...histories]=await Promise.all([
+            manager.request('GET','/api/market/quotes?codes='+encodeURIComponent(codes.join(',')),undefined,{timeoutMs:15000}).catch(()=>null),
+            ...signals.map(signal=>manager.request('GET','/api/market/history?code='+signal.code+'&limit=60&adjust=none',undefined,{timeoutMs:15000}).catch(()=>null)),
+          ]);
+          const quotes={};
+          let time=null;
+          for(const row of Array.isArray(quote?.items)?quote.items:[]){
+            const price=Number(row?.last_price);
+            if(typeof row?.code==='string'&&Number.isFinite(price)&&price>0){
+              quotes[row.code]=price;
+              const stamp=row.timestamp??quote.timestamp;
+              if(time===null&&stamp!==null&&stamp!==undefined)time=stamp;
+            }
+          }
+          // Per-session cumulative return from each trigger close, averaged equally.
+          const byDate=new Map();
+          signals.forEach((signal,index)=>{
+            for(const bar of Array.isArray(histories[index]?.items)?histories[index].items:[]){
+              const stamp=Number(bar?.date_ms), close=Number(bar?.close_price);
+              if(!Number.isFinite(stamp)||!Number.isFinite(close)||close<=0)continue;
+              const date=new Date(stamp).toISOString().slice(0,10);
+              if(!(date>=signal.triggerDate))continue;
+              const value=close/signal.triggerPrice-1;
+              if(!byDate.has(date))byDate.set(date,[]);
+              byDate.get(date).push(value);
+            }
+          });
+          const curve=[...byDate].sort(([a],[b])=>a<b?-1:1).map(([date,values])=>({date,value:values.reduce((sum,value)=>sum+value,0)/values.length}));
+          return {quotes,time,curve};
+        }});
         for (const definition of createTools(manager,{expertCreation,dailyReview})) {
           try { disposers.push(tools.register(definition)); }
           catch (error) { console.warn('[super-trader] tool registration failed:',definition.name,error.message); }

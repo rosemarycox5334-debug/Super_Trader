@@ -168,8 +168,8 @@ const receipt = (record, reused) => ({ date: record.date, workspaceId: record.wo
 const recoverableError = (record, message, status = 503) => failure(message, status, { error: message, ...receipt(record, true) });
 
 export class DailyReviewService {
-  constructor({ workspaces, sessions, workingDirectory, loadReport, renderHtml, reportOrigin }) {
-    Object.assign(this, { workspaces, sessions, workingDirectory, loadReport, renderHtml, reportOrigin });
+  constructor({ workspaces, sessions, workingDirectory, loadReport, renderHtml, reportOrigin, loadLive }) {
+    Object.assign(this, { workspaces, sessions, workingDirectory, loadReport, renderHtml, reportOrigin, loadLive });
     // Retain a known ID through an in-process disk failure immediately after Session creation.
     this.createdSessions = new Map();
   }
@@ -331,7 +331,13 @@ export class DailyReviewService {
     const record = dir && await loadRecord(dir, date, workspace);
     if (!record) throw failure('未找到该日期的复盘报告。', 404);
     if (typeof this.renderHtml !== 'function') throw failure('当前未配置复盘报告渲染器。');
-    return this.renderHtml(record.report, 'zh', await loadCommentary(dir, record));
+    // Latest prices are attached at render time only; the frozen record keeps
+    // the evidence it was built from, and a failed quote degrades to the archive.
+    let live = null;
+    if (typeof this.loadLive === 'function') {
+      try { live = await this.loadLive(record.report); } catch { live = null; }
+    }
+    return this.renderHtml(record.report, 'zh', await loadCommentary(dir, record), live ? { live } : null);
   }
 
   async publish(sessionId, body) {

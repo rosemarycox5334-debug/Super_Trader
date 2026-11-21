@@ -164,7 +164,7 @@ function investDailyReviewReport(date, portfolios, details, {partial=false,histo
 function investDailyReviewEscape(value) {
   return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 }
-function investDailyReviewHtml(report,lang='zh',commentary=null) {
+function investDailyReviewHtml(report,lang='zh',commentary=null,options=null) {
   const en=lang==='en', e=investDailyReviewEscape, na='—';
   const words=en?{
     title:'Daily simulation review',simulation:'Simulation only. Candidate signals and observation returns are not portfolio P&L; only dated ledger fills are buys or sells.',
@@ -180,7 +180,9 @@ function investDailyReviewHtml(report,lang='zh',commentary=null) {
     triggerDay:'Trigger date / price',signalNow:'Return since trigger',signalDrawdown:'Drawdown since trigger',
     matureWindows:'Matured windows',noSignal:'No plan was triggered on or before this cutoff.',
     noMature:'Triggered today: the return starts from the trigger close and no session has matured yet.',
-    signalChart:'Triggered signals: equal-weight return by window'
+    signalChart:'Triggered signals: equal-weight return by window',
+    livePrice:'Latest price',liveNote:'Latest quotes as of',liveFailed:'Latest quotes are unavailable; archived values are shown.',
+    liveCurve:'Triggered signals: cumulative return since trigger (equal weight)'
   }:{
     title:'模拟组合每日复盘',simulation:'仅供模拟复盘。候选信号与观察收益不是组合盈亏；买卖仅依据有日期的模拟成交账本。',
     frozen:'活动记录依据冻结理由或系统分类；此排版器未生成新的 AI 点评。',
@@ -194,7 +196,9 @@ function investDailyReviewHtml(report,lang='zh',commentary=null) {
     triggerDay:'触发日 / 价',signalNow:'触发以来收益',signalDrawdown:'触发以来回撤',
     matureWindows:'已成熟窗口',noSignal:'截至该截点没有已触发的计划。',
     noMature:'当日触发：收益自触发日收盘起算，尚无已走完的交易日。',
-    signalChart:'已触发信号：按窗口的等权收益'
+    signalChart:'已触发信号：按窗口的等权收益',
+    livePrice:'最新价',liveNote:'最新行情截至',liveFailed:'最新行情暂不可用，显示存档值。',
+    liveCurve:'已触发信号：自触发日累计收益（等权）'
   };
   const locale=en?'en-US':'zh-CN', date=investDailyReviewStamp(report?.date)===null?na:report.date;
   const experts=investDailyReviewRows(report?.experts), historical=report?.historical===true;
@@ -221,7 +225,31 @@ function investDailyReviewHtml(report,lang='zh',commentary=null) {
   const section=(title,rows,label,hidden=false)=>`<section><h3>${e(title)}</h3>${hidden?`<p class="muted">${e(words.historical)}</p>`:rows.length?`<ul>${rows.map(row=>line(row,label(row))).join('')}</ul>`:`<p class="muted">${e(words.empty)}</p>`}</section>`;
   const signals=investDailyReviewRows(report?.signals), signalSummary=report?.signalSummary??{};
   const windowNames=['1d','3d','5d','10d','20d'];
-  const signalRows=signals.map(signal=>`<tr><td>${e([signal.code,signal.name===signal.code?'':signal.name].filter(Boolean).join(' '))}<br><small>${e(investDailyReviewText(signal.expertName,signal.expertId))}</small></td><td>${e(investDailyReviewText(signal.triggerDate)||na)}<br><small>${e(money(signal.triggerPrice))}</small></td><td>${e(percent(signal.current))}</td><td>${e(percent(signal.maxDrawdown))}</td><td>${e(windowNames.filter(name=>investDailyReviewNumber(signal.windows?.[name])!==null).map(name=>`${name} ${percent(signal.windows[name])}`).join(' · ')||na)}</td></tr>`).join('');
+  const live=options?.live&&typeof options.live==='object'?options.live:null;
+  const liveTime=(()=>{
+    const stamp=live?.time;
+    if(typeof stamp!=='number'&&typeof stamp!=='string')return '';
+    const parsed=new Date(stamp);
+    return Number.isFinite(parsed.getTime())?new Intl.DateTimeFormat(locale,{timeZone:'Asia/Shanghai',dateStyle:'short',timeStyle:'short',hour12:false}).format(parsed):'';
+  })();
+  const liveCurve=investDailyReviewRows(live?.curve).filter(point=>typeof point?.date==='string'&&investDailyReviewNumber(point.value)!==null);
+  const liveChart=(()=>{
+    if(liveCurve.length<2)return '';
+    const values=liveCurve.map(point=>point.value);
+    let low=Math.min(0,...values), high=Math.max(0,...values);
+    if(high===low){high=0.001;low=-0.001;}
+    const x=index=>64+index/(liveCurve.length-1)*672;
+    const y=value=>120-(value-low)/(high-low)*96;
+    const points=liveCurve.map((point,index)=>`${x(index).toFixed(2)},${y(point.value).toFixed(2)}`).join(' ');
+    const last=liveCurve.at(-1);
+    return `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${e(words.liveCurve)}" viewBox="0 0 750 155"><line x1="64" x2="736" y1="${y(0).toFixed(2)}" y2="${y(0).toFixed(2)}" stroke="#ccd8e2"/><polyline points="${points}" fill="none" stroke="#1558a5" stroke-width="2"/><circle cx="${x(liveCurve.length-1).toFixed(2)}" cy="${y(last.value).toFixed(2)}" r="3" fill="#1558a5"><title>${e(`${last.date} ${percent(last.value)}`)}</title></circle><text x="58" y="${(y(high)+4).toFixed(1)}" text-anchor="end" fill="currentColor" font-size="12">${e(percent(high))}</text><text x="58" y="${(y(low)+4).toFixed(1)}" text-anchor="end" fill="currentColor" font-size="12">${e(percent(low))}</text><text x="64" y="144" text-anchor="start" fill="currentColor" font-size="12">${e(liveCurve[0].date)}</text><text x="736" y="144" text-anchor="end" fill="currentColor" font-size="12">${e(last.date)}</text></svg>`;
+  })();
+  const signalRows=signals.map(signal=>{
+    const quote=live?.quotes?.[signal.code], livePrice=Number(quote);
+    const price=Number.isFinite(livePrice)&&livePrice>0?livePrice:null;
+    const nowReturn=price!==null&&signal.triggerPrice>0?price/signal.triggerPrice-1:signal.current;
+    return `<tr><td>${e([signal.code,signal.name===signal.code?'':signal.name].filter(Boolean).join(' '))}<br><small>${e(investDailyReviewText(signal.expertName,signal.expertId))}</small></td><td>${e(investDailyReviewText(signal.triggerDate)||na)}<br><small>${e(money(signal.triggerPrice))}</small></td><td>${e(price===null?na:money(price))}</td><td>${e(percent(nowReturn))}</td><td>${e(percent(signal.maxDrawdown))}</td><td>${e(windowNames.filter(name=>investDailyReviewNumber(signal.windows?.[name])!==null).map(name=>`${name} ${percent(signal.windows[name])}`).join(' · ')||na)}</td></tr>`;
+  }).join('');
   const mature=windowNames.filter(name=>investDailyReviewNumber(signalSummary.windows?.[name])!==null);
   const signalBars=mature.length?`<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${e(words.signalChart)}" viewBox="0 0 750 170">${(()=>{
     const values=mature.map(name=>investDailyReviewNumber(signalSummary.windows[name]));
@@ -233,7 +261,7 @@ function investDailyReviewHtml(report,lang='zh',commentary=null) {
       return `<rect x="${(x-width/2).toFixed(1)}" y="${y.toFixed(1)}" width="${width.toFixed(1)}" height="${height.toFixed(1)}" fill="${value<0?'#9c3500':'#1558a5'}"><title>${e(`${name} ${percent(value)}`)}</title></rect><text x="${x.toFixed(1)}" y="160" text-anchor="middle" fill="currentColor" font-size="12">${e(name)}</text><text x="${x.toFixed(1)}" y="${(value<0?zero+14:zero-height-6).toFixed(1)}" text-anchor="middle" fill="currentColor" font-size="11">${e(percent(value))}</text>`;
     }).join('');
   })()}</svg>`:'';
-  const signalSection=`<figure><h2>${e(words.signals)}</h2><p class="muted">${e(words.simulation)}</p>${signals.length?`<div class="table-scroll"><table><thead><tr><th>${e(words.signalCode)}</th><th>${e(words.triggerDay)}</th><th>${e(words.signalNow)}</th><th>${e(words.signalDrawdown)}</th><th>${e(words.matureWindows)}</th></tr></thead><tbody>${signalRows}</tbody></table></div>${mature.length?signalBars:`<p class="notice">${e(words.noMature)}</p>`}`:`<p class="muted">${e(words.noSignal)}</p>`}</figure>`;
+  const signalSection=`<figure><h2>${e(words.signals)}</h2><p class="muted">${e(words.simulation)}</p>${signals.length?`<p class="muted">${e(live?`${words.liveNote} ${liveTime}`:words.liveFailed)}</p><div class="table-scroll"><table><thead><tr><th>${e(words.signalCode)}</th><th>${e(words.triggerDay)}</th><th>${e(words.livePrice)}</th><th>${e(words.signalNow)}</th><th>${e(words.signalDrawdown)}</th><th>${e(words.matureWindows)}</th></tr></thead><tbody>${signalRows}</tbody></table></div>${liveChart}${mature.length?signalBars:`<p class="notice">${e(words.noMature)}</p>`}`:`<p class="muted">${e(words.noSignal)}</p>`}</figure>`;
   const cards=experts.map(expert=>{
     const navDate=investDailyReviewStamp(expert.navDate)===null?'':expert.navDate;
     const warnings=Array.isArray(expert.warnings)?expert.warnings.map(w=>investDailyReviewText(w)).filter(Boolean):[];

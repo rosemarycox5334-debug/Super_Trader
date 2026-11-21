@@ -35,6 +35,13 @@ test('triggered signals carry observation returns and capital, never as portfoli
   assert.match(page,/已触发信号：按窗口的等权收益/);
   const fresh=html(project(day,{items:[a]},[detail(plan('today',{status:'triggered',base_date:day,as_of:day,trigger:{date:day},base_price:40}))]),'zh',null);
   assert.match(fresh,/尚无已走完的交易日/);
+  // Latest prices are attached only at render time and produce an intraday return.
+  const livePage=html(report,'zh',null,{live:{quotes:{'601088':22},time:Date.UTC(2026,10,20,7,0,0),
+    curve:[{date:prev,value:0},{date:day,value:0.1}]}});
+  assert.match(livePage,/最新行情截至/);
+  assert.match(livePage,/22\.00/);
+  assert.match(livePage,/10%/);
+  assert.match(livePage,/自触发日累计收益/);
 });
 
 test('clips future NAV and warnings, aligns the union of dates and does not bridge a missing prior session',()=>{

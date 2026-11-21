@@ -132,7 +132,9 @@ test('the live sample shape has one marker per settled expert: three triggers an
   assert.deepEqual(report.counts,{experts:7,triggered:3,queued:3,buys:0,sells:0,pending:0,unverified:0,selected:0});
   assert.ok(report.experts.every(expert=>expert.nav===100000&&expert.dayReturn===null&&expert.totalReturn===0));
   const doc=html(report);
-  assert.equal(doc.match(/<circle /g)?.length,7);
+  // Each settled expert marker keeps its own halo, so seven series still read as seven points.
+  assert.equal(doc.match(/r="3\.4"/g)?.length,7);
+  assert.equal(doc.match(/r="9"/g)?.length,7);
   assert.doesNotMatch(doc,/<polyline /);
 });
 

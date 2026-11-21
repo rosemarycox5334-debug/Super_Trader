@@ -175,30 +175,55 @@ function investDailyReviewEscape(value) {
 function investDailyReviewLayoutCss() {
   const rules={light:[],dark:[]};
   const L=(sel,decl)=>rules.light.push([sel,decl]), D=(sel,decl)=>rules.dark.push([sel,decl]);
-  // ---- 数理研究院: a printed research brief. Serif headings, numbered sections, hairlines.
-  L('','background-image:linear-gradient(var(--st-grid) 1px,transparent 1px),linear-gradient(90deg,var(--st-grid) 1px,transparent 1px);background-size:24px 24px');
-  L('main','max-width:940px;counter-reset:sec');
-  L('h1,h2','font-family:var(--st-font-display)');
-  L('h1','font-size:clamp(1.7rem,4vw,2.45rem);font-weight:600;letter-spacing:.01em;margin:.15em 0 .2em');
-  L('.masthead','padding:0 0 20px;margin-bottom:28px;border-bottom:3px double var(--st-rule2)');
-  L('.kicker','font:600 .72rem var(--st-font-ui);letter-spacing:.2em;color:var(--st-accent)');
-  L('.blk','margin-bottom:30px');
-  L('.blk > h2','display:flex;align-items:baseline;gap:10px;padding:10px 0 8px;margin-bottom:12px;border-top:2px solid var(--st-ink);border-bottom:1px solid var(--st-rule);font-size:1.15rem');
-  L('.blk > h2::before','counter-increment:sec;content:counter(sec,decimal-leading-zero);font:500 .78rem var(--st-font-num);color:var(--st-accent);letter-spacing:.06em');
-  L('.fig','display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:8px 32px;align-items:start');
-  L('.fig-notes','border-left:1px solid var(--st-rule);padding-left:18px;color:var(--st-ink2);font-size:.9rem');
-  L('.stats','display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:0 28px');
-  L('.stats > div','display:flex;align-items:baseline;gap:8px;padding:6px 0');
-  L('.stats > div::after','content:"";order:2;flex:1 1 20px;border-bottom:1px dotted var(--st-rule2);transform:translateY(-3px)');
-  L('.stats dt','order:1');
-  L('.stats dd','order:3;margin:0;font:600 1rem var(--st-font-num)');
-  L('table','border-top:2px solid var(--st-ink)');
-  L('th','border-bottom:1.5px solid var(--st-ink)');
-  L('tbody tr:nth-child(even)','background:var(--st-sunken)');
-  L('article','padding:18px 0;border-top:1px solid var(--st-rule2)');
-  L('.commentary','border-left:3px solid var(--st-accent);padding:4px 0 4px 16px');
-  L('.grid > section','border-top:1px solid var(--st-rule);padding:8px 0');
-  L('.blk-experts','order:4');
+  // ---- 机构研究简报: a clean institutional sheet. White page, hairline structure,
+  // one navy accent, mono figures, no dotted leaders and no page-wide graph paper.
+  L('body','background:#EDF0F4;font-size:14.5px');
+  L('main','max-width:1120px;margin:28px auto 72px;padding:48px 56px 56px;background:var(--st-surface);border:1px solid #E2E6EB;border-radius:12px;box-shadow:0 20px 50px rgba(17,32,49,.07);counter-reset:sec');
+  L('.masthead','padding:0 0 26px;margin:0;border-bottom:1px solid var(--st-rule)');
+  L('.kicker','font:600 11px/1 var(--st-font-ui);letter-spacing:.22em;color:var(--st-accent)');
+  L('time','display:block;margin-top:9px;font:12px var(--st-font-num);color:var(--st-ink2)');
+  L('h1','font-family:var(--st-font-display);font-size:38px;line-height:1.08;font-weight:650;letter-spacing:-.015em;margin:10px 0 14px');
+  L('.masthead > p:not(.kicker):not(.notice)','color:var(--st-ink2);max-width:64ch;font-size:14px');
+  L('.masthead > .muted','margin-top:10px;font:12.5px var(--st-font-num);color:var(--st-ink2)');
+  L('.stats','display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:24px 0 0;border-top:1px solid var(--st-rule)');
+  L('.stats > div','display:block;padding:14px 16px 12px;border-bottom:1px solid var(--st-rule);border-right:1px solid var(--st-rule)');
+  L('.stats > div:nth-child(4n)','border-right:0');
+  L('.stats > div::after','content:none');
+  L('.stats dt','font-size:11.5px;letter-spacing:.04em;color:var(--st-ink2)');
+  L('.stats dd','margin-top:6px;font:600 26px/1 var(--st-font-num);letter-spacing:-.02em');
+  L('.commentary','margin:26px 0 0;padding:16px 20px;background:#F7F8FA;border:1px solid #E6EAEF;border-left:3px solid var(--st-accent);border-radius:0 8px 8px 0');
+  L('.commentary h2','font:600 12px/1 var(--st-font-ui);letter-spacing:.12em;color:var(--st-ink2);text-transform:uppercase;margin-bottom:8px');
+  L('.blk','margin:36px 0 0;padding:28px 0 0;border-top:1px solid var(--st-rule)');
+  L('.blk > h2','display:flex;align-items:center;gap:12px;padding:0 0 12px;border-bottom:1px solid var(--st-rule);font:600 17px var(--st-font-ui);letter-spacing:-.01em;margin-bottom:16px');
+  L('.blk > h2::before','counter-increment:sec;content:counter(sec,decimal-leading-zero);font:600 12px/1 var(--st-font-num);color:var(--st-accent);background:var(--st-accent-soft);padding:4px 7px;border-radius:5px;letter-spacing:.02em');
+  L('.basis','border:0;background:#EEF2F7;color:#4B5A6B;font:600 11px var(--st-font-ui);padding:4px 9px;border-radius:999px;letter-spacing:.03em');
+  L('.basis-observed','background:#FBF1DE;color:#7A5200;border:0');
+  L('.blk-signals','border-left:0;padding-left:0');
+  L('.fig','grid-template-columns:minmax(0,1fr) 240px;gap:28px;align-items:start');
+  L('.fig-notes','border-left:0;padding-left:0;color:var(--st-ink2);font-size:12px');
+  L('.fig figcaption','margin-top:8px;font-size:11.5px');
+  L('table','border-collapse:separate;border-spacing:0;margin-top:4px;font-size:13.5px');
+  L('thead th','font:600 10.5px/1.3 var(--st-font-ui);letter-spacing:.09em;text-transform:uppercase;color:var(--st-ink2);padding:0 12px 9px;border-bottom:1px solid var(--st-rule2)');
+  L('tbody th, tbody td','padding:11px 12px;border-bottom:1px solid var(--st-rule);vertical-align:middle');
+  L('tbody th[scope=row]','font-weight:600;min-width:150px;line-height:1.35');
+  L('tbody th small','display:block;margin-top:3px;font-weight:400');
+  L('tbody tr:last-child th, tbody tr:last-child td','border-bottom:0');
+  L('tbody tr:hover','background:#FAFBFC');
+  L('td.num,th.num','font-family:var(--st-font-num)');
+  L('.legend','margin-top:10px;gap:6px 16px;font-size:12px');
+  L('.grid','display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 32px;margin:18px 0 0;border-top:1px solid var(--st-rule)');
+  L('.grid > section','padding:14px 0 6px;border:0');
+  L('.grid h3','font:600 11px var(--st-font-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--st-ink2);margin-bottom:8px');
+  L('article','border-top:2px solid var(--st-ink);padding:30px 0 10px;margin:36px 0 0');
+  L('article > h2','font-size:20px;letter-spacing:-.01em;margin:0 0 2px');
+  L('article > h2 small','margin-left:8px;letter-spacing:0');
+  L('article .navdate','font:11.5px var(--st-font-num);color:var(--st-ink2);font-weight:400');
+  L('tbody th small','white-space:nowrap');
+  L('article .stats','grid-template-columns:repeat(4,minmax(0,1fr));margin:14px 0 6px;border-top:0');
+  L('article .stats > div','border:0;padding:0 14px 0 0');
+  L('article .stats dd','font-size:19px;margin-top:4px');
+  L('article .commentary','margin:16px 0 6px');
+  L('footer','margin-top:36px;padding-top:16px;border-top:1px solid var(--st-rule);font-size:12px');
   // ---- 量化交易台: an evening terminal. Status first, dense panels, no decoration.
   D('main','max-width:1240px;padding-top:16px;gap:10px');
   D('h1','font-size:1.1rem;font-weight:600;margin:0');
@@ -225,7 +250,6 @@ function investDailyReviewLayoutCss() {
   D('.commentary','border:1px solid var(--st-rule);border-left:3px solid var(--st-accent);background:var(--st-sunken);padding:8px 12px');
   D('.grid','align-items:start');
   D('.grid > section','background:var(--st-sunken);border:1px solid var(--st-rule)');
-  D('.blk-kpi','order:1');D('.blk-signals','order:2');D('.blk-chart','order:3');D('.blk-experts','order:4');
   const emit=(list,scope)=>list.map(([sel,decl])=>sel.split(',').map(part=>`${scope} ${part.trim()}`.trim()).join(',')+`{${decl}}`).join('\n');
   return [
     emit(rules.light,'body.theme-light'),`@media not (prefers-color-scheme:dark){\n${emit(rules.light,'body.theme-auto')}\n}`,
@@ -256,7 +280,7 @@ svg{width:100%;height:auto;color:var(--st-ink2);display:block}.axis{stroke:var(-
 .legend{display:flex;flex-wrap:wrap;gap:.15em 1em;padding:0;list-style:none;font-size:.88rem;margin-top:6px}
 .table-scroll{overflow-x:auto;margin-top:8px}table{width:100%;border-collapse:collapse;font-size:.92rem}
 th,td{padding:8px 6px;border-bottom:1px solid var(--st-rule);text-align:left;vertical-align:top}th{color:var(--st-ink2);font-weight:600;font-size:.84em}
-th.num,td.num{text-align:right}thead th{white-space:nowrap}td.nw{white-space:nowrap}tbody th{color:var(--st-ink);font-size:inherit}
+th.num,td.num{text-align:right}thead th{white-space:nowrap}td.nw{white-space:nowrap}tbody th{color:var(--st-ink);font-size:inherit}tbody th small{display:block;margin-top:3px;font-weight:400;white-space:nowrap}
 .fig-notes p+p{margin-top:.5em}
 footer{order:9;color:var(--st-ink2);font-size:.88rem;margin-top:8px}
 a:focus-visible,summary:focus-visible{outline:2px solid var(--st-accent);outline-offset:2px}
@@ -379,13 +403,13 @@ function investDailyReviewHtml(report,lang='zh',commentary=null,options=null) {
   const kpiRows=experts.map(expert=>{
     const navDate=investDailyReviewStamp(expert.navDate)===null?'':expert.navDate;
     const count=rows=>number(investDailyReviewRows(rows).length,{maximumFractionDigits:0});
-    return `<tr><th scope="row">${e(investDailyReviewText(expert.name,expert.id)||na)}</th><td class="num">${e(money(expert.nav))}${navDate?`<br><small>${e(navDate)}</small>`:''}</td><td class="num">${ret(expert.totalReturn)}</td><td class="num">${ret(expert.dayReturn)}</td><td class="num">${ret(expert.drawdown)}</td><td class="num">${e(count(expert.buys))} / ${e(count(expert.sells))} / ${e(historical?na:count(expert.queued))}</td></tr>`;
+    return `<tr><th scope="row">${e(investDailyReviewText(expert.name,expert.id)||na)}${navDate?`<small>${e(navDate)}</small>`:''}</th><td class="num">${e(money(expert.nav))}</td><td class="num">${ret(expert.totalReturn)}</td><td class="num">${ret(expert.dayReturn)}</td><td class="num">${ret(expert.drawdown)}</td><td class="num">${e(count(expert.buys))} / ${e(count(expert.sells))} / ${e(historical?na:count(expert.queued))}</td></tr>`;
   }).join('');
   const kpiSection=`<section class="blk blk-kpi"><h2>${e(words.kpiTitle)}<span class="basis basis-settled">${e(words.settledBasis)}</span></h2><p class="muted">${e(words.kpiUnits)}</p>${kpiRows?`<div class="table-scroll"><table><thead><tr><th>${e(words.expert)}</th><th class="num">${e(words.navU)}</th><th class="num">${e(words.totalU)}</th><th class="num">${e(words.dayU)}</th><th class="num">${e(words.ddU)}</th><th class="num">${e(words.actions)}</th></tr></thead><tbody>${kpiRows}</tbody></table></div>`:`<p class="muted">${e(words.noExperts)}</p>`}</section>`;
   const cards=experts.map(expert=>{
     const navDate=investDailyReviewStamp(expert.navDate)===null?'':expert.navDate;
     const warnings=Array.isArray(expert.warnings)?expert.warnings.map(w=>investDailyReviewText(w)).filter(Boolean):[];
-    return `<article><h2>${e(investDailyReviewText(expert.name,expert.id)||na)}</h2><dl class="stats">${[[words.nav,money(expert.nav),navDate,''],[words.day,signed(expert.dayReturn),'',tone(expert.dayReturn)],[words.total,signed(expert.totalReturn),'',tone(expert.totalReturn)],[words.drawdown,signed(expert.drawdown),'',tone(expert.drawdown)]].map(([label,value,session,cls])=>`<div><dt>${e(label)}${session?` <small>${e(session)}</small>`:''}</dt><dd${cls?` class="${cls}"`:''}>${e(value)}</dd></div>`).join('')}</dl>${expertNote(expert)}${warnings.length?`<ul class="warnings">${warnings.map(w=>`<li>${e(w)}</li>`).join('')}</ul>`:''}<div class="grid">${section(words.plans,investDailyReviewRows(expert.plans),row=>statusLabel(row.status))}${section(words.queued,investDailyReviewRows(expert.queued),row=>row.side==='buy'?words.buy:row.side==='sell'?words.sell:'',historical)}${section(words.buys,investDailyReviewRows(expert.buys),row=>money(row.price))}${section(words.sells,investDailyReviewRows(expert.sells),row=>money(row.price))}</div></article>`;
+    return `<article><h2>${e(investDailyReviewText(expert.name,expert.id)||na)}${navDate?` <small class="navdate">${e(navDate)}</small>`:''}</h2><dl class="stats">${[[words.nav,money(expert.nav),''],[words.day,signed(expert.dayReturn),tone(expert.dayReturn)],[words.total,signed(expert.totalReturn),tone(expert.totalReturn)],[words.drawdown,signed(expert.drawdown),tone(expert.drawdown)]].map(([label,value,cls])=>`<div><dt>${e(label)}</dt><dd${cls?` class="${cls}"`:''}>${e(value)}</dd></div>`).join('')}</dl>${expertNote(expert)}${warnings.length?`<ul class="warnings">${warnings.map(w=>`<li>${e(w)}</li>`).join('')}</ul>`:''}<div class="grid">${section(words.plans,investDailyReviewRows(expert.plans),row=>statusLabel(row.status))}${section(words.queued,investDailyReviewRows(expert.queued),row=>row.side==='buy'?words.buy:row.side==='sell'?words.sell:'',historical)}${section(words.buys,investDailyReviewRows(expert.buys),row=>money(row.price))}${section(words.sells,investDailyReviewRows(expert.sells),row=>money(row.price))}</div></article>`;
   }).join('');
   const css=`${INVEST_DAILY_REPORT_TOKEN_CSS}\n${INVEST_DAILY_REPORT_BASE_CSS}\n${investDailyReviewLayoutCss()}`;
   return `<!doctype html>
@@ -426,13 +450,15 @@ function investDailyReviewChart(experts,colors,words,percent) {
       if(value===null){flush();return;}
       const cx=x(i).toFixed(2), cy=y(value).toFixed(2);
       run.push(`${cx},${cy}`);
-      markers.push(`<circle cx="${cx}" cy="${cy}" r="2.8" style="fill:${color}"><title>${e(`${name} · ${axis.get(stamp)} · ${percent(value)}`)}</title></circle>`);
+      if(days.length===1)markers.push(`<circle cx="${cx}" cy="${cy}" r="9" style="fill:${color};opacity:.14"/>`);
+      markers.push(`<circle cx="${cx}" cy="${cy}" r="3.4" style="fill:${color};stroke:var(--st-surface);stroke-width:1.5"><title>${e(`${name} · ${axis.get(stamp)} · ${percent(value)}`)}</title></circle>`);
     });
     flush();
     segments.push(...paths,...markers);
     legend.push(`<li><span style="color:${color}" aria-hidden="true">●</span> ${e(name)}</li>`);
   });
   const dateLabels=days.length===1?[[days[0],380,'middle']]:[[days[0],64,'start'],[days.at(-1),736,'end']];
-  const ticks=lo===hi?[[lo,72]]:[[hi,24],[lo,120]];
-  return `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${e(words.chart)}" viewBox="0 0 750 155">${ticks.map(([value,at])=>`<line class="axis" x1="64" x2="736" y1="${at}" y2="${at}"/><text x="58" y="${at+4}" text-anchor="end" fill="currentColor" font-size="12">${e(percent(value))}</text>`).join('')}${segments.join('')}${dateLabels.map(([day,at,anchor])=>`<text x="${at}" y="144" text-anchor="${anchor}" fill="currentColor" font-size="12">${e(axis.get(day))}</text>`).join('')}</svg><ul class="legend">${legend.join('')}</ul>`;
+  const at=value=>range>0?120-(value/scale-low)/range*96:72;
+  const ticks=[0,.25,.5,.75,1].map(part=>low+range*part).map(value=>[value*scale,at(value)]);
+  return `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${e(words.chart)}" viewBox="0 0 750 156">${ticks.map(([value,y])=>`<line x1="64" x2="736" y1="${y.toFixed(2)}" y2="${y.toFixed(2)}" style="stroke:var(--st-grid);stroke-width:1"/><text x="56" y="${(y+4).toFixed(2)}" text-anchor="end" fill="currentColor" font-size="11">${e(percent(value))}</text>`).join('')}<line class="axis" x1="64" x2="736" y1="120" y2="120" style="stroke:var(--st-rule2)"/>${segments.join('')}${dateLabels.map(([day,pos,anchor])=>`<text x="${pos}" y="146" text-anchor="${anchor}" fill="currentColor" font-size="11">${e(axis.get(day))}</text>`).join('')}</svg><ul class="legend">${legend.join('')}</ul>`;
 }

@@ -115,6 +115,30 @@ def market():
         service.close()
 
 
+def test_fund_quote_route_uses_existing_snapshot_and_cache(market):
+    from fastapi.testclient import TestClient
+    from backend.app import create_app
+    service, feed = market
+    svc = SimpleNamespace(market=service)
+    client = TestClient(create_app(svc))
+    path = "/api/market/fund-quote"
+    response = client.get(path, params={"code": CODE})
+    assert response.status_code == 200
+    assert response.json()["items"][0]["last_price"] == 1.4
+    calls = len(feed.calls)
+    cached = client.get(path, params={"code": CODE}).json()
+    assert cached == service.fund_snapshot(CODE) and cached["cached"]
+    for query in ("", "?code=x", "?code=513290,510300", "?code=513290&code=510300"):
+        response = client.get(path + query)
+        assert response.status_code == 400 and response.json()["code"] == "market_codes"
+    feed.key = ""
+    for source in (service, None):
+        svc.market = source
+        response = client.get(path, params={"code": CODE})
+        assert response.status_code == 503 and response.json()["code"] == "market_not_configured"
+    assert len(feed.calls) == calls
+
+
 def test_default_etf_analysis_does_not_fetch_optional_news_or_index_valuation(market):
     service, feed = market
     result = service.fund_research(CODE)

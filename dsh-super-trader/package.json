@@ -1,6 +1,6 @@
 {
   "name": "dsh-super-trader",
-  "version": "0.35.5",
+  "version": "0.36.0-rc.2",
   "private": true,
   "type": "module",
   "description": "DSH 原生 AI 投研系统：专家自主选股、个股与板块趋势、量化因子预测（1–20根日K方向、支持模型自写因子代码）及专家团队，可移植插件。",
@@ -42,6 +42,7 @@
       "inject": [
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-theme",
         "@deepseek-ai/dsh-client-ui-session",
         "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-workspace"

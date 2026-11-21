@@ -18,9 +18,9 @@ function createAnalysisBridge(ctx, props = {}) {
     const sessions = get('sessions'), layout = get('layout'), uiWorkspace = get('uiWorkspace');
     const input = get('conversation')?.input ?? get('uiConversation')?.input;
     const sessionId = currentResearchSession(ctx, props);
-    if (!sessionId) throw new Error('先在 DSH 选择一个会话，再带入分析；下方内容可手动复制。 / Select a DSH session first.');
+    if (!sessionId) throw new Error('请先选择一个会话，再带入分析；下方内容可手动复制。 / Select a conversation first, or copy the context below.');
     if (typeof input?.requestDraftInitialization !== 'function' || typeof sessions?.retain !== 'function') {
-      throw new Error('当前 DSH 未提供草稿初始化接口，请复制下方上下文到原生对话。 / Draft API unavailable; copy the context into DSH.');
+      throw new Error('当前桌面客户端未提供会话草稿初始化接口，请将下方内容复制到对话中。 / Draft initialization is unavailable in this desktop client; copy the context into the conversation.');
     }
     const navigation = layout?.beginNavigation?.();
     const check = () => { if (navigation?.aborted) throw new Error('导航已取消；未发送分析请求 / Navigation cancelled'); };

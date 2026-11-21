@@ -46,7 +46,8 @@ test('cockpit source is declaration-only and locale keys match in both languages
   assert.doesNotMatch(source,/^(?:import|export|const |let |window\.|document\.)/m);
   const messages=h.api.cockpitMessages();
   assert.deepEqual(Object.keys(messages.zh).sort(),Object.keys(messages.en).sort());
-  assert.match(messages.zh.analyze,/DSH/);
+  // User decision: panel actions use the Super Trader product name in both languages.
+  assert.match(messages.zh.analyze,/Super Trader/);assert.match(messages.en.analyze,/Super Trader/);
   h.store.dispose();
 });
 test('only code, horizon and tab persist; evidence and secrets never enter localStorage',async()=>{

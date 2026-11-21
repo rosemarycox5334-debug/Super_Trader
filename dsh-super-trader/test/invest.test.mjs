@@ -111,7 +111,73 @@ test('ETF research report is accepted with fund quote, forward history and ETF q
   assert.equal(h.store.getSnapshot().target.category,'ETF');assert.match(text(ui(h,'Stock')),/纳指生物科技ETF/);h.store.dispose();
 });
 test('one direct code request obtains independent quote, history, structure and 5/10/20 signals',async()=>{
-  const h=setup();h.store.setCode('601088');await h.store.queryStock();assert.equal(h.requests.length,1);assert.match(h.requests[0].url,/research\/stock\?code=601088$/);const r=h.store.getSnapshot().report.data;assert.equal(r.quote.available,true);assert.deepEqual(clone(r.quant.items.map(i=>i.horizon)),[5,10,20]);assert.equal(r.quant.items[1].result.probability,null);const tree=ui(h,'Stock');assert.match(text(tree),/真实日K/);assert.doesNotMatch(text(tree),/信号一致性/);assert.equal(nodes(tree).filter(n=>n.type==='select').length,0);assert.doesNotMatch(text(tree),/持有交易日/);h.store.dispose();
+  const h=setup();h.store.setCode('601088');await h.store.queryStock();assert.equal(h.requests.length,1);assert.match(h.requests[0].url,/research\/stock\?code=601088$/);const r=h.store.getSnapshot().report.data;assert.equal(r.quote.available,true);assert.deepEqual(clone(r.quant.items.map(i=>i.horizon)),[5,10,20]);assert.equal(r.quant.items[1].result.probability,null);const tree=ui(h,'Stock');
+  // 用户决定：报告保留研究证据，但个股页只展示持续刷新的价格及研究动作。
+  assert.match(text(tree),/当前价格/);assert.doesNotMatch(text(tree),/行情快照|价量结构|真实日K/);assert.doesNotMatch(text(tree),/信号一致性/);assert.equal(nodes(tree).filter(n=>n.type==='select').length,0);assert.doesNotMatch(text(tree),/持有交易日/);h.store.dispose();
+});
+// Clock and transport are local fixtures: no market request or paid research.
+function priceHarness(at,options={}) {
+  let clock=Date.parse(at+'+08:00'),visible='visible';const listeners=new Set(),pending=[];
+  const doc={get visibilityState(){return visible;},addEventListener:(event,fn)=>listeners.add(fn),removeEventListener:(event,fn)=>listeners.delete(fn)};
+  const h=setup({fetch:async(url,init)=>{
+    const u=new URL('http://local'+url),code=u.searchParams.get('code');
+    if(u.pathname.endsWith('/research/stock')){
+      const r=report('stock',code);r.target.category=options.category||'个股';
+      r.quote.data.timestamp=clock;r.quote.data.items=[{code,last_price:1.234,price_change:-.015,price_change_ratio_pct:-1.21,timestamp:clock,...options.row}];return reply(r);
+    }
+    assert.match(u.pathname,/\/market\/(?:fund-quote|quotes)$/);
+    return new Promise(resolve=>pending.push({url,init,resolve}));
+  }});
+  h.setClock(clock);const detach=h.store.mountPrice(doc);
+  return {...h,pending,doc,detach,listeners,next:()=>Array.from(h.timers.values())[0]?.ms,
+    visible(v){visible=v;for(const fn of listeners)fn();},
+    elapse(ms){clock+=ms;h.setClock(clock);},
+    fire(){const [id,{fn,ms}]=Array.from(h.timers)[0];h.timers.delete(id);this.elapse(ms);void fn();},
+    succeed(index,code,price){pending[index].resolve(reply({source:'offline test feed',timestamp:clock,items:[{code,last_price:price,price_change:0,price_change_ratio_pct:0}]}));}
+  };
+}
+test('prices have precise units and signed directions; envelope time never proves a trading date',async()=>{
+  for(const category of ['个股','ETF','LOF']){
+    const h=priceHarness('2026-11-21T18:00:00',{category});await h.store.queryStock('510300');
+    const body=text(ui(h,'Stock'));assert.match(body,/非交易日/);assert.match(body,/最近收盘价/);assert.doesNotMatch(body,/11月21日收盘价/);
+    assert.match(body,category==='个股'?/1\.23 元/:/1\.234 元/);assert.match(body,/−1\.21% 下跌/);assert.match(body,category==='个股'?/−0\.01 元/:/−0\.015 元/);
+    assert.match(body,/行情时间（上海） — 报价未提供此字段/);assert.match(body,/接口响应时间（上海） 2026-11-21 18:00:00/);
+    assert.equal(h.next(),300000);h.fire();assert.match(h.pending[0].url,category==='个股'?/market\/quotes\?codes=510300$/:/market\/fund-quote\?code=510300$/);
+    h.succeed(0,'510300',1.5);await tick();assert.match(text(ui(h,'Stock')),/— 0\.00% 平盘/);h.store.dispose();
+  }
+  const h=priceHarness('2026-11-21T18:00:00',{row:{trade_time:'2026-11-20T07:00:00Z',price_change:1.23,price_change_ratio_pct:2,last_price:null}});
+  await h.store.queryStock('601088');const body=text(ui(h,'Stock'));assert.match(body,/11月20日收盘价/);assert.match(body,/2026-11-20 15:00:00/);assert.match(body,/\+2\.00% 上涨/);assert.match(body,/\+1\.23 元/);assert.doesNotMatch(body,/0\.00 元/);h.store.dispose();
+});
+test('Shanghai session boundaries pause at close and wake exactly at both opens',async()=>{
+  for(const [time,label,delay,after,fetch] of [
+    ['09:29:58','未开盘',2000,'交易中',true],['11:29:58','交易中',2000,'午间休市',false],
+    ['12:59:58','午间休市',2000,'交易中',true],['14:59:58','交易中',2000,'已收盘',false]
+  ]){
+    const h=priceHarness('2026-11-23T'+time);await h.store.queryStock('601088');assert.match(text(ui(h,'Stock')),new RegExp(label));assert.equal(h.requests.length,1);
+    assert.equal(h.next(),delay);h.fire();assert.match(text(ui(h,'Stock')),new RegExp(after));assert.equal(h.pending.length,Number(fetch));
+    if(fetch){h.succeed(0,'601088',12.3);await tick();assert.equal(h.next(),15000);}else assert.ok(h.next()>=298000);
+    h.store.dispose();
+  }
+  const h=priceHarness('2026-11-23T10:00:00',{row:{trade_date:'2026-11-20'}});await h.store.queryStock('601088');assert.match(text(ui(h,'Stock')),/当日无行情/);assert.match(text(ui(h,'Stock')),/2026-11-20/);assert.equal(h.next(),300000);h.store.dispose();
+});
+test('visibility, unmount, navigation, disposal and replacement target cancel stale work; scheme does not reschedule',async()=>{
+  const h=priceHarness('2026-11-23T10:00:00');await h.store.queryStock('601088');assert.equal(h.requests.length,1);const timerId=[...h.timers.keys()][0];
+  h.store.setScheme('dark');assert.equal([...h.timers.keys()][0],timerId);assert.equal(h.requests.length,1);
+  h.visible('hidden');assert.equal(h.timers.size,0);h.elapse(5000);h.visible('visible');assert.equal(h.pending.length,0);assert.equal(h.next(),10000);
+  h.fire();assert.equal(h.next(),undefined);h.visible('visible');assert.equal(h.pending.length,1);h.visible('hidden');assert.ok(h.pending[0].init.signal.aborted);
+  h.elapse(20000);h.visible('visible');assert.equal(h.pending.length,2);h.succeed(0,'601088',99);await tick();assert.doesNotMatch(text(ui(h,'Stock')),/99\.00/);
+  await h.store.queryStock('000001');assert.ok(h.pending[1].init.signal.aborted);h.succeed(1,'601088',88);await tick();assert.doesNotMatch(text(ui(h,'Stock')),/88\.00/);
+  h.fire();h.detach();assert.ok(h.pending[2].init.signal.aborted);assert.equal(h.listeners.size,0);h.store.mountPrice(h.doc);assert.equal(h.pending.length,4);
+  h.store.navigate('experts');assert.ok(h.pending[3].init.signal.aborted);assert.equal(h.listeners.size,0);h.store.mountPrice(h.doc);h.store.dispose();assert.ok(h.pending[4].init.signal.aborted);assert.equal(h.timers.size,0);assert.equal(h.listeners.size,0);
+});
+test('refresh failure keeps last price and both times, backs off to 10 minutes, and recovers',async()=>{
+  const h=priceHarness('2026-11-23T09:35:00',{row:{trade_time:'2026-11-23T09:34:56'}});await h.store.queryStock('601088');
+  let i=0;for(const delay of [30000,60000,120000,240000,480000,600000,600000]){
+    h.fire();h.pending[i++].resolve(reply({error:'feed offline'},503));await tick();assert.equal(h.next(),delay);
+    const body=text(ui(h,'Stock'));assert.match(body,/已过期 · feed offline/);assert.match(body,/1\.23 元/);assert.match(body,/09:34:56/);assert.match(body,/09:35:00/);
+  }
+  h.fire();h.pending[i++].resolve(reply({items:[]}));await tick();assert.equal(h.next(),600000);assert.match(text(ui(h,'Stock')),/已过期 · 未返回/);
+  h.fire();h.succeed(i,'601088',9.87);await tick();assert.equal(h.next(),15000);assert.match(text(ui(h,'Stock')),/9\.87 元/);assert.doesNotMatch(text(ui(h,'Stock')),/已过期/);h.store.dispose();
 });
 test('stock page team button starts Ai个股分析 directly without navigating to experts',async()=>{
   const h=setup(),opened=[];await h.store.queryStock('601088');const beforeTab=h.store.getSnapshot().tab;

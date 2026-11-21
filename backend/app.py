@@ -300,6 +300,15 @@ def create_app(services: Services | None = None) -> FastAPI:
             raise MarketError("行情服务未启用", code="market_not_configured", status=503)
         return market.quotes(codes)
 
+    @app.get("/api/market/fund-quote")
+    def market_fund_quote(request: Request, code: str = ""):
+        market = getattr(svc, "market", None)
+        if market is None:
+            raise MarketError("行情服务未启用", code="market_not_configured", status=503)
+        if len(request.query_params.getlist("code")) > 1:
+            raise MarketError("一次只查询一个上市基金", code="market_codes", status=400)
+        return market.fund_snapshot(code)
+
     @app.get("/api/market/history")
     def market_history(code: str, limit: int = Query(120, ge=5, le=180),
                        adjust: str = "forward"):

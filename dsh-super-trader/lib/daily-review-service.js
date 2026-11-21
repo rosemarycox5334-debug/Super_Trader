@@ -324,8 +324,10 @@ export class DailyReviewService {
       .map(name => name.slice(0, -5)).sort().reverse();
   }
 
-  async html(date) {
+  // `appearance` is presentation only: 'light' | 'dark' | 'auto'. It never touches the frozen record.
+  async html(date, appearance = 'auto') {
     if (!validDate(date)) throw failure('复盘日期无效；请使用 YYYY-MM-DD。', 400);
+    const theme = ['light', 'dark', 'auto'].includes(appearance) ? appearance : 'auto';
     const workspace = await this.workspace();
     const dir = workspace && await reportDirectory(workspace);
     const record = dir && await loadRecord(dir, date, workspace);
@@ -337,7 +339,7 @@ export class DailyReviewService {
     if (typeof this.loadLive === 'function') {
       try { live = await this.loadLive(record.report); } catch { live = null; }
     }
-    return this.renderHtml(record.report, 'zh', await loadCommentary(dir, record), live ? { live } : null);
+    return this.renderHtml(record.report, 'zh', await loadCommentary(dir, record), { theme, ...(live && { live }) });
   }
 
   async publish(sessionId, body) {

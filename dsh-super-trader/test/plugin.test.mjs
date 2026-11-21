@@ -24,7 +24,9 @@ test('mount registers application tools and routes without awaiting backend',asy
   const manager={getState:()=>({phase:'idle'}),ensureBackend(){starts++;return new Promise(()=>{});},dispose:async()=>{disposed++;}};
   const services={tools:{register(t){registered.push(t);return ()=>{};}},webServer:{register(r){routes.push(r);return ()=>{};},getOrigin:()=> 'http://127.0.0.1:57621'}};
   mount({get:k=>services[k],effect(fn){const d=fn();if(d)cleanup.push(d);}},()=>manager);
-  assert.equal(registered.length,29);assert.equal(routes.length,11);
+  assert.equal(registered.length,29);assert.equal(routes.length,12);
+  // The appearance preference route is exact (not a prefix) and sits beside the other client-facing routes.
+  assert.ok(routes.some(r=>r.kind==='exact'&&r.path==='/dsh-super-trader/appearance'));
   // Host WebServer.match appends '/' itself; a trailing slash never matches descendants.
   assert.ok(routes.some(r=>r.kind==='prefix'&&r.path==='/dsh-super-trader/daily-review/report'));
   const proxy=routes.find(r=>r.kind==='prefix'&&r.path.endsWith('/backend'));

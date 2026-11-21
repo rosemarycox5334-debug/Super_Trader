@@ -59,3 +59,6 @@ dsh-super-trader/node_modules/
 *.bak
 _thumbs/
 ~$*
+
+# ---------------- 本机截图/验收临时产物（含个人会话界面） ----------------
+.out-shots/

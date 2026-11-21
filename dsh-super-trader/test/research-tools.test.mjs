@@ -60,6 +60,12 @@ test('name search forwards to authenticated backend directory only',async()=>{
   assert.equal(calls[0][1],'/api/market/search?q=%E7%A5%9E%E5%8D%8E&limit=5');
   assert.equal((await get('st_symbol_search').execute({q:'a'.repeat(61)})).error.code,'invalid_arguments');
 });
+test('fund quote is an exact GET-only proxy route',()=>{
+  const path='/api/market/fund-quote';
+  assert.equal(allowedEndpoint('GET',path),true);
+  for(const method of ['POST','PUT','PATCH','DELETE','HEAD'])assert.equal(allowedEndpoint(method,path),false);
+  assert.equal(allowedEndpoint('GET',path+'/all'),false);
+});
 test('research proxy is explicit read/write allowlist, not a generic API tunnel',()=>{
   for(const path of ['/api/research/stock','/api/research/sector','/api/research/screen','/api/market/sectors','/api/market/search','/api/reviews','/api/reviews/R-1'])assert.equal(allowedEndpoint('GET',path),true);
   assert.equal(allowedEndpoint('POST','/api/reviews/sync'),true);

@@ -1,7 +1,7 @@
 // Same-origin transport only. Business rules remain in the existing backend.
 export const ROOT = '/dsh-super-trader';
 export const READY = new Set(['running', 'external']);
-const READ = /^\/api\/(?:status|portfolios|reviews(?:\/(?!sync$)[^/]+)?|market\/(?:status|quotes|history|search|sectors)|research\/(?:screen|quant-screen|stock|sector)|factors\/(?:stock|rules|library|backtest|universe|results|research\/[^/]+\/transcript)|symbols\/search|quant\/probability|experts|watchlist|journal(?:\/export|\/[^/]+(?:\/review)?)?|jobs(?:\/[^/]+(?:\/stream)?)?|memory(?:\/recall|\/stats)?)$/;
+const READ = /^\/api\/(?:status|portfolios|reviews(?:\/(?!sync$)[^/]+)?|market\/(?:status|quotes|fund-quote|history|search|sectors)|research\/(?:screen|quant-screen|stock|sector)|factors\/(?:stock|rules|library|backtest|universe|results|research\/[^/]+\/transcript)|symbols\/search|quant\/probability|experts|watchlist|journal(?:\/export|\/[^/]+(?:\/review)?)?|jobs(?:\/[^/]+(?:\/stream)?)?|memory(?:\/recall|\/stats)?)$/;
 const WRITE = /^\/api\/(?:reviews\/(?:sync|[^/]+\/judge)|factors\/(?:code|research)|research\/(?:team|select)|watchlist(?:\/analyze)?|experts(?:\/(?:[^/]+|team)\/analyze)?|journal(?:\/[^/]+)?|jobs\/[^/]+\/cancel)$/;
 export function allowedEndpoint(method, pathname) {
   if (method === 'GET') return READ.test(pathname);
@@ -164,6 +164,23 @@ export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, ex
     }catch(error){sendJson(res,error.status||503,error.body??{error:error.message||'AI 专家选股未启动'});}
     finally{res.off('close',close);}
   };
+  // Display preference only (light | dark | system), pushed by the desktop client. Held in memory:
+  // the client re-announces it on every start, and it is never written into report records.
+  const appearanceState = {preference:null};
+  const reportTheme = () => appearanceState.preference==='light'||appearanceState.preference==='dark'?appearanceState.preference:'auto';
+  const appearance = async (req,res) => {
+    if(!trusted(req,origin()))return sendJson(res,403,{error:'仅允许宿主同源请求'});
+    if(!['GET','POST'].includes(req.method))return sendJson(res,405,{error:'GET or POST required'});
+    try {
+      if(req.method==='POST'){
+        const body=await bodyJson(req);
+        if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(key=>key!=='preference')||!['light','dark','system'].includes(body.preference))
+          return sendJson(res,400,{error:'只接受 preference: light | dark | system'});
+        appearanceState.preference=body.preference;
+      }
+      return sendJson(res,200,{preference:appearanceState.preference??'system',synced:appearanceState.preference!==null,reportTheme:reportTheme()});
+    } catch(error) {return sendJson(res,error.status||400,{error:error.message||'无法读取外观偏好'});}
+  };
   const dailyReviewIndex = async (req,res) => {
     if(!trusted(req,origin()))return sendJson(res,403,{error:'仅允许宿主同源请求'});
     if(!['GET','POST'].includes(req.method))return sendJson(res,405,{error:'GET or POST required'});
@@ -178,14 +195,19 @@ export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, ex
   const dailyReviewReport = async (req,res) => {
     if(!trusted(req,origin()))return sendJson(res,403,{error:'仅允许宿主同源请求'});
     if(req.method!=='GET')return sendJson(res,405,{error:'GET required'});
-    const date=new URL(req.url,origin()).pathname.slice((ROOT+'/daily-review/report/').length);
+    const url=new URL(req.url,origin());
+    const date=url.pathname.slice((ROOT+'/daily-review/report/').length);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return sendJson(res,404,{error:'日报不存在'});
+    // Explicit whitelist override wins; otherwise the preference the desktop client last synced
+    // (so original, parameterless links follow the user's choice); otherwise the OS scheme.
+    const asked=url.searchParams.get('theme');
+    const theme=['light','dark','auto'].includes(asked)?asked:reportTheme();
     try {
       if(!dailyReview)return sendJson(res,503,{error:'当前 DSH 未提供日复盘会话服务'});
-      const html=await dailyReview.html(date);
+      const html=await dailyReview.html(date,theme);
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; sandbox"});
       res.end(html);
     } catch(error) {return sendJson(res,error.status||503,{error:error.message||'无法打开日报'});}
   };
-  return {base,proxy,retry,integration,createExpert,createSector,createStock,createWatchlist,createSelection,dailyReviewIndex,dailyReviewReport};
+  return {base,proxy,retry,integration,createExpert,createSector,createStock,createWatchlist,createSelection,dailyReviewIndex,dailyReviewReport,appearance};
 }

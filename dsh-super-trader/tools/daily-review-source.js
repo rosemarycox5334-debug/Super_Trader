@@ -164,39 +164,145 @@ function investDailyReviewReport(date, portfolios, details, {partial=false,histo
   return result;
 }
 
+// Design tokens (both palettes) are injected at build time from assets/design-tokens.json.
+const INVEST_DAILY_REPORT_TOKEN_CSS=/*__REPORT_TOKEN_CSS__*/ '';
+
 function investDailyReviewEscape(value) {
   return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 }
+// One DOM, two layouts. Rules are written once per design and emitted for the explicit class
+// (theme-light / theme-dark) and, for theme-auto, inside the matching prefers-color-scheme query.
+function investDailyReviewLayoutCss() {
+  const rules={light:[],dark:[]};
+  const L=(sel,decl)=>rules.light.push([sel,decl]), D=(sel,decl)=>rules.dark.push([sel,decl]);
+  // ---- 数理研究院: a printed research brief. Serif headings, numbered sections, hairlines.
+  L('','background-image:linear-gradient(var(--st-grid) 1px,transparent 1px),linear-gradient(90deg,var(--st-grid) 1px,transparent 1px);background-size:24px 24px');
+  L('main','max-width:940px;counter-reset:sec');
+  L('h1,h2','font-family:var(--st-font-display)');
+  L('h1','font-size:clamp(1.7rem,4vw,2.45rem);font-weight:600;letter-spacing:.01em;margin:.15em 0 .2em');
+  L('.masthead','padding:0 0 20px;margin-bottom:28px;border-bottom:3px double var(--st-rule2)');
+  L('.kicker','font:600 .72rem var(--st-font-ui);letter-spacing:.2em;color:var(--st-accent)');
+  L('.blk','margin-bottom:30px');
+  L('.blk > h2','display:flex;align-items:baseline;gap:10px;padding:10px 0 8px;margin-bottom:12px;border-top:2px solid var(--st-ink);border-bottom:1px solid var(--st-rule);font-size:1.15rem');
+  L('.blk > h2::before','counter-increment:sec;content:counter(sec,decimal-leading-zero);font:500 .78rem var(--st-font-num);color:var(--st-accent);letter-spacing:.06em');
+  L('.fig','display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:8px 32px;align-items:start');
+  L('.fig-notes','border-left:1px solid var(--st-rule);padding-left:18px;color:var(--st-ink2);font-size:.9rem');
+  L('.stats','display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:0 28px');
+  L('.stats > div','display:flex;align-items:baseline;gap:8px;padding:6px 0');
+  L('.stats > div::after','content:"";order:2;flex:1 1 20px;border-bottom:1px dotted var(--st-rule2);transform:translateY(-3px)');
+  L('.stats dt','order:1');
+  L('.stats dd','order:3;margin:0;font:600 1rem var(--st-font-num)');
+  L('table','border-top:2px solid var(--st-ink)');
+  L('th','border-bottom:1.5px solid var(--st-ink)');
+  L('tbody tr:nth-child(even)','background:var(--st-sunken)');
+  L('article','padding:18px 0;border-top:1px solid var(--st-rule2)');
+  L('.commentary','border-left:3px solid var(--st-accent);padding:4px 0 4px 16px');
+  L('.grid > section','border-top:1px solid var(--st-rule);padding:8px 0');
+  L('.blk-experts','order:4');
+  // ---- 量化交易台: an evening terminal. Status first, dense panels, no decoration.
+  D('main','max-width:1240px;padding-top:16px;gap:10px');
+  D('h1','font-size:1.1rem;font-weight:600;margin:0');
+  D('.masthead','display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 18px;padding:10px 14px;border:1px solid var(--st-rule);background:var(--st-surface)');
+  D('.masthead > p','margin:0;font-size:.82rem');
+  D('.masthead > .kicker','order:3;margin-left:auto;font:600 .68rem var(--st-font-ui);letter-spacing:.16em;color:var(--st-ink2)');
+  D('.masthead > .stats','flex:1 1 100%');
+  D('.masthead > .commentary','flex:1 1 100%');
+  D('.blk','margin:0;padding:10px 14px 12px;border:1px solid var(--st-rule);background:var(--st-surface)');
+  D('.blk > h2','display:flex;align-items:center;gap:8px;margin:0 0 8px;font:600 .72rem var(--st-font-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--st-ink2)');
+  D('.blk > h2::before','content:"";width:3px;height:11px;background:var(--st-accent)');
+  D('.fig','display:block');
+  D('.fig-notes','margin-top:6px;color:var(--st-ink2);font-size:.82rem');
+  D('.stats','display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:0;border:1px solid var(--st-rule);background:var(--st-sunken);margin-top:10px');
+  D('.stats > div','padding:7px 10px;border-right:1px solid var(--st-rule)');
+  D('.stats dt','font-size:.68rem;letter-spacing:.04em;text-transform:none');
+  D('.stats dd','margin:2px 0 0;font:600 1rem var(--st-font-num)');
+  D('table','font-size:.84rem');
+  D('th','background:var(--st-surface);border-bottom:1px solid var(--st-rule2);padding:5px 8px');
+  D('td,th[scope=row]','padding:5px 8px');
+  D('tbody tr:hover','background:var(--st-accent-soft)');
+  D('article','margin:0;padding:10px 14px 12px;border:1px solid var(--st-rule);background:var(--st-surface)');
+  D('article > h2','font-size:.95rem');
+  D('.commentary','border:1px solid var(--st-rule);border-left:3px solid var(--st-accent);background:var(--st-sunken);padding:8px 12px');
+  D('.grid','align-items:start');
+  D('.grid > section','background:var(--st-sunken);border:1px solid var(--st-rule)');
+  D('.blk-kpi','order:1');D('.blk-signals','order:2');D('.blk-chart','order:3');D('.blk-experts','order:4');
+  const emit=(list,scope)=>list.map(([sel,decl])=>sel.split(',').map(part=>`${scope} ${part.trim()}`.trim()).join(',')+`{${decl}}`).join('\n');
+  return [
+    emit(rules.light,'body.theme-light'),`@media not (prefers-color-scheme:dark){\n${emit(rules.light,'body.theme-auto')}\n}`,
+    emit(rules.dark,'body.theme-dark'),`@media (prefers-color-scheme:dark){\n${emit(rules.dark,'body.theme-auto')}\n}`
+  ].join('\n');
+}
+const INVEST_DAILY_REPORT_BASE_CSS=`*{box-sizing:border-box}
+body{margin:0;background:var(--st-paper);color:var(--st-ink);font:15px/1.6 var(--st-font-ui);font-variant-numeric:tabular-nums}
+main{display:flex;flex-direction:column;max-width:1040px;margin:auto;padding:clamp(16px,4vw,44px)}
+h1,h2,h3,h4,p,ul{margin:0}h2{font-size:1.2rem;line-height:1.35}h3{font-size:1rem}p+p,header p{margin-top:.45em}
+time,.muted,small,dt{color:var(--st-ink2)}small{font-size:.82em}dd{margin:0}
+.masthead,.blk,article{margin:0 0 20px}.masthead{min-width:0}.blk-experts{display:flex;flex-direction:column}
+.kicker{margin:0;font-size:.72rem}
+.num{text-align:right;font-family:var(--st-font-num);white-space:nowrap}
+.pos{color:var(--st-up)}.neg{color:var(--st-down)}.zero,.nil{color:var(--st-ink2)}
+.notice,.warnings{color:var(--st-warn)}.warnings{margin-top:.7em;padding-left:1.18em}
+.basis{display:inline-block;margin-left:auto;padding:1px 8px;border:1px solid currentColor;border-radius:var(--st-radius);font:600 .72rem var(--st-font-ui);letter-spacing:.02em;white-space:nowrap}
+.basis-settled{color:var(--st-accent)}.basis-observed{color:var(--st-warn);border-style:dashed}
+.blk > h2 .basis{font-weight:600}
+.blk-signals{border-left:3px dashed var(--st-warn);padding-left:14px}
+.commentary{margin-top:16px;white-space:pre-wrap;overflow-wrap:anywhere}.commentary ul{padding-left:1.18em}.commentary h2,.commentary h3{font-size:1rem}
+.stats,.grid{display:grid;gap:12px;margin:16px 0 0}
+.stats{grid-template-columns:repeat(auto-fit,minmax(min(100%,138px),1fr))}.stats > div{min-width:0}
+.stats dd{font-size:1.15rem;font-weight:650;font-variant-numeric:tabular-nums}
+.grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}.grid > section{min-width:0;padding:10px 12px;overflow-wrap:anywhere}
+.grid ul{padding-left:1.18em}.grid li+li{margin-top:8px}.tag{font-size:.8rem;font-weight:600}
+svg{width:100%;height:auto;color:var(--st-ink2);display:block}.axis{stroke:var(--st-rule2)}
+.legend{display:flex;flex-wrap:wrap;gap:.15em 1em;padding:0;list-style:none;font-size:.88rem;margin-top:6px}
+.table-scroll{overflow-x:auto;margin-top:8px}table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{padding:8px 6px;border-bottom:1px solid var(--st-rule);text-align:left;vertical-align:top}th{color:var(--st-ink2);font-weight:600;font-size:.84em}
+th.num,td.num{text-align:right}thead th{white-space:nowrap}td.nw{white-space:nowrap}tbody th{color:var(--st-ink);font-size:inherit}
+.fig-notes p+p{margin-top:.5em}
+footer{order:9;color:var(--st-ink2);font-size:.88rem;margin-top:8px}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--st-accent);outline-offset:2px}
+@media (max-width:640px){body.theme-light .fig,body.theme-auto .fig{grid-template-columns:minmax(0,1fr)}.fig-notes{border-left:0!important;padding-left:0!important}}
+@media print{body{background:var(--st-surface)!important;background-image:none!important;font-size:12px}main{padding:0;max-width:none}.masthead,.blk,article{break-inside:avoid}.table-scroll{overflow:visible}}`;
 function investDailyReviewHtml(report,lang='zh',commentary=null,options=null) {
   const en=lang==='en', e=investDailyReviewEscape, na='—';
+  const theme=['light','dark','auto'].includes(options?.theme)?options.theme:'auto';
   const words=en?{
-    title:'Daily simulation review',simulation:'Simulation only. Candidate signals and observation returns are not portfolio P&L; only dated ledger fills are buys or sells.',
+    title:'Daily simulation review',kicker:'SIMULATION RESEARCH BRIEF',simulation:'Simulation only. Candidate signals and observation returns are not portfolio P&L; only dated ledger fills are buys or sells.',
     frozen:'Activity records use frozen reasons or system classifications. No new AI commentary was generated by this formatter.',
     commentary:'Commentary',awaiting:'Awaiting AI commentary. Frozen reasons and system classifications are shown below.',watch:'Watch points',
     partial:'Partial report: some records were unavailable or could not be reconstructed.',
     historical:'Historical queue and unresolved plan status snapshots are unavailable here. Dashes are not zeroes.',
     experts:'Experts',triggered:'Triggered',queued:'New queued orders',buys:'Simulated buys',sells:'Simulated sells',pending:'Pending',unverified:'Unverified',selected:'Selected',needs_ai:'Needs verification',ambiguous:'Ambiguous',unavailable:'Unavailable',
     chart:'Settled portfolio cumulative return',chartNote:'Missing points break the line. A single observation is shown only as a marker.',emptyChart:'No settled return points.',
+    chartHow:'Horizontal axis: settled sessions. Vertical axis: cumulative return on each expert’s own capital (%). Gaps are not filled with zero.',
     nav:'Settled NAV (CNY)',day:'Daily return',total:'Cumulative return',drawdown:'Max. observed drawdown',plans:'Plan signals',buy:'Buy',sell:'Sell',
     empty:'No matching records in available data.',missingReason:'No frozen reason supplied.',noExperts:'No expert data available.',
     capital:'Initial capital per expert',signals:'Triggered signals (observation only, not portfolio P&L)',signalCode:'Signal',
-    triggerDay:'Trigger date · condition / close',signalNow:'Return since trigger',signalDrawdown:'Drawdown since trigger',
+    settledBasis:'Settled ledger',observedBasis:'Observation basis',
+    kpiTitle:'Expert NAV and exposure',kpiUnits:'NAV in CNY; returns in %. Every expert keeps an independent simulated capital. These are settled ledger figures.',
+    expert:'Expert',navU:'Settled NAV (CNY)',totalU:'Cumulative (%)',dayU:'Daily (%)',ddU:'Max. drawdown (%)',actions:'Today: buy / sell / queued',
+    triggerDate:'Trigger date',triggerPriceU:'Trigger condition price (CNY)',triggerCloseU:'Close that day (CNY)',livePriceU:'Latest price (CNY)',obsReturnU:'Observed return (%) vs. condition price',obsDdU:'Drawdown since trigger (%)',windowsU:'Matured windows (%)',
+    obsFormula:'Observed return = latest price ÷ trigger condition price − 1. Account profit and loss is shown only by the settled NAV above.',
     matureWindows:'Matured windows',noSignal:'No plan was triggered on or before this cutoff.',
     noMature:'Triggered today: the return starts from the trigger close and no session has matured yet.',
     signalChart:'Triggered signals: equal-weight return by window',
     livePrice:'Latest price',liveNote:'Latest quotes as of',liveFailed:'Latest quotes are unavailable; archived values are shown.',
     liveCurve:'Triggered signals: cumulative return since trigger (equal weight)'
   }:{
-    title:'模拟组合每日复盘',simulation:'仅供模拟复盘。候选信号与观察收益不是组合盈亏；买卖仅依据有日期的模拟成交账本。',
+    title:'模拟组合每日复盘',kicker:'模拟研究简报',simulation:'仅供模拟复盘。候选信号与观察收益不是组合盈亏；买卖仅依据有日期的模拟成交账本。',
     frozen:'活动记录依据冻结理由或系统分类；此排版器未生成新的 AI 点评。',
     commentary:'复盘点评',awaiting:'等待 AI 点评；下方仅展示冻结理由与系统分类。',watch:'后续关注',
     partial:'部分数据未能取得或无法还原。',historical:'无法还原历史排队快照与未决计划状态；横线不代表零。',
     experts:'专家',triggered:'已触发',queued:'当日新排队',buys:'模拟买入',sells:'模拟卖出',pending:'等待触发',unverified:'未验证',selected:'当日入选',needs_ai:'待验证',ambiguous:'条件不明确',unavailable:'数据不可用',
     chart:'已结算组合累计收益',chartNote:'缺值断线，单个观测只显示点位。',emptyChart:'暂无已结算收益点。',
+    chartHow:'横轴：已结算交易日；纵轴：相对各专家独立本金的累计收益（%）。缺失日不补零。',
     nav:'已结算净值（元）',day:'单日收益',total:'累计收益',drawdown:'可观测最大回撤',plans:'计划信号',buy:'买',sell:'卖',
     empty:'可用数据中没有符合条件的记录。',missingReason:'未提供冻结理由。',noExperts:'暂无专家数据。',
     capital:'每位专家本金',signals:'已触发信号跟踪（观察口径，不是组合盈亏）',signalCode:'信号',
-    triggerDay:'触发日 · 条件价 / 收盘',signalNow:'触发以来收益',signalDrawdown:'触发以来回撤',
+    settledBasis:'账户结算口径',observedBasis:'观察口径',
+    kpiTitle:'各专家净值与暴露',kpiUnits:'净值单位：元；收益率单位：%。每位专家独立模拟本金，互不混合。以下均为已结算账本数据。',
+    expert:'专家',navU:'已结算净值（元）',totalU:'累计收益（%）',dayU:'单日收益（%）',ddU:'最大回撤（%）',actions:'当日动作（买 / 卖 / 排队）',
+    triggerDate:'触发日',triggerPriceU:'触发条件价（元）',triggerCloseU:'当日收盘（元）',livePriceU:'最新价（元）',obsReturnU:'观察收益（%）· 相对条件价',obsDdU:'触发以来回撤（%）',windowsU:'已成熟窗口（%）',
+    obsFormula:'观察收益 = 最新价 ÷ 触发条件价 − 1。账户盈亏只看上方各专家的已结算净值，两者口径不同。',
     matureWindows:'已成熟窗口',noSignal:'截至该截点没有已触发的计划。',
     noMature:'当日触发：收益自触发日收盘起算，尚无已走完的交易日。',
     signalChart:'已触发信号：按窗口的等权收益',
@@ -217,11 +323,15 @@ function investDailyReviewHtml(report,lang='zh',commentary=null,options=null) {
   const number=(value,options)=>investDailyReviewNumber(value)===null?na:new Intl.NumberFormat(locale,options).format(value);
   const money=value=>number(value,{minimumFractionDigits:2,maximumFractionDigits:2});
   const percent=value=>number(value,{style:'percent',maximumFractionDigits:2});
+  // Direction is carried by the sign and the word-free glyphs + / − / —, never by colour alone.
+  const signed=value=>{const n=investDailyReviewNumber(value);return n===null?na:(n>0?'+':n<0?'−':'')+new Intl.NumberFormat(locale,{style:'percent',maximumFractionDigits:2}).format(Math.abs(n));};
+  const tone=value=>{const n=investDailyReviewNumber(value);return n===null?'nil':n>0?'pos':n<0?'neg':'zero';};
+  const ret=value=>`<span class="${tone(value)}">${e(signed(value))}</span>`;
   const summary=['experts','triggered','queued','buys','sells','pending','unverified'].map(key=>{
     const count=historical&&['queued','pending','unverified'].includes(key)?na:number(report?.counts?.[key],{maximumFractionDigits:0});
     return `<div><dt>${e(words[key])}</dt><dd>${e(count)}</dd></div>`;
   }).join('');
-  const colors=['#1558a5','#9c3500','#00735d','#8a3593','#796000','#b6204b','#355b68'];
+  const colors=['var(--st-s1)','var(--st-s2)','var(--st-s3)','var(--st-s4)','var(--st-s5)','var(--st-s6)','var(--st-s7)'];
   const chart=investDailyReviewChart(experts,colors,words,percent);
   const statusLabel=key=>typeof key==='string'&&Object.hasOwn(words,key)?words[key]:'—';
   const line=(row,extra)=>`<li><strong>${e([row.code,row.name===row.code?'':row.name].filter(Boolean).join(' '))}</strong>${extra?` <span class="tag">${e(extra)}</span>`:''}<div>${e(investDailyReviewText(row.reason)||words.missingReason)}</div>${investDailyReviewText(row.condition)?`<small>${e(row.condition)}</small>`:''}</li>`;
@@ -245,13 +355,14 @@ function investDailyReviewHtml(report,lang='zh',commentary=null,options=null) {
     const y=value=>120-(value-low)/(high-low)*96;
     const points=liveCurve.map((point,index)=>`${x(index).toFixed(2)},${y(point.value).toFixed(2)}`).join(' ');
     const last=liveCurve.at(-1);
-    return `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${e(words.liveCurve)}" viewBox="0 0 750 155"><line x1="64" x2="736" y1="${y(0).toFixed(2)}" y2="${y(0).toFixed(2)}" stroke="#ccd8e2"/><polyline points="${points}" fill="none" stroke="#1558a5" stroke-width="2"/><circle cx="${x(liveCurve.length-1).toFixed(2)}" cy="${y(last.value).toFixed(2)}" r="3" fill="#1558a5"><title>${e(`${last.date} ${percent(last.value)}`)}</title></circle><text x="58" y="${(y(high)+4).toFixed(1)}" text-anchor="end" fill="currentColor" font-size="12">${e(percent(high))}</text><text x="58" y="${(y(low)+4).toFixed(1)}" text-anchor="end" fill="currentColor" font-size="12">${e(percent(low))}</text><text x="64" y="144" text-anchor="start" fill="currentColor" font-size="12">${e(liveCurve[0].date)}</text><text x="736" y="144" text-anchor="end" fill="currentColor" font-size="12">${e(last.date)}</text></svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${e(words.liveCurve)}" viewBox="0 0 750 155"><line class="axis" x1="64" x2="736" y1="${y(0).toFixed(2)}" y2="${y(0).toFixed(2)}"/><polyline points="${points}" fill="none" style="stroke:var(--st-accent)" stroke-width="2"/><circle cx="${x(liveCurve.length-1).toFixed(2)}" cy="${y(last.value).toFixed(2)}" r="3" style="fill:var(--st-accent)"><title>${e(`${last.date} ${percent(last.value)}`)}</title></circle><text x="58" y="${(y(high)+4).toFixed(1)}" text-anchor="end" fill="currentColor" font-size="12">${e(percent(high))}</text><text x="58" y="${(y(low)+4).toFixed(1)}" text-anchor="end" fill="currentColor" font-size="12">${e(percent(low))}</text><text x="64" y="144" text-anchor="start" fill="currentColor" font-size="12">${e(liveCurve[0].date)}</text><text x="736" y="144" text-anchor="end" fill="currentColor" font-size="12">${e(last.date)}</text></svg>`;
   })();
   const signalRows=signals.map(signal=>{
     const quote=live?.quotes?.[signal.code], livePrice=Number(quote);
     const price=Number.isFinite(livePrice)&&livePrice>0?livePrice:null;
     const nowReturn=price!==null&&signal.triggerPrice>0?price/signal.triggerPrice-1:signal.current;
-    return `<tr><td>${e([signal.code,signal.name===signal.code?'':signal.name].filter(Boolean).join(' '))}<br><small>${e(investDailyReviewText(signal.expertName,signal.expertId))}</small></td><td>${e(investDailyReviewText(signal.triggerDate)||na)}<br><small>${e(money(signal.triggerPrice))}${signal.triggerClose!==null&&signal.triggerClose!==undefined&&Number(signal.triggerClose)!==Number(signal.triggerPrice)?` / ${e(money(signal.triggerClose))}`:''}</small></td><td>${e(price===null?na:money(price))}</td><td>${e(percent(nowReturn))}</td><td>${e(percent(signal.maxDrawdown))}</td><td>${e(windowNames.filter(name=>investDailyReviewNumber(signal.windows?.[name])!==null).map(name=>`${name} ${percent(signal.windows[name])}`).join(' · ')||na)}</td></tr>`;
+    const matured=windowNames.filter(name=>investDailyReviewNumber(signal.windows?.[name])!==null).map(name=>`${e(name)} ${ret(signal.windows[name])}`).join(' · ')||e(na);
+    return `<tr><th scope="row">${e([signal.code,signal.name===signal.code?'':signal.name].filter(Boolean).join(' '))}<br><small>${e(investDailyReviewText(signal.expertName,signal.expertId))}</small></th><td class="nw">${e(investDailyReviewText(signal.triggerDate)||na)}</td><td class="num">${e(money(signal.triggerPrice))}</td><td class="num">${e(money(signal.triggerClose))}</td><td class="num">${e(price===null?na:money(price))}</td><td class="num">${ret(nowReturn)}</td><td class="num">${ret(signal.maxDrawdown)}</td><td>${matured}</td></tr>`;
   }).join('');
   const mature=windowNames.filter(name=>investDailyReviewNumber(signalSummary.windows?.[name])!==null);
   const signalBars=mature.length?`<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${e(words.signalChart)}" viewBox="0 0 750 170">${(()=>{
@@ -261,20 +372,27 @@ function investDailyReviewHtml(report,lang='zh',commentary=null,options=null) {
     return mature.map((name,index)=>{
       const value=values[index], width=600/mature.length*0.5, step=600/mature.length;
       const x=72+step*index+step/2, height=Math.max(2,Math.abs(value)/scale*72), y=value<0?zero:zero-height;
-      return `<rect x="${(x-width/2).toFixed(1)}" y="${y.toFixed(1)}" width="${width.toFixed(1)}" height="${height.toFixed(1)}" fill="${value<0?'#9c3500':'#1558a5'}"><title>${e(`${name} ${percent(value)}`)}</title></rect><text x="${x.toFixed(1)}" y="160" text-anchor="middle" fill="currentColor" font-size="12">${e(name)}</text><text x="${x.toFixed(1)}" y="${(value<0?zero+14:zero-height-6).toFixed(1)}" text-anchor="middle" fill="currentColor" font-size="11">${e(percent(value))}</text>`;
+      return `<rect x="${(x-width/2).toFixed(1)}" y="${y.toFixed(1)}" width="${width.toFixed(1)}" height="${height.toFixed(1)}" style="fill:var(${value<0?'--st-down':'--st-up'})"><title>${e(`${name} ${signed(value)}`)}</title></rect><text x="${x.toFixed(1)}" y="160" text-anchor="middle" fill="currentColor" font-size="12">${e(name)}</text><text x="${x.toFixed(1)}" y="${(value<0?zero+14:zero-height-6).toFixed(1)}" text-anchor="middle" fill="currentColor" font-size="11">${e(signed(value))}</text>`;
     }).join('');
   })()}</svg>`:'';
-  const signalSection=`<figure><h2>${e(words.signals)}</h2><p class="muted">${e(words.simulation)}</p>${signals.length?`<p class="muted">${e(live?`${words.liveNote} ${liveTime}`:words.liveFailed)}</p><div class="table-scroll"><table><thead><tr><th>${e(words.signalCode)}</th><th>${e(words.triggerDay)}</th><th>${e(words.livePrice)}</th><th>${e(words.signalNow)}</th><th>${e(words.signalDrawdown)}</th><th>${e(words.matureWindows)}</th></tr></thead><tbody>${signalRows}</tbody></table></div>${liveChart}${mature.length?signalBars:live?'':`<p class="notice">${e(words.noMature)}</p>`}`:`<p class="muted">${e(words.noSignal)}</p>`}</figure>`;
+  const signalSection=`<section class="blk blk-signals"><h2>${e(words.signals)}<span class="basis basis-observed">${e(words.observedBasis)}</span></h2><p class="muted">${e(words.simulation)}</p>${signals.length?`<p class="muted">${e(live?`${words.liveNote} ${liveTime}`:words.liveFailed)}</p><div class="table-scroll"><table><thead><tr><th>${e(words.signalCode)}</th><th>${e(words.triggerDate)}</th><th class="num">${e(words.triggerPriceU)}</th><th class="num">${e(words.triggerCloseU)}</th><th class="num">${e(words.livePriceU)}</th><th class="num">${e(words.obsReturnU)}</th><th class="num">${e(words.obsDdU)}</th><th>${e(words.windowsU)}</th></tr></thead><tbody>${signalRows}</tbody></table></div><p class="muted">${e(words.obsFormula)}</p>${liveChart}${mature.length?signalBars:live?'':`<p class="notice">${e(words.noMature)}</p>`}`:`<p class="muted">${e(words.noSignal)}</p>`}</section>`;
+  const kpiRows=experts.map(expert=>{
+    const navDate=investDailyReviewStamp(expert.navDate)===null?'':expert.navDate;
+    const count=rows=>number(investDailyReviewRows(rows).length,{maximumFractionDigits:0});
+    return `<tr><th scope="row">${e(investDailyReviewText(expert.name,expert.id)||na)}</th><td class="num">${e(money(expert.nav))}${navDate?`<br><small>${e(navDate)}</small>`:''}</td><td class="num">${ret(expert.totalReturn)}</td><td class="num">${ret(expert.dayReturn)}</td><td class="num">${ret(expert.drawdown)}</td><td class="num">${e(count(expert.buys))} / ${e(count(expert.sells))} / ${e(historical?na:count(expert.queued))}</td></tr>`;
+  }).join('');
+  const kpiSection=`<section class="blk blk-kpi"><h2>${e(words.kpiTitle)}<span class="basis basis-settled">${e(words.settledBasis)}</span></h2><p class="muted">${e(words.kpiUnits)}</p>${kpiRows?`<div class="table-scroll"><table><thead><tr><th>${e(words.expert)}</th><th class="num">${e(words.navU)}</th><th class="num">${e(words.totalU)}</th><th class="num">${e(words.dayU)}</th><th class="num">${e(words.ddU)}</th><th class="num">${e(words.actions)}</th></tr></thead><tbody>${kpiRows}</tbody></table></div>`:`<p class="muted">${e(words.noExperts)}</p>`}</section>`;
   const cards=experts.map(expert=>{
     const navDate=investDailyReviewStamp(expert.navDate)===null?'':expert.navDate;
     const warnings=Array.isArray(expert.warnings)?expert.warnings.map(w=>investDailyReviewText(w)).filter(Boolean):[];
-    return `<article><h2>${e(investDailyReviewText(expert.name,expert.id)||na)}</h2><dl class="stats">${[[words.nav,money(expert.nav),navDate],[words.day,percent(expert.dayReturn)],[words.total,percent(expert.totalReturn)],[words.drawdown,percent(expert.drawdown)]].map(([label,value,session])=>`<div><dt>${e(label)}${session?` <small>${e(session)}</small>`:''}</dt><dd>${e(value)}</dd></div>`).join('')}</dl>${expertNote(expert)}${warnings.length?`<ul class="warnings">${warnings.map(w=>`<li>${e(w)}</li>`).join('')}</ul>`:''}<div class="grid">${section(words.plans,investDailyReviewRows(expert.plans),row=>statusLabel(row.status))}${section(words.queued,investDailyReviewRows(expert.queued),row=>row.side==='buy'?words.buy:row.side==='sell'?words.sell:'',historical)}${section(words.buys,investDailyReviewRows(expert.buys),row=>money(row.price))}${section(words.sells,investDailyReviewRows(expert.sells),row=>money(row.price))}</div></article>`;
+    return `<article><h2>${e(investDailyReviewText(expert.name,expert.id)||na)}</h2><dl class="stats">${[[words.nav,money(expert.nav),navDate,''],[words.day,signed(expert.dayReturn),'',tone(expert.dayReturn)],[words.total,signed(expert.totalReturn),'',tone(expert.totalReturn)],[words.drawdown,signed(expert.drawdown),'',tone(expert.drawdown)]].map(([label,value,session,cls])=>`<div><dt>${e(label)}${session?` <small>${e(session)}</small>`:''}</dt><dd${cls?` class="${cls}"`:''}>${e(value)}</dd></div>`).join('')}</dl>${expertNote(expert)}${warnings.length?`<ul class="warnings">${warnings.map(w=>`<li>${e(w)}</li>`).join('')}</ul>`:''}<div class="grid">${section(words.plans,investDailyReviewRows(expert.plans),row=>statusLabel(row.status))}${section(words.queued,investDailyReviewRows(expert.queued),row=>row.side==='buy'?words.buy:row.side==='sell'?words.sell:'',historical)}${section(words.buys,investDailyReviewRows(expert.buys),row=>money(row.price))}${section(words.sells,investDailyReviewRows(expert.sells),row=>money(row.price))}</div></article>`;
   }).join('');
+  const css=`${INVEST_DAILY_REPORT_TOKEN_CSS}\n${INVEST_DAILY_REPORT_BASE_CSS}\n${investDailyReviewLayoutCss()}`;
   return `<!doctype html>
-<html lang="${en?'en':'zh-CN'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${e(words.title)} · ${e(date)}</title>
+<html lang="${en?'en':'zh-CN'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="${theme==='auto'?'light dark':theme}"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${e(words.title)} · ${e(date)}</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#eef3f7;color:#152438;font:16px/1.55 system-ui,sans-serif}main{max-width:1080px;margin:auto;padding:clamp(16px,4vw,48px)}header,figure,article{margin:0 0 18px;padding:clamp(16px,3vw,28px);background:#fff;border:1px solid #ccdae5;border-radius:14px}h1,h2,h3,h4,p,ul{margin:0}.commentary{margin-top:16px;padding:12px;border:1px solid #ccdae5;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere}.commentary ul{padding-left:1.18em}h1{font-size:clamp(1.5rem,4vw,2.3rem)}h2{font-size:1.25rem}h3{font-size:1rem}p+ p,header p{margin-top:.45em}time,.muted,small,dt{color:#475b71}.notice,.warnings{color:#694300}.stats,.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,138px),1fr));gap:12px;margin:16px 0 0}.stats>div,.grid>section{padding:12px;background:#f2f6fa;border-radius:8px;min-width:0;overflow-wrap:anywhere}.stats dd{margin:0;font-size:1.23rem;font-weight:650;font-variant-numeric:tabular-nums}.grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}.grid ul,.warnings{padding-left:1.18em}.grid li+li{margin-top:8px}.tag{font-size:.8rem;font-weight:600}.warnings{margin-top:.7em}svg{width:100%;height:auto;color:#475b71;display:block}.legend{display:flex;flex-wrap:wrap;gap:.15em 1em;padding:0;list-style:none;font-size:.9rem}footer{color:#475b71;font-size:.9rem}.table-scroll{overflow-x:auto;margin-top:8px}table{width:100%;border-collapse:collapse;font-size:.92rem}th,td{padding:8px 6px;border-bottom:1px solid #d7e2ec;text-align:left;vertical-align:top}th{color:#475b71;font-weight:600;white-space:nowrap}@media print{body{background:#fff}main{padding:0}article,figure{break-inside:avoid}}
-</style></head><body><main><header><time>${e(date)}</time><h1>${e(words.title)}</h1><p>${e(words.simulation)}</p><p class="muted">${e(words.capital)}: ${e(money(report?.capital))} ${e(en?'CNY':'元')} × ${e(number(experts.length,{maximumFractionDigits:0}))}</p>${report?.partial?`<p class="notice">${e(words.partial)}</p>`:''}${historical?`<p class="notice">${e(words.historical)}</p>`:''}<dl class="stats">${summary}</dl><section class="commentary"><h2>${e(words.commentary)}</h2><p class="${commentarySummary?'':'muted'}">${e(commentarySummary||words.awaiting)}</p></section></header><figure><h2>${e(words.chart)}</h2>${chart}<figcaption class="muted">${e(words.chartNote)}</figcaption></figure>${signalSection}${cards||`<p class="muted">${e(words.noExperts)}</p>`}<footer><p>${e(words.frozen)}</p></footer></main></body></html>`;
+${css}
+</style></head><body class="theme-${theme}"><main><header class="masthead"><p class="kicker">${e(words.kicker)}</p><time>${e(date)}</time><h1>${e(words.title)}</h1><p>${e(words.simulation)}</p><p class="muted">${e(words.capital)}: ${e(money(report?.capital))} ${e(en?'CNY':'元')} × ${e(number(experts.length,{maximumFractionDigits:0}))}</p>${report?.partial?`<p class="notice">${e(words.partial)}</p>`:''}${historical?`<p class="notice">${e(words.historical)}</p>`:''}<dl class="stats">${summary}</dl><section class="commentary"><h2>${e(words.commentary)}</h2><p class="${commentarySummary?'':'muted'}">${e(commentarySummary||words.awaiting)}</p></section></header><section class="blk blk-chart"><h2>${e(words.chart)}<span class="basis basis-settled">${e(words.settledBasis)}</span></h2><div class="fig"><figure style="margin:0">${chart}<figcaption class="muted">${e(words.chartNote)}</figcaption></figure><aside class="fig-notes"><p>${e(words.chartHow)}</p></aside></div></section>${kpiSection}${signalSection}<section class="blk-experts">${cards||`<p class="muted">${e(words.noExperts)}</p>`}</section><footer><p>${e(words.frozen)}</p></footer></main></body></html>`;
 }
 
 function investDailyReviewChart(experts,colors,words,percent) {
@@ -302,13 +420,13 @@ function investDailyReviewChart(experts,colors,words,percent) {
     const color=colors[index%colors.length];
     const paths=[], markers=[];
     let run=[];
-    const flush=()=>{if(run.length>1)paths.push(`<polyline points="${run.join(' ')}" fill="none" stroke="${color}" stroke-width="2"/>`);run=[];};
+    const flush=()=>{if(run.length>1)paths.push(`<polyline points="${run.join(' ')}" fill="none" style="stroke:${color}" stroke-width="2"/>`);run=[];};
     days.forEach((stamp,i)=>{
       const value=points.get(stamp)??null;
       if(value===null){flush();return;}
       const cx=x(i).toFixed(2), cy=y(value).toFixed(2);
       run.push(`${cx},${cy}`);
-      markers.push(`<circle cx="${cx}" cy="${cy}" r="2.8" fill="${color}"><title>${e(`${name} · ${axis.get(stamp)} · ${percent(value)}`)}</title></circle>`);
+      markers.push(`<circle cx="${cx}" cy="${cy}" r="2.8" style="fill:${color}"><title>${e(`${name} · ${axis.get(stamp)} · ${percent(value)}`)}</title></circle>`);
     });
     flush();
     segments.push(...paths,...markers);
@@ -316,5 +434,5 @@ function investDailyReviewChart(experts,colors,words,percent) {
   });
   const dateLabels=days.length===1?[[days[0],380,'middle']]:[[days[0],64,'start'],[days.at(-1),736,'end']];
   const ticks=lo===hi?[[lo,72]]:[[hi,24],[lo,120]];
-  return `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${e(words.chart)}" viewBox="0 0 750 155">${ticks.map(([value,at])=>`<line x1="64" x2="736" y1="${at}" y2="${at}" stroke="#ccd8e2"/><text x="58" y="${at+4}" text-anchor="end" fill="currentColor" font-size="12">${e(percent(value))}</text>`).join('')}${segments.join('')}${dateLabels.map(([day,at,anchor])=>`<text x="${at}" y="144" text-anchor="${anchor}" fill="currentColor" font-size="12">${e(axis.get(day))}</text>`).join('')}</svg><ul class="legend">${legend.join('')}</ul>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${e(words.chart)}" viewBox="0 0 750 155">${ticks.map(([value,at])=>`<line class="axis" x1="64" x2="736" y1="${at}" y2="${at}"/><text x="58" y="${at+4}" text-anchor="end" fill="currentColor" font-size="12">${e(percent(value))}</text>`).join('')}${segments.join('')}${dateLabels.map(([day,at,anchor])=>`<text x="${at}" y="144" text-anchor="${anchor}" fill="currentColor" font-size="12">${e(axis.get(day))}</text>`).join('')}</svg><ul class="legend">${legend.join('')}</ul>`;
 }

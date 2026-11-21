@@ -22,10 +22,11 @@ test('existing draft never overwritten, error is actionable and reference releas
   assert.deepEqual(calls.map(c=>c[0]),['retain','draft','release']);
 });
 test('does not select a random background or ambiguous retained session',async()=>{
+  // User decision: desktop capability errors use neutral wording, not a product name.
   const {make,calls}=setup({entries:[{id:'background',retainedBy:{controllerOperation:1}}]});
-  await assert.rejects(make({})('context'),/先在 DSH 选择/);assert.equal(calls.length,0);
+  await assert.rejects(make({})('context'),/请先选择一个会话/);assert.equal(calls.length,0);
   const ambiguous=setup({entries:[{id:'A',retainedBy:{mainView:1}},{id:'B',retainedBy:{mainView:1}}]});
-  await assert.rejects(ambiguous.make({})('context'),/先在 DSH 选择/);
+  await assert.rejects(ambiguous.make({})('context'),/请先选择一个会话/);
 });
 test('session-scoped props take precedence, unavailable API keeps copy fallback',async()=>{
   const {make,calls}=setup();await make({sessionId:'S2'})('context');assert.equal(calls[0][1],'S2');

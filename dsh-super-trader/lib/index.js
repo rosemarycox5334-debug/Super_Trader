@@ -112,6 +112,7 @@ export function mount(ctx, createManager = () => new BackendManager()) {
         const handlers = createHandlers(manager,() => web.getOrigin(),undefined,expertCreation,sectorAnalysis,stockAnalysis,watchlistAnalysis,selectionAnalysis,thsStatus,dailyReview);
         disposers.push(web.register({kind:'exact',path:ROOT+'/daily-review',handler:handlers.dailyReviewIndex}));
         disposers.push(web.register({kind:'prefix',path:ROOT+'/daily-review/report',handler:handlers.dailyReviewReport}));
+        disposers.push(web.register({kind:'exact',path:ROOT+'/appearance',handler:handlers.appearance}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/base',handler:handlers.base}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/retry',handler:handlers.retry}));
         disposers.push(web.register({kind:'exact',path:ROOT+'/expert-creation',handler:handlers.createExpert}));

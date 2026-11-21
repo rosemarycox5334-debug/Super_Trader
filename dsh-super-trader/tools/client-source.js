@@ -177,7 +177,12 @@ window.__ModuleLoader__.load({
     const dicts=Object.fromEntries(Object.keys(messages).map(lang=>[lang,{...oldMessages[lang],...messages[lang],...appearanceText[lang]}]));
     function apply(ctx) {
       const panelIds={screen:'dsh-super-trader',stock:'dsh-super-trader-stock',sectors:'dsh-super-trader-sectors',factors:'dsh-super-trader-factors',experts:'dsh-super-trader-experts',watchlist:'dsh-super-trader-watchlist',review:'dsh-super-trader-review',journal:'dsh-super-trader-journal',settings:'dsh-super-trader-settings'};
-      const store=createInvestStore({onNavigate:tab=>ctx.layout.selectPanel(panelIds[tab])});
+      // Archived Sessions disappear from the visible Session list; the review entry uses
+      // that fact to ask for a fresh conversation instead of reopening a dead identity.
+      const sessionOpenable=sessionId=>{
+        try{const snapshot=ctx.get?.('sessions')?.list?.getSnapshot?.();return !!snapshot?.byId?.[sessionId];}catch{return true;}
+      };
+      const store=createInvestStore({onNavigate:tab=>ctx.layout.selectPanel(panelIds[tab]),sessionOpenable});
       // The preserved store is explicitly initialized, and subscribed only in legacy tabs.
       const oldStore=createCockpitStore();
       const {Journal,Settings}=createCockpitComponents(React,oldStore);

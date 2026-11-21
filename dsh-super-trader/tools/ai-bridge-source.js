@@ -44,8 +44,15 @@ function createAnalysisBridge(ctx, props = {}) {
 function createExpertSessionBridge(ctx) {
   let uiWorkspace;try{uiWorkspace=ctx.get?.('uiWorkspace')??ctx.uiWorkspace;}catch{}
   if(typeof uiWorkspace?.openSession!=='function')return undefined;
-  const open=function openExpertSession(sessionId) {
+  const open=function openExpertSession(sessionId,workspaceId) {
     if(typeof sessionId!=='string'||!sessionId)throw new Error('缺少 AI 专家创建会话标识');
+    // A session can live in another workspace (the review workspace): open that workspace
+    // first, otherwise opening the session alone may be a no-op for the current one.
+    if(typeof workspaceId==='string'&&workspaceId&&typeof uiWorkspace.openWorkspace==='function'){
+      uiWorkspace.openWorkspace(workspaceId).then(()=>uiWorkspace.openSession(sessionId),
+        ()=>uiWorkspace.openSession(sessionId)).catch(()=>{});
+      return;
+    }
     uiWorkspace.openSession(sessionId);
   };
   open.begin=()=>{try{return (ctx.get?.('layout')??ctx.layout)?.beginNavigation?.();}catch{}};

@@ -26,26 +26,37 @@ async function setup(t, { prompt, create, inspect } = {}) {
       return row;
     },
   };
+  const visible = new Set();
   const sessions = {
     async create(data) {
       calls.create.push(data);
-      return create ? create(data) : { sessionId: `review-session-${calls.create.length}` };
+      const value = create ? create(data) : { sessionId: `review-session-${calls.create.length}` };
+      if (value?.sessionId) visible.add(value.sessionId);
+      return value;
     },
     async rename(data) { calls.rename.push(data); },
     async prompt(data, signal) {
       calls.prompt.push({ ...data, signal });
       return prompt ? prompt(data) : { accepted: true };
     },
-    async list(data, signal) { calls.list.push({ data, signal }); return { items: [] }; },
+    // Session history the panel can actually reopen; archiving removes a row from this list.
+    async list(data, signal) { calls.list.push({ data, signal }); return { items: [...visible].map(sessionId => ({ sessionId })) }; },
     inspect,
   };
-  const h = { report: source(), root, calls, workspaces, workspaceRows, sessions };
+  const archived = new Set();
+  const archive = {
+    // One baseline frame answers the archive question; the service aborts the stream after it.
+    async *follow() { yield { type: 'baseline', value: { items: [], archivedSessionIds: [...archived] } }; },
+  };
+  const h = { report: source(), root, calls, workspaces, workspaceRows, sessions, archived };
   h.restart = (options = {}) => new DailyReviewService({
-    workspaces, sessions, workingDirectory: { defaultDirectory: root },
+    workspaces, sessions, archive, workingDirectory: { defaultDirectory: root },
     loadReport() { calls.load.push(true); return h.report; },
     renderHtml(report, lang, commentary) { return JSON.stringify({ report, lang, commentary }); },
     ...options,
   });
+  h.hideSession = sessionId => visible.delete(sessionId);
+  h.archiveSession = sessionId => archived.add(sessionId);
   h.service = h.restart();
   return h;
 }
@@ -102,6 +113,32 @@ test('one start prompts immediately, shares the flight, and durably reopens the 
   assert.equal(h.calls.workspace.length, 1);
 });
 
+test('an archived conversation is replaced by a new one for the same frozen date', async t => {
+  const h = await setup(t);
+  const first = await h.service.start();
+  assert.equal(first.sessionId, 'review-session-1');
+  h.archiveSession(first.sessionId);
+  const again = await h.restart().start();
+  assert.deepEqual(again, { date: DATE, workspaceId: 'workspace-review', sessionId: 'review-session-2', reportUrl: URL, reused: false, replaced: true });
+  assert.equal(h.calls.create.length, 2);
+  assert.equal(h.calls.prompt.length, 2);
+  assert.equal(h.calls.prompt[1].sessionId, 'review-session-2');
+  assert.equal(JSON.parse(JSON.stringify(h.calls.prompt[1].content[0].text)).includes('冻结理由'), true);
+  const reopened = await h.restart().start();
+  assert.deepEqual(reopened, { date: DATE, workspaceId: 'workspace-review', sessionId: 'review-session-2', reportUrl: URL, reused: true });
+  assert.equal(h.calls.create.length, 2);
+});
+
+test('an explicit restart replaces a still-visible conversation for the same date', async t => {
+  const h = await setup(t);
+  const first = await h.service.start();
+  const again = await h.restart().start({ restart: true });
+  assert.deepEqual(again, { date: DATE, workspaceId: 'workspace-review', sessionId: 'review-session-2', reportUrl: URL, reused: false, replaced: true });
+  assert.notEqual(again.sessionId, first.sessionId);
+  assert.equal(h.calls.create.length, 2);
+  assert.equal(h.calls.prompt.length, 2);
+});
+
 test('ambiguous admission is not resubmitted, even by a new service; base report and session link survive', async t => {
   const h = await setup(t, { prompt() { throw new Error('ack was lost'); } });
   const ambiguous = error => error.status === 409 && error.body.sessionId === 'review-session-1' && error.body.reportUrl === URL;
@@ -109,7 +146,7 @@ test('ambiguous admission is not resubmitted, even by a new service; base report
   await assert.rejects(h.restart().start(), ambiguous);
   assert.equal(h.calls.create.length, 1);
   assert.equal(h.calls.prompt.length, 1);
-  assert.equal(h.calls.list.length, 2);
+  assert.ok(h.calls.list.length >= 2);
   assert.equal((await h.restart().history()).items[0].status, 'submitting');
   assert.equal(JSON.parse(await h.restart().html(DATE)).commentary, null);
 });

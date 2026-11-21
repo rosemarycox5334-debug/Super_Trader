@@ -163,13 +163,13 @@ async function loadCommentary(dir, record) {
   return normalizeCommentary(saved.commentary, record.report);
 }
 
-const receipt = (record, reused) => ({ date: record.date, workspaceId: record.workspaceId,
-  sessionId: record.sessionId, reportUrl: reportUrl(record.date), reused });
+const receipt = (record, reused, extra) => ({ date: record.date, workspaceId: record.workspaceId,
+  sessionId: record.sessionId, reportUrl: reportUrl(record.date), reused, ...extra });
 const recoverableError = (record, message, status = 503) => failure(message, status, { error: message, ...receipt(record, true) });
 
 export class DailyReviewService {
-  constructor({ workspaces, sessions, workingDirectory, loadReport, renderHtml, reportOrigin, loadLive }) {
-    Object.assign(this, { workspaces, sessions, workingDirectory, loadReport, renderHtml, reportOrigin, loadLive });
+  constructor({ workspaces, sessions, archive, workingDirectory, loadReport, renderHtml, reportOrigin, loadLive }) {
+    Object.assign(this, { workspaces, sessions, archive, workingDirectory, loadReport, renderHtml, reportOrigin, loadLive });
     // Retain a known ID through an in-process disk failure immediately after Session creation.
     this.createdSessions = new Map();
   }
@@ -195,12 +195,13 @@ export class DailyReviewService {
     return workspace;
   }
 
-  async start() {
+  async start(options = {}) {
     const key = this.workspaces;
     if (!object(key) && typeof key !== 'function') throw failure('当前 DSH 未提供工作区接口。');
+    const restart = options?.restart === true;
     const active = activeStarts.get(key);
     if (active) return { ...await active, reused: true };
-    const pending = this.run();
+    const pending = this.run(restart);
     activeStarts.set(key, pending);
     try { return await pending; }
     finally { if (activeStarts.get(key) === pending) activeStarts.delete(key); }
@@ -215,7 +216,42 @@ export class DailyReviewService {
     return '';
   }
 
-  async run() {
+  // An archived Session is no longer part of the visible list, and it cannot be reopened
+  // from the panel. Reusing it would leave the user with a dead link, so a stored record
+  // whose Session disappeared is rebuilt as a new conversation for the same frozen date.
+  async sessionVisible(sessionId) {
+    // The Workspace controller owns the archive set; its follow stream opens with a full
+    // baseline, so one frame answers "was this conversation archived?" authoritatively.
+    if (typeof this.archive?.follow === 'function') {
+      const controller = new AbortController();
+      try {
+        for await (const frame of this.archive.follow(controller.signal)) {
+          const archived = frame?.type === 'baseline' ? frame.value?.archivedSessionIds
+            : frame?.type === 'archived' ? frame.archivedSessionIds : null;
+          if (Array.isArray(archived)) return !archived.includes(sessionId);
+          break;
+        }
+      } catch { /* fall through to the visible-list check */ }
+      finally { controller.abort(); }
+    }
+    if (typeof this.sessions?.list !== 'function') return true;
+    try {
+      const view = await this.sessions.list({}, new AbortController().signal);
+      if (!Array.isArray(view?.items)) return true;
+      return view.items.some(item => item?.sessionId === sessionId);
+    } catch { return true; }
+  }
+
+  // Replace only the conversation pointer: the frozen report payload and its commentary
+  // belong to the old session, so the commentary file is removed with the pointer.
+  async replaceConversation(record, dir) {
+    await unlink(commentaryPath(dir, record.date)).catch(() => {});
+    const next = { ...record, sessionId: null, requestId: randomUUID(), state: 'creating' };
+    await saveJson(recordPath(dir, record.date), next);
+    return next;
+  }
+
+  async run(restart = false) {
     if (typeof this.loadReport !== 'function') throw failure('当前未配置复盘数据来源。');
     const loaded = await this.loadReport();
     const date = loaded?.date;
@@ -223,17 +259,37 @@ export class DailyReviewService {
     const workspace = await this.workspace(true);
     const dir = await reportDirectory(workspace, true);
     const file = recordPath(dir, date);
-    let record = await loadRecord(dir, date, workspace);
-    if (record?.state === 'accepted') return receipt(record, true);
-    if (record?.state === 'submitting') {
+    let record = await loadRecord(dir, date, workspace), restarted = false;
+    // A stored identity that is no longer visible was archived or deleted; it cannot be
+    // reopened from the panel, so it is replaced instead of reported as a reuse.
+    // `restart` comes from the panel when the stored conversation is not openable
+    // (for example the user archived it); it must not reuse a dead identity.
+    const stale = !!record && (restart || (record.state !== 'creating' && !await this.sessionVisible(record.sessionId)));
+    if (typeof this.sessions?.create !== 'function' || typeof this.sessions?.prompt !== 'function') {
+      if (stale) throw failure('当前 DSH 未提供会话创建或启动接口。');
+    }
+    if (!stale && record?.state === 'accepted') return receipt(record, true);
+    if (!stale && record?.state === 'submitting') {
       if (await this.confirmAdmission(dir, record)) {
         await saveJson(file, { ...record, state: 'accepted' });
         return receipt(record, true);
       }
       throw await this.uncertainAdmission(record);
     }
-    if (typeof this.sessions?.create !== 'function' || typeof this.sessions?.prompt !== 'function') {
-      throw failure('当前 DSH 未提供会话创建或启动接口。');
+    if (stale) {
+      record = await this.replaceConversation(record, dir);
+      try {
+        const created = await this.sessions.create({ workspaceId: workspace.id });
+        if (!id(created?.sessionId)) throw new Error('missing session id');
+        this.createdSessions.set(record.requestId, created.sessionId);
+      } catch (error) {
+        if (error?.code === 'gateway/bad-request' || error?.code === 'gateway/cancelled') {
+          await unlink(file);
+          throw failure('DSH 未创建复盘会话，可重试。');
+        }
+        throw recoverableError(record, 'DSH 未确认复盘会话的创建结果。为避免重复创建，请检查“AI 专家复盘”工作区。');
+      }
+      restarted = true;
     }
     if (!record) {
       const report = JSON.parse(JSON.stringify(loaded));
@@ -282,7 +338,7 @@ export class DailyReviewService {
     if (result?.accepted !== true && !await this.confirmAdmission(dir, submitted)) throw await this.uncertainAdmission(submitted);
     try { await saveJson(file, { ...record, state: 'accepted' }); }
     catch { throw recoverableError(record, 'AI 已接收复盘消息，但回执暂未能保存。请打开原会话，不必重发。'); }
-    return receipt(record, false);
+    return receipt(record, false, restarted ? { replaced: true } : undefined);
   }
 
   async confirmAdmission(dir, record) {
@@ -314,7 +370,7 @@ export class DailyReviewService {
     const items = [];
     for (const date of await this.dates(dir)) {
       const record = await loadRecord(dir, date, workspace);
-      if (record?.sessionId) items.push({ ...receipt(record, true), status: record.state });
+      if (record?.sessionId && await this.sessionVisible(record.sessionId)) items.push({ ...receipt(record, true), status: record.state });
     }
     return { items };
   }

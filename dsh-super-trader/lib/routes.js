@@ -188,8 +188,11 @@ export function createHandlers(manager, origin, fetchImpl = globalThis.fetch, ex
     try {
       if(req.method==='GET')return sendJson(res,200,await dailyReview.history());
       const body=await bodyJson(req);
-      if(body!==undefined&&(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).length))return sendJson(res,400,{error:'立即复盘不接受日期或其他参数'});
-      return sendJson(res,200,await dailyReview.start());
+      // `restart` is the ONLY accepted field: it replaces an unopenable conversation
+      // (for example one the user archived) instead of reusing it.
+      if(body!==undefined&&(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(key=>key!=='restart')||
+        (body.restart!==undefined&&typeof body.restart!=='boolean')))return sendJson(res,400,{error:'立即复盘只接受可选的 restart 布尔值'});
+      return sendJson(res,200,await dailyReview.start({restart:body?.restart===true}));
     } catch(error) {return sendJson(res,error.status||503,error.body??{error:error.message||'无法访问复盘会话'});}
   };
   const dailyReviewReport = async (req,res) => {

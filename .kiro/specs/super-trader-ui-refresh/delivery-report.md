@@ -1,10 +1,10 @@
-# 交付报告 · 桌面外观样张（0.36.0-rc.2）
+# 交付报告 · 桌面外观样张（0.36.0-rc.4）
 
 阶段：第一个检查点（外壳、专家选股、个股/ETF 价格区、品牌）。其余板块与日报结构样式**未**按浅色重排，仅随共享令牌换色；等用户确认样张。
 
 ## ① 实际包
 
-- 文件：`dsh-super-trader/.out/dsh-super-trader-0.36.0-rc.2.tgz`（554 KiB），SHA-256 `6C487712563B58E460E6AE6E32F55E46482FB2F0334472E90D2BFF38ADB23E2F`。
+- 文件：`dsh-super-trader/.out/dsh-super-trader-0.36.0-rc.4.tgz`（554 KiB），SHA-256 `A12515CE90630CC283B6E39A6E23265A0658F59FEA86B7B15A29965A096A5AC8`。
 - 构建：`npm run build`（含 `build-runtime`，61 个白名单文件）+ `npm pack --ignore-scripts`。
 - 独立校验：`node tools/verify-packed.mjs <tgz>` 解包后启动打包运行时，通过；含基金报价未配置时 503 路径。
 - 当前桌面已加载同一份源码（profile 内为指向源码目录的符号链接，`set_bundle` 禁用/启用即重载）。

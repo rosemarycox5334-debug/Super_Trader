@@ -52,8 +52,8 @@ function investBatchMessages(lang) {
     reviewJudgeBatch:'Re-assess the batch (may incur fees)',reviewJudgeBatchConfirm:'Re-assess {n} complex plans in this batch. The model is called and may cost money. Continue?',reviewJudgeBatchRunning:'Assessing the batch…',reviewJudgeBatchResult:'Re-assessed {judged}, skipped {skipped}, failed {errors}.',reviewJudgeBatchEmpty:'This batch has no complex plans to assess.',reviewJudge:'Run AI assessment now (may incur fees)',reviewJudgeHelp:'Complex conditions only. It runs automatically once after each close (from 15:05 Shanghai); this button checks immediately and may cost.',reviewJudgeRunning:'Assessing this plan…',reviewJudgeUnavailable:'The model already assessed this plan. See the evidence.',reviewJudgeResult:'{judged} assessed, {skipped} skipped, {errors} failed.',reviewComparison:'Prior review comparison',reviewOpenSource:'Open source review',reviewPerformance:'Post-trigger performance',reviewDays:'{n}d',reviewFailedPlan:'Plan assessment failed',reviewSelectedAt:'Selection finished',reviewInvalidationObserved:'Invalidation date / observed close',reviewTriggerObserved:'Trigger date / observed close',reviewNotFill:'Observed price, not a trade fill.',reviewAiThrough:'Prices used by the model through',reviewSummaryOutcome:'20-session results: {up} up, {down} down, {flat} unchanged',reviewNextNone:'No plans to track; refresh after another selection is archived',reviewBaseline:'The benchmark includes reference moves and is not a portfolio return.',
   });
   const daily=lang==='zh'?{
-    dailyRun:'立即进行 AI 复盘',dailyStarting:'正在启动复盘…',dailyIntro:'复盘最近一个已有收盘数据的交易日。已有会话会直接打开，不重复执行。',dailyHistory:'历史复盘日期',dailyChoose:'选择日期，直接打开会话',dailyEmpty:'还没有复盘会话。',dailySessionMissing:'当前无法打开会话。',dailyReturn:'返回复盘日期',
-  }:{dailyRun:'Run AI review now',dailyStarting:'Starting review…',dailyIntro:'Review the latest session with closing data. Reopen its existing conversation instead of running twice.',dailyHistory:'Past review dates',dailyChoose:'Choose a date to open its conversation',dailyEmpty:'No review conversations yet.',dailySessionMissing:'Conversation navigation is unavailable.',dailyReturn:'Back to review dates'};
+    dailyRun:'立即进行 AI 复盘',dailyStarting:'正在启动复盘…',dailyIntro:'复盘最近一个已有收盘数据的交易日。已有会话会直接打开，不重复执行。',dailyHistory:'历史复盘日期',dailyChoose:'选择日期，直接打开会话',dailyEmpty:'还没有复盘会话。',dailySessionMissing:'当前无法打开会话。',dailyOpenCancelled:'复盘已就绪，但自动打开被取消；请从下方历史日期打开。',dailyOpenFailed:'复盘已就绪，但无法自动打开会话；请从下方历史日期打开，或刷新后重试。',dailySessionId:'会话',dailyReturn:'返回复盘日期',
+  }:{dailyRun:'Run AI review now',dailyStarting:'Starting review…',dailyIntro:'Review the latest session with closing data. Reopen its existing conversation instead of running twice.',dailyHistory:'Past review dates',dailyChoose:'Choose a date to open its conversation',dailyEmpty:'No review conversations yet.',dailySessionMissing:'Conversation navigation is unavailable.',dailyOpenCancelled:'The review is ready, but the automatic opening was cancelled; open it from the past dates below.',dailyOpenFailed:'The review is ready, but the conversation could not be opened; open it from the past dates below, or refresh and retry.',dailySessionId:'Conversation',dailyReturn:'Back to review dates'};
   return {...(lang==='zh'?zh:en),...investPortfolioMessages(lang),...daily};
 }
 function investPortfolioMessages(lang) {
@@ -544,7 +544,7 @@ function createInvestStore(options) {
       if(!response.ok){receipt=data?.sessionId?data:null;throw Error(investText(data?.error||'AI 创建未启动'));}
       if(data?.submitted!==true||data.status!=='accepted'||typeof data.sessionId!=='string'||typeof data.workspaceId!=='string')throw Error('未收到有效的任务受理回执；请重试同一请求。');
       receipt=data;publish({expertCreating:false,expertResearch:{...r,phase:'accepted',requestId,data,error:null}});
-      if(!disposed&&!navigation?.aborted)await onOpenSession(data.sessionId);
+      if(!disposed&&!navigation?.aborted)await onOpenSession(data.sessionId,data.workspaceId);
       return data;
     }catch(error){
       publish({expertResearch:{...r,phase:receipt?.submitted?'accepted':'error',requestId,data:receipt,error:investText(error?.message||error)}});
@@ -565,7 +565,7 @@ function createInvestStore(options) {
       if(!response.ok){const sessionId=data?.sessionId||a.sessionId||null;throw Object.assign(Error(investText(data?.error||'AI 板块分析未启动')),{sessionId});}
       if(data?.submitted!==true||typeof data.sessionId!=='string'||typeof data.workspaceId!=='string')throw Error('未收到有效的分析受理回执');
       publish({sectorAi:{phase:'ready',sessionId:data.sessionId,requestId,error:null}});
-      await onOpenSession(data.sessionId);
+      await onOpenSession(data.sessionId,data.workspaceId);
       return data;
     }catch(error){
       publish({sectorAi:{phase:'error',sessionId:error?.sessionId||data?.sessionId||a.sessionId||null,requestId,error:investText(error?.message||error)}});
@@ -587,7 +587,7 @@ function createInvestStore(options) {
       if(!response.ok){const sessionId=data?.sessionId||a.sessionId||null;throw Object.assign(Error(investText(data?.error||'AI 个股分析未启动')),{sessionId});}
       if(data?.submitted!==true||typeof data.sessionId!=='string'||typeof data.workspaceId!=='string')throw Error('未收到有效的分析受理回执');
       publish({stockAi:{phase:'ready',targetKey,submitted:true,sessionId:data.sessionId,requestId,error:null}});
-      await onOpenSession(data.sessionId);
+      await onOpenSession(data.sessionId,data.workspaceId);
       return data;
     }catch(error){
       const submitted=data?.submitted===true&&typeof data.sessionId==='string'&&typeof data.workspaceId==='string';
@@ -615,7 +615,7 @@ function createInvestStore(options) {
       if(!response.ok){const sessionId=data?.sessionId||a.sessionId||null;throw Object.assign(Error(investText(data?.error||'AI 自选股分析未启动')),{sessionId});}
       if(data?.submitted!==true||typeof data.sessionId!=='string'||typeof data.workspaceId!=='string')throw Error('未收到有效的分析受理回执');
       publish({watchAi:{phase:'ready',targetKey,submitted:true,sessionId:data.sessionId,requestId,error:null}});
-      await onOpenSession(data.sessionId);
+      await onOpenSession(data.sessionId,data.workspaceId);
       return data;
     }catch(error){
       const submitted=data?.submitted===true&&typeof data.sessionId==='string'&&typeof data.workspaceId==='string';
@@ -668,16 +668,28 @@ function createInvestStore(options) {
   async function startDailyReview(open){
     if(state.dailyStart.phase==='loading'||typeof open!=='function')return;
     const t=token('dailyStart'), navigation=open.begin?.();publish({dailyStart:{...investIdle(),phase:'loading'}});
+    const post=body=>fetcher(dailyRoute,{method:'POST',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.any([t.c.signal,AbortSignal.timeout(60000)])});
     try{
-      const res=await fetcher(dailyRoute,{method:'POST',signal:AbortSignal.any([t.c.signal,AbortSignal.timeout(110000)])});
-      const data=await res.json();if(!current('dailyStart',t))return;
+      let res=await post(),data=await res.json().catch(()=>null);
+      if(!current('dailyStart',t))return;
+      // A conversation the user archived cannot be reopened; ask the Host to replace it
+      // with a fresh one for the same frozen date instead of handing back a dead link.
+      if(res.ok&&dailySessionRow(data)&&data.reused===true&&typeof options.sessionOpenable==='function'&&!options.sessionOpenable(data.sessionId)){
+        res=await post({restart:true});data=await res.json().catch(()=>null);
+        if(!current('dailyStart',t))return;
+      }
       if(!res.ok||!dailySessionRow(data))throw Error(investText(data?.error)||'HTTP '+res.status);
-      if(!navigation?.aborted)open(data.sessionId);
-      publish({dailyStart:{phase:'ready',data,error:null}});void loadDailyHistory();
+      // Opening the exact session is a separate step: a navigation failure must not look
+      // like a stuck start, and the returned identity stays visible for a manual retry.
+      let opened=true,openError=null;
+      if(navigation?.aborted){opened=false;openError={key:'dailyOpenCancelled'};}
+      else{try{open(data.sessionId,data.workspaceId);}catch(error){opened=false;openError={key:'dailyOpenFailed',detail:error?.message||String(error)};}}
+      publish({dailyStart:{phase:opened?'ready':'error',data,error:openError}});
+      void loadDailyHistory();
     }catch(error){if(current('dailyStart',t)){publish({dailyStart:{...investIdle(),phase:'error',error:cockpitFailure(error)}});void loadDailyHistory();}}
     finally{if(requests.get('dailyStart')===t.c)requests.delete('dailyStart');}
   }
-  function openDailyReview(date,open){const row=state.dailyHistory.data?.find(r=>r.date===date);if(row&&typeof open==='function')open(row.sessionId);}
+  function openDailyReview(date,open){const row=state.dailyHistory.data?.find(r=>r.date===date);if(row&&typeof open==='function')open(row.sessionId,row.workspaceId);}
   function closeReviewReference(){publish({reviewMode:'daily',reviewFocusPlanId:''});}
   let followLatestReview=true;
   async function loadReviews({refresh=false}={}) {
@@ -892,7 +904,7 @@ function createInvestStore(options) {
       if(!response.ok){const sessionId=data?.sessionId||a.sessionId||null;throw Object.assign(Error(investText(data?.error||'AI 专家选股未启动')),{sessionId});}
       if(data?.submitted!==true||typeof data.sessionId!=='string'||typeof data.workspaceId!=='string')throw Error('未收到有效的分析受理回执');
       publish({selectionAi:{phase:'ready',targetKey,submitted:true,sessionId:data.sessionId,requestId,error:null}});
-      await onOpenSession(data.sessionId);
+      await onOpenSession(data.sessionId,data.workspaceId);
       return data;
     }catch(error){
       const submitted=data?.submitted===true&&typeof data.sessionId==='string'&&typeof data.workspaceId==='string';
@@ -1645,7 +1657,7 @@ s.experts.phase==='ready'&&!s.experts.data.items.length?h(Empty,null,t('noExpert
       h('header',{className:'sti-heading'},h('h1',null,t('review'))),
       h('section',{className:'sti-card sti-daily-controls','aria-label':t('review')},
         h('div',null,h(Button,{primary:true,onClick:()=>store.startDailyReview(onOpenExpertSession),disabled:busy||!s.connection.ready||!onOpenExpertSession},t(busy?'dailyStarting':'dailyRun')),
-          h('p',{className:'sti-muted'},t('dailyIntro')),h(ErrorView,{error:s.dailyStart.error,t})),
+          h('p',{className:'sti-muted'},t('dailyIntro')),h(ErrorView,{error:s.dailyStart.error,t}),h('p',{className:'sti-muted'},s.dailyStart.data?.sessionId?t('dailySessionId')+': '+s.dailyStart.data.sessionId:null)),
         h('div',null,h('label',null,t('dailyHistory'),h('select',{value:'',disabled:!past.length||!onOpenExpertSession,onChange:e=>store.openDailyReview(e.target.value,onOpenExpertSession)},
           h('option',{value:'',disabled:true},t('dailyChoose')),...past.map(row=>h('option',{key:row.date,value:row.date},row.date)))),
           h(Status,{resource:s.dailyHistory,t}),s.dailyHistory.phase==='ready'&&!past.length?h('p',{className:'sti-muted'},t('dailyEmpty')):null)),

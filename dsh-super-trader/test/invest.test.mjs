@@ -49,22 +49,34 @@ function text(node){return Array.isArray(node)?node.map(text).join(' '):node&&ty
 function ui(h,component,props={}){const R=fakeReact(),c=h.api.createInvestComponents(R,h.store),t=k=>h.api.investMessages().zh[k] || k;return render(c[component]({t,...props}));}
 
 test('daily review page has only start and date navigation; history never starts AI',async()=>{
-  const opened=[],rows=[{date:'2026-11-20',sessionId:'session-a'},{date:'2026-11-19',sessionId:'session-b'}];
+  const opened=[],rows=[{date:'2026-11-20',sessionId:'session-a',workspaceId:'W-a'},{date:'2026-11-19',sessionId:'session-b',workspaceId:'W-b'}];
   const h=setup({fetch:(url,init,base)=>url.endsWith('/daily-review')?Promise.resolve(reply(init.method==='POST'?rows[0]:{items:rows})):base(url,init)});
   await h.store.loadDailyHistory();
-  const node=ui(h,'Invest',{tab:'review',onOpenExpertSession:id=>opened.push(id)});
+  const node=ui(h,'Invest',{tab:'review',onOpenExpertSession:(id,workspaceId)=>opened.push([id,workspaceId])});
   assert.match(text(node),/立即进行 AI 复盘/);
   assert.equal(nodes(node).filter(n=>n.type==='button').length,1);
   assert.equal(nodes(node).filter(n=>n.type==='select').length,1);
   assert.doesNotMatch(text(node),/专家模拟组合|选股批次复盘/);
   nodes(node).find(n=>n.type==='select').props.onChange({target:{value:'2026-11-19'}});
-  assert.deepEqual(opened,['session-b']);
+  assert.deepEqual(opened,[['session-b','W-b']]);
   assert.equal(h.requests.filter(r=>r.init.method==='POST').length,0);
-  await h.store.startDailyReview(id=>opened.push(id));
-  assert.deepEqual(opened,['session-b','session-a']);
+  await h.store.startDailyReview((id,workspaceId)=>opened.push([id,workspaceId]));
+  assert.deepEqual(opened,[['session-b','W-b'],['session-a','W-a']]);
   assert.equal(h.requests.filter(r=>r.init.method==='POST').length,1);
 });
 
+test('an archived review conversation is replaced instead of reopened',async()=>{
+  const posts=[],opened=[];
+  const h=setup({fetch:(url,init)=>{const body=init?.body?JSON.parse(init.body):null;if(init?.method==='POST')posts.push(body);
+    return Promise.resolve(reply({date:'2026-11-20',workspaceId:'W-review',sessionId:body?.restart?'session-new':'session-old',reportUrl:'/dsh-super-trader/daily-review/report/2026-11-20',reused:!body?.restart}));},
+    store:{sessionOpenable:()=>false}});
+  await h.store.startDailyReview(id=>opened.push(id));
+  assert.equal(posts.length,2);
+  assert.equal(posts[0],null);
+  assert.deepEqual(posts[1],{restart:true});
+  assert.deepEqual(opened,['session-new']);
+  h.store.dispose();
+});
 test('watchlist page searches stocks and listed funds (ETF/LOF) from the page itself',async()=>{
   const h=setup({fetch:(url,init,base)=>{
     const u=new URL('http://local'+url);
@@ -181,11 +193,11 @@ test('refresh failure keeps last price and both times, backs off to 10 minutes, 
 });
 test('stock page team button starts Ai个股分析 directly without navigating to experts',async()=>{
   const h=setup(),opened=[];await h.store.queryStock('601088');const beforeTab=h.store.getSnapshot().tab;
-  const tree=ui(h,'Stock',{onOpenExpertSession:id=>opened.push(id)});
+  const tree=ui(h,'Stock',{onOpenExpertSession:(id,workspaceId)=>opened.push([id,workspaceId])});
   const button=nodes(tree).find(n=>n.type==='button'&&text(n).trim()==='请专家团队分析走势');assert.ok(button);
   await button.props.onClick();
   assert.ok(h.requests.some(r=>r.url.endsWith('/stock-analysis')));
-  assert.equal(h.store.getSnapshot().tab,beforeTab);assert.notEqual(h.store.getSnapshot().tab,'experts');assert.equal(opened[0],'S-stock');
+  assert.equal(h.store.getSnapshot().tab,beforeTab);assert.notEqual(h.store.getSnapshot().tab,'experts');assert.deepEqual(opened[0],['S-stock','W-stock']);
   assert.equal(h.requests.some(r=>r.url.includes('/experts')),false);h.store.dispose();
 });
 test('a new stock analysis click uses a fresh request after the previous session was accepted',async()=>{
@@ -249,7 +261,7 @@ test('expert navigation and new-expert buttons share one action row',async()=>{
   await h.store.queryStock('601088');const selected=ui(h,'Experts');assert.match(text(selected),/新建专家/);h.store.dispose();
 });
 test('new expert asks for natural-language requirements and starts only on explicit submit',async()=>{
-  const h=setup(),opened=[];h.store.newExpert();const tree=ui(h,'Experts',{onOpenExpertSession:id=>opened.push(id)});
+  const h=setup(),opened=[];h.store.newExpert();const tree=ui(h,'Experts',{onOpenExpertSession:(id,workspaceId)=>opened.push([id,workspaceId])});
   assert.equal(h.requests.length,0);assert.match(text(tree),/想新建什么专家/);assert.match(text(tree),/可能产生模型费用/);
   assert.equal(nodes(tree).filter(n=>n.type==='textarea').length,1);assert.doesNotMatch(text(tree),/工具（每行一个）/);
   h.store.expertRequirement('我想参考 B站 北京炒家的公开方法');const result=await h.store.startExpertCreation(id=>opened.push(id));
@@ -322,22 +334,22 @@ test('selecting a sector does not fetch or display a raw report',async()=>{
 });
 test('stock team button creates the Ai个股分析 session instead of a backend team job',async()=>{
   const h=setup(),opened=[];await h.store.queryStock('601088','中国神华');await h.store.loadExperts();
-  const tree=ui(h,'Experts',{onOpenExpertSession:id=>opened.push(id)});
+  const tree=ui(h,'Experts',{onOpenExpertSession:(id,workspaceId)=>opened.push([id,workspaceId])});
   const button=nodes(tree).find(n=>n.type==='button'&&text(n).trim()==='开始 AI 个股分析');assert.ok(button);
   await button.props.onClick();
   const post=h.requests.find(r=>r.url.endsWith('/stock-analysis'));assert.ok(post);
-  assert.equal(JSON.parse(post.init.body).code,'601088');assert.equal(opened.length,1);assert.equal(opened[0],'S-stock');
+  assert.equal(JSON.parse(post.init.body).code,'601088');assert.equal(opened.length,1);assert.deepEqual(opened[0],['S-stock','W-stock']);
   assert.equal(h.store.getSnapshot().stockAi.phase,'ready');assert.equal(h.store.getSnapshot().stockAi.sessionId,'S-stock');
   assert.equal(h.requests.some(r=>r.url.endsWith('/research/team')),false);h.store.dispose();
 });
 test('sector AI button creates the Ai板块分析 session and opens it',async()=>{
   const h=setup(),opened=[];await h.store.querySector({thscode:'881101.TI',name:'真实板块'});
-  const tree=ui(h,'Sectors',{onOpenExpertSession:id=>opened.push(id)});
+  const tree=ui(h,'Sectors',{onOpenExpertSession:(id,workspaceId)=>opened.push([id,workspaceId])});
   const button=nodes(tree).find(n=>n.type==='button'&&text(n).trim()==='开始 AI 板块分析');assert.ok(button);
   await button.props.onClick();
   const post=h.requests.find(r=>r.url.endsWith('/sector-analysis'));assert.ok(post);
   assert.deepEqual(JSON.parse(post.init.body).thscode,'881101.TI');assert.equal(JSON.parse(post.init.body).name,'真实板块');
-  assert.deepEqual(opened,['S-sector']);assert.equal(h.store.getSnapshot().sectorAi.phase,'ready');assert.equal(h.store.getSnapshot().sectorAi.sessionId,'S-sector');
+  assert.deepEqual(opened,[['S-sector','W-sector']]);assert.equal(h.store.getSnapshot().sectorAi.phase,'ready');assert.equal(h.store.getSnapshot().sectorAi.sessionId,'S-sector');
   assert.match(text(ui(h,'Sectors',{onOpenExpertSession:()=>{}})),/打开分析会话/);h.store.dispose();
 });
 test('sector page hides raw market evidence and offers AI team analysis instead',async()=>{
@@ -410,7 +422,7 @@ test('watchlist page selects stocks and starts one team session for the selectio
     return base(url,init);
   }});
   await h.store.loadWatch();
-  const tree=ui(h,'Watchlist',{onOpenExpertSession:id=>opened.push(id)});
+  const tree=ui(h,'Watchlist',{onOpenExpertSession:(id,workspaceId)=>opened.push([id,workspaceId])});
   const boxes=nodes(tree).filter(n=>n.type==='input'&&n.props.type==='checkbox');
   assert.equal(boxes.length,2);assert.ok(boxes.every(b=>b.props.checked===true),'default checked');
   const start=nodes(tree).filter(n=>n.type==='button').find(n=>text(n).includes('专家团队分析选中的自选股'));
@@ -419,7 +431,7 @@ test('watchlist page selects stocks and starts one team session for the selectio
   const post=h.requests.find(r=>r.url.endsWith('/watchlist-analysis'));
   const body=JSON.parse(post.init.body);
   assert.deepEqual(body.items.map(x=>[x.code,x.category]),[['601088','个股'],['513290','ETF']]);
-  assert.equal(opened[0],'S-watch');
+  assert.deepEqual(opened[0],['S-watch','W-watch']);
   assert.equal(h.store.getSnapshot().watchAi.phase,'ready');
   h.store.dispose();
 });

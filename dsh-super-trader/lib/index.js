@@ -59,7 +59,7 @@ export function mount(ctx, createManager = () => new BackendManager()) {
         const stockAnalysis = new StockAnalysisService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),applyPermission});
         const watchlistAnalysis = new WatchlistAnalysisService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),applyPermission});
         const selectionAnalysis = new SelectionAnalysisService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),applyPermission});
-        const dailyReview = new DailyReviewService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),workingDirectory:optional('workingDirectory'),loadReport:()=>loadDailyReviewData(manager),renderHtml:investDailyReviewHtml,reportOrigin:()=>web.getOrigin(),loadLive:async report=>{
+        const dailyReview = new DailyReviewService({workspaces:optional('workspaceRegistry'),sessions:optional('sessionController'),archive:optional('workspaceController'),workingDirectory:optional('workingDirectory'),loadReport:()=>loadDailyReviewData(manager),renderHtml:investDailyReviewHtml,reportOrigin:()=>web.getOrigin(),loadLive:async report=>{
           const signals=(report?.signals??[]).filter(signal=>typeof signal.code==='string'&&/^\d{6}$/.test(signal.code)&&Number(signal.triggerPrice)>0);
           if(!signals.length)return null;
           const codes=[...new Set(signals.map(signal=>signal.code))];
